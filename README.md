@@ -12,7 +12,7 @@
 | 6.2.2026  | -     | 10:15-12:45   | 2,5     | LBS | PSP / projektHandbuch                               | -        | -       |
 | 9.2.2026  | -     | 11:00 - 12:00 | 1       | LBS | Arbeitpakete beschreiben                            | -        | -       |
 | 9.2.2026  | -     | 13:00 - 14:00 | 1       | LBS | Arbeitpakete beschreiben                            | -        | -       |
-| 10.2.2026 | -     | 7:30 - 10:00  | 1       | LBS | Arbeitpakete beschreiben                            | -        | -       |
+| 10.2.2026 | -     | 7:30 - 10:00  | 2,5     | LBS | Arbeitpakete beschreiben                            | -        | -       |
 
 
 ### Reza Sanjari
@@ -25,7 +25,7 @@
 | 6.2.2026  | -     | 10:15-12:45   | 2,5     | LBS | PSP / projektHandbuch                               | -        | -       |
 | 9.2.2026  | -     | 11:00 - 12:00 | 1       | LBS | Arbeitpakete beschreiben                            | -        | -       |
 | 9.2.2026  | -     | 13:00 - 14:00 | 1       | LBS | Arbeitpakete beschreiben                            | -        | -       |
-| 10.2.2026 | -     | 7:30 - 10:00  | 1       | LBS | Arbeitpakete beschreiben                            | -        | -       |
+| 10.2.2026 | -     | 7:30 - 10:00  | 2,5     | LBS | Arbeitpakete beschreiben                            | -        | -       |
 
 
 [![Review Assignment Due Date](https://classroom.github.com/assets/deadline-readme-button-22041afd0340ce965d47ae6ef1cefeee28c7c493a6346c4f15d667ab976d596c.svg)](https://classroom.github.com/a/vmXKgVrt)
