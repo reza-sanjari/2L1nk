@@ -1,6 +1,8 @@
 # Created by https://www.toptal.com/developers/gitignore/api/goland+iml,visualstudio,dotenv
 # Edit at https://www.toptal.com/developers/gitignore?templates=goland+iml,visualstudio,dotenv
 
+research
+
 ### dotenv ###
 .env
 
