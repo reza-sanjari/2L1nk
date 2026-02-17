@@ -18,6 +18,14 @@ func NewHealthHandler(svc HealthService) *HealthHandler {
 	return &HealthHandler{service: svc}
 }
 
+// Health godoc
+// @Summary      Health check
+// @Description  Returns application health status
+// @Tags         health
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  map[string]string
+// @Router       /api/health [get]
 func (h *HealthHandler) Health(c echo.Context) error {
 	data, err := h.service.GetStatus()
 	if err != nil {
