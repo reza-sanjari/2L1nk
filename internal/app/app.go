@@ -1,7 +1,7 @@
 package app
 
 import (
-	"2L1nk/internal/api"
+	"2L1nk/internal/api/handlers"
 	"2L1nk/internal/config"
 	"2L1nk/internal/infrastructure/db"
 	"2L1nk/internal/server"
@@ -13,17 +13,23 @@ type App struct {
 }
 
 func New(cfg *config.Config) *App {
-	// Infrastructure
+	// 1. Infrastructure
 	healthRepo := db.NewHealthRepository()
 
-	// Services
+	// 2. Services
 	healthSvc := service.NewHealthService(healthRepo)
 
-	// Handlers
-	handlers := api.NewHandler(healthSvc)
+	// 3. Service Container
+	services := service.NewContainer(healthSvc)
 
-	// Server
-	srv := server.New(cfg, handlers)
+	// 4. Hub (when implemented)
+	// hub := hub.New()
+
+	// 5. Handler (inject container + hub)
+	handler := handlers.NewHandler(services)
+
+	// 6. Server
+	srv := server.New(cfg, handler)
 
 	return &App{
 		server: srv,
