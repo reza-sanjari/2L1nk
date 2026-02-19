@@ -6,6 +6,7 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"2L1nk/internal/api"
+	"2L1nk/internal/api/handlers"
 	"2L1nk/internal/config"
 )
 
@@ -14,10 +15,10 @@ type Server struct {
 	cfg  *config.Config
 }
 
-func New(cfg *config.Config, handlers *api.Handler) *Server {
+func New(cfg *config.Config, h *handlers.Handler) *Server {
 	e := echo.New()
 
-	api.RegisterRoutes(e, handlers)
+	api.RegisterRoutes(e, h)
 
 	return &Server{
 		echo: e,
