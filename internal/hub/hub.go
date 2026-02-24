@@ -1,9 +1,11 @@
 package hub
 
-type Hub struct{}
+import "2L1nk/internal/session"
 
-func New() *Hub {
-	return &Hub{}
+type Hub struct{ s *session.Store }
+
+func New(s *session.Store) *Hub {
+	return &Hub{s: s}
 }
 
 func (h *Hub) Status() (string, error) {
