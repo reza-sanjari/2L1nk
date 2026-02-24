@@ -7,6 +7,7 @@ import (
 	"2L1nk/internal/infrastructure/db"
 	"2L1nk/internal/server"
 	"2L1nk/internal/service"
+	"2L1nk/internal/session"
 )
 
 type App struct {
@@ -14,29 +15,26 @@ type App struct {
 }
 
 func New(cfg *config.Config) *App {
-	// 1. Infrastructure
+	// 1. Session Store
+	sessionStore := session.NewStore()
+
+	// 2. Infrastructure
 	healthRepo := db.NewHealthRepository()
 
-	// 2. Services
+	// 3. Services
 	healthSvc := service.NewHealthService(healthRepo)
 
-	// 3. Service Container
+	// 4. Service Container
 	services := service.NewContainer(healthSvc)
 
-	// 4. Hub (when implemented)
-	mainHub := hub.New()
+	// 5. Hub (receives session store)
+	mainHub := hub.New(sessionStore)
 
-	// 5. Handler (inject container + hub)
+	// 6. Handler
 	handler := handlers.NewHandler(services, mainHub)
 
-	// 6. Server
-	srv := server.New(cfg, handler)
+	// 7. Server (receives handler + session store for middleware)
+	srv := server.New(cfg, handler, sessionStore)
 
-	return &App{
-		server: srv,
-	}
-}
-
-func (a *App) Start() error {
-	return a.server.Start()
+	return &App{server: srv}
 }

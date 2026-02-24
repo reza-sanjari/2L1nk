@@ -1,6 +1,7 @@
 package server
 
 import (
+	"2L1nk/internal/session"
 	"fmt"
 	"net/http"
 	"os"
@@ -19,11 +20,11 @@ type Server struct {
 	cfg  *config.Config
 }
 
-func New(cfg *config.Config, h *handlers.Handler) *Server {
+func New(cfg *config.Config, h *handlers.Handler, s *session.Store) *Server {
 	e := echo.New()
 
 	// Register API routes first (highest priority)
-	api.RegisterRoutes(e, h)
+	api.RegisterRoutes(e, h, s)
 
 	// Serve static assets (CSS, JS, images, etc.)
 	e.Static("/css", "web/css")
