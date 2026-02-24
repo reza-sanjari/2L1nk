@@ -7,8 +7,15 @@ type User struct {
 	PublicKey            string
 	PublicKeyFingerprint string
 	Username             string
-	Mode                 string // "ephemeral" or "persistent"
+	Mode                 UserMode // "ephemeral" or "persistent"
 }
+
+type UserMode int
+
+const (
+	UserModeEphemeral UserMode = iota
+	UserModePersistent
+)
 
 type Store struct {
 	mu        sync.RWMutex
