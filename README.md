@@ -17,6 +17,7 @@
 | 12.2.2026 | 1.1.4 | 7:30 - 11:00  | 3,5     | LBS | Projekt-Handbuch                                    | -        | -       |
 | 13.2.2026 | -     | 10:00 - 12:30 | 2,5     | LBS | Projekt Plannung                                    | -        | -       |
 | 13.2.2026 | -     | 14:40 - 15:40 | 1       | LBS | Projekt Plannung                                    | -        | -       |
+| 24.2.2026 | 1.3.1 | 7:30 - 11:00  | 2,5     | LBS | Website Plannung                                    | -        | -       |
 
 
 ### Reza Sanjari
@@ -34,6 +35,7 @@
 | 12.2.2026 | 1.1.5 | 7:30 - 11:00  | 3,5     | LBS | GanttChart                                          | -        | -       |
 | 13.2.2026 | -     | 10:00 - 12:30 | 2,5     | LBS | Projekt Plannung                                    | -        | -       |
 | 13.2.2026 | -     | 14:40 - 15:40 | 1       | LBS | Projekt Plannung                                    | -        | -       |
+| 24.2.2026 | 1.2.1 | 7:30 - 11:00  | 2,5     | LBS | API Design                                          | -        | -       |
 
 
 [![Review Assignment Due Date](https://classroom.github.com/assets/deadline-readme-button-22041afd0340ce965d47ae6ef1cefeee28c7c493a6346c4f15d667ab976d596c.svg)](https://classroom.github.com/a/vmXKgVrt)
