@@ -38,3 +38,7 @@ func New(cfg *config.Config) *App {
 
 	return &App{server: srv}
 }
+
+func (a *App) Start() error {
+	return a.server.Start()
+}
