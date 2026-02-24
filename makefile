@@ -6,7 +6,6 @@ CMD_PATH=./cmd/2L1nk
 BUILD_DIR=./bin
 COVERAGE_FILE=coverage.out
 COVERAGE_HTML=coverage.html
-DOCS_PATH=./docs
 
 GO=go
 
@@ -85,7 +84,6 @@ run:
 clean:
 	rm -rf $(BUILD_DIR)
 	rm -f $(COVERAGE_FILE) $(COVERAGE_HTML)
-	rm -rf $(DOCS_PATH)
 
 # ==========================
 # Tests
@@ -130,12 +128,3 @@ fmt:
 .PHONY: tidy
 tidy:
 	$(GO) mod tidy
-
-# ==========================
-# Swagger
-# ==========================
-.PHONY: swag
-swag:
-	swag init -g cmd/2L1nk/main.go --outputTypes json
-	swagger2openapi docs/swagger.json -o docs/openapi.json
-	rm $(DOCS_PATH)/swagger.json

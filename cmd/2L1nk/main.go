@@ -1,12 +1,3 @@
-// @title       	2L1nk API
-// @version     	1.0
-// @description 	This is the 2L1nk API documentation.
-// @contact.name  	Reza Sanjari
-// @contact.email 	reza.sanjari@avl.com
-// @host        	localhost:8080
-// @BasePath    	/
-// @schemes     	http
-
 package main
 
 import (
