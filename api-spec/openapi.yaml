@@ -1,0 +1,202 @@
+openapi: 3.1.0
+info:
+  title: 2L1nk HTTP API
+  version: 1.0.0
+  description: |
+    REST API for gate access, user management and chat lifecycle.
+    All endpoints are under /api.
+
+servers:
+  - url: http://localhost:8080
+
+security:
+  - SessionAuth: []
+
+components:
+
+  securitySchemes:
+    SessionAuth:
+      type: apiKey
+      in: header
+      name: X-Session-ID
+
+  schemas:
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "invalid gate key"
+
+    GateAuthorizeRequest:
+      type: object
+      required: [gateToken, publicKey, username, mode]
+      properties:
+        gateToken:
+          type: string
+          example: "server-generated-gate-key"
+        publicKey:
+          type: string
+          description: Full public key (PEM or base64-encoded)
+          example: "MIIBIjANBgkqhki..."
+        username:
+          type: string
+          example: "alice"
+        mode:
+          type: string
+          enum: [ephemeral, persistent]
+          example: "ephemeral"
+
+    GateAuthorizeResponse:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+
+    UserResponse:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        publicKeyFingerprint:
+          type: string
+        username:
+          type: string
+        mode:
+          type: string
+          enum: [ephemeral, persistent]
+
+    CreateRoomRequest:
+      type: object
+      required: [type, members]
+      properties:
+        type:
+          type: string
+          enum: [dm, group]
+        members:
+          type: array
+          items:
+            type: string
+          description: Public key fingerprints of members
+          example: ["fp_9af81c...", "fp_3bc72d..."]
+
+    RoomResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [dm, group]
+        members:
+          type: array
+          items:
+            type: string
+
+    DeleteChatsResponse:
+      type: object
+      properties:
+        deleted:
+          type: boolean
+          example: true
+
+paths:
+
+  /api/health:
+    get:
+      summary: Health check
+      security: []
+      responses:
+        "200":
+          description: Server alive
+
+  /api/auth/gate:
+    post:
+      summary: Authorize with gate key, register identity, receive session ID
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GateAuthorizeRequest'
+      responses:
+        "200":
+          description: Authorized — session ID returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GateAuthorizeResponse'
+        "401":
+          description: Invalid gate key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "409":
+          description: Username already in use
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/users/me:
+    get:
+      summary: Get current user info (from session)
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        "401":
+          description: Invalid or missing session ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/rooms:
+    post:
+      summary: Create DM or group chat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRoomRequest'
+      responses:
+        "200":
+          description: Room created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomResponse'
+        "401":
+          description: Invalid or missing session ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/users/me/chats:
+    delete:
+      summary: Delete all chats for current user (persistent mode only)
+      responses:
+        "200":
+          description: Chats deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteChatsResponse'
+        "401":
+          description: Invalid or missing session ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
