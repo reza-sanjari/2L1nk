@@ -116,33 +116,48 @@ paths:
 
   /api/auth/gate:
     post:
-      summary: Authorize with gate key, register identity, receive session ID
-      security: []
+      summary: Authorize with gate key, prove key ownership, receive session ID
+      security: [ ]
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GateAuthorizeRequest'
+              type: object
+              required: [ gateToken, publicKey, username, timestamp, signature ]
+              properties:
+                gateToken:
+                  type: string
+                publicKey:
+                  type: string
+                  description: Full public key (PEM or base64)
+                username:
+                  type: string
+                mode:
+                  type: string
+                  enum: [ ephemeral, persistent ]
+                  default: ephemeral
+                timestamp:
+                  type: integer
+                  description: Unix timestamp, server rejects if too old
+                signature:
+                  type: string
+                  description: sign(privateKey, gateToken + timestamp)
       responses:
         "200":
-          description: Authorized — session ID returned
+          description: Authorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GateAuthorizeResponse'
+                type: object
+                properties:
+                  sessionId:
+                    type: string
+                    format: uuid
         "401":
-          description: Invalid gate key
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          description: Invalid gate key or signature verification failed
         "409":
           description: Username already in use
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
 
   /api/users/me:
     get:
