@@ -3,11 +3,14 @@ package app
 import (
 	"2L1nk/internal/api/handlers"
 	"2L1nk/internal/config"
+	"2L1nk/internal/gate"
 	"2L1nk/internal/hub"
 	"2L1nk/internal/infrastructure/db"
 	"2L1nk/internal/server"
 	"2L1nk/internal/service"
 	"2L1nk/internal/session"
+	"fmt"
+	"log"
 )
 
 type App struct {
@@ -15,25 +18,34 @@ type App struct {
 }
 
 func New(cfg *config.Config) *App {
-	// 1. Session Store
+	// Session Store
 	sessionStore := session.NewStore()
 
-	// 2. Infrastructure
+	// Infrastructure
 	healthRepo := db.NewHealthRepository()
 
-	// 3. Services
+	// Gate
+	g, err := gate.New(0)
+	if err != nil {
+		log.Fatalf("failed to initialize gate: %v", err)
+	}
+	
+	fmt.Printf("Gate key: %s (unlimited uses)\n", g.Key())
+
+	// Services
 	healthSvc := service.NewHealthService(healthRepo)
+	gateSvc := service.NewGateService(g)
 
-	// 4. Service Container
-	services := service.NewContainer(healthSvc)
+	// Service Container
+	services := service.NewContainer(healthSvc, gateSvc)
 
-	// 5. Hub (receives session store)
+	// Hub (receives session store)
 	mainHub := hub.New(sessionStore)
 
-	// 6. Handler
+	// Handler
 	handler := handlers.NewHandler(services, mainHub)
 
-	// 7. Server (receives handler + session store for middleware)
+	// Server (receives handler + session store for middleware)
 	srv := server.New(cfg, handler, sessionStore)
 
 	return &App{server: srv}

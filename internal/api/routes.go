@@ -25,6 +25,7 @@ func RegisterRoutes(e *echo.Echo, h *handlers.Handler, store *session.Store) {
 	api := e.Group("/api")
 
 	api.GET("/health", h.Health)
+	api.POST("/auth/gate", h.GateAuthorize)
 
 	protected := api.Group("", SessionAuthMiddleware(store))
 	_ = protected
