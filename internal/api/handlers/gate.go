@@ -1,12 +1,12 @@
 package handlers
 
 import (
+	"2L1nk/internal/models"
 	"crypto/ed25519"
 	"errors"
 	"net/http"
 
 	"2L1nk/internal/service"
-	"2L1nk/internal/session"
 
 	"github.com/labstack/echo/v4"
 )
@@ -15,7 +15,7 @@ type gateAuthorizeRequest struct {
 	GateToken string            `json:"gateToken"`
 	PublicKey ed25519.PublicKey `json:"publicKey"`
 	Username  string            `json:"username"`
-	Mode      int               `json:"mode"`
+	Mode      models.UserMode   `json:"mode"`
 	Timestamp int               `json:"timestamp"`
 	Signature string            `json:"signature"`
 }
@@ -34,16 +34,17 @@ func (h *Handler) GateAuthorize(c echo.Context) error {
 		})
 	}
 
-	mode := session.UserModeEphemeral
-	if req.Mode == 1 {
-		mode = session.UserModePersistent
+	if req.Mode != models.UserModeEphemeral && req.Mode != models.UserModePersistent {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "invalid mode",
+		})
 	}
 
 	result, err := h.Services.Gate.Authorize(service.GateRequest{
 		GateToken: req.GateToken,
 		PublicKey: req.PublicKey,
 		Username:  req.Username,
-		Mode:      mode,
+		Mode:      req.Mode,
 	})
 
 	if err != nil {

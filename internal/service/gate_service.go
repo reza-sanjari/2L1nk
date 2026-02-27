@@ -2,6 +2,7 @@ package service
 
 import (
 	"2L1nk/internal/gate"
+	"2L1nk/internal/models"
 	"2L1nk/internal/session"
 	"2L1nk/internal/utils"
 	"crypto/ed25519"
@@ -25,7 +26,7 @@ type GateRequest struct {
 	GateToken string
 	PublicKey ed25519.PublicKey
 	Username  string
-	Mode      session.UserMode
+	Mode      models.UserMode
 }
 
 type GateResult struct {

@@ -1,6 +1,7 @@
 package session
 
 import (
+	"2L1nk/internal/models"
 	"crypto/ed25519"
 	"sync"
 )
@@ -10,15 +11,8 @@ type User struct {
 	PublicKey            ed25519.PublicKey
 	PublicKeyFingerprint string
 	Username             string
-	Mode                 UserMode // "ephemeral" or "persistent"
+	Mode                 models.UserMode // "ephemeral" or "persistent"
 }
-
-type UserMode int
-
-const (
-	UserModeEphemeral UserMode = iota
-	UserModePersistent
-)
 
 type Store struct {
 	mu        sync.RWMutex
