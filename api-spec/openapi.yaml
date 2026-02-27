@@ -31,7 +31,7 @@ components:
 
     GateAuthorizeRequest:
       type: object
-      required: [gateToken, publicKey, username, mode]
+      required: [gateToken, publicKey, username, mode, timestamp, signature]
       properties:
         gateToken:
           type: string
@@ -44,9 +44,19 @@ components:
           type: string
           example: "alice"
         mode:
+          type: integer
+          description: "0 = ephemeral, 1 = persistent"
+          enum: [0, 1]
+          default: 0
+          example: 0
+        timestamp:
+          type: integer
+          description: Unix timestamp, server rejects if too old
+          example: 1716000000
+        signature:
           type: string
-          enum: [ephemeral, persistent]
-          example: "ephemeral"
+          description: sign(privateKey, gateToken + timestamp)
+          example: "base64-encoded-signature"
 
     GateAuthorizeResponse:
       type: object
@@ -67,8 +77,9 @@ components:
         username:
           type: string
         mode:
-          type: string
-          enum: [ephemeral, persistent]
+          type: integer
+          description: "0 = ephemeral, 1 = persistent"
+          enum: [0, 1]
 
     CreateRoomRequest:
       type: object
@@ -117,47 +128,44 @@ paths:
   /api/auth/gate:
     post:
       summary: Authorize with gate key, prove key ownership, receive session ID
-      security: [ ]
+      security: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [ gateToken, publicKey, username, timestamp, signature ]
-              properties:
-                gateToken:
-                  type: string
-                publicKey:
-                  type: string
-                  description: Full public key (PEM or base64)
-                username:
-                  type: string
-                mode:
-                  type: string
-                  enum: [ ephemeral, persistent ]
-                  default: ephemeral
-                timestamp:
-                  type: integer
-                  description: Unix timestamp, server rejects if too old
-                signature:
-                  type: string
-                  description: sign(privateKey, gateToken + timestamp)
+              $ref: '#/components/schemas/GateAuthorizeRequest'
       responses:
         "200":
           description: Authorized
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  sessionId:
-                    type: string
-                    format: uuid
+                $ref: '#/components/schemas/GateAuthorizeResponse'
+        "400":
+          description: Invalid request body or missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         "401":
           description: Invalid gate key or signature verification failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         "409":
           description: Username already in use
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /api/users/me:
     get:
