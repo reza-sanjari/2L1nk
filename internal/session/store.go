@@ -1,10 +1,13 @@
 package session
 
-import "sync"
+import (
+	"crypto/ed25519"
+	"sync"
+)
 
 type User struct {
 	SessionID            string
-	PublicKey            string
+	PublicKey            ed25519.PublicKey
 	PublicKeyFingerprint string
 	Username             string
 	Mode                 UserMode // "ephemeral" or "persistent"

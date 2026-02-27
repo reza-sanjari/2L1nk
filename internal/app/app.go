@@ -29,12 +29,12 @@ func New(cfg *config.Config) *App {
 	if err != nil {
 		log.Fatalf("failed to initialize gate: %v", err)
 	}
-	
+
 	fmt.Printf("Gate key: %s (unlimited uses)\n", g.Key())
 
 	// Services
 	healthSvc := service.NewHealthService(healthRepo)
-	gateSvc := service.NewGateService(g)
+	gateSvc := service.NewGateService(g, sessionStore)
 
 	// Service Container
 	services := service.NewContainer(healthSvc, gateSvc)
