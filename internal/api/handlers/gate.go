@@ -1,18 +1,19 @@
 package handlers
 
 import (
+	"2L1nk/internal/session"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
 )
 
 type gateAuthorizeRequest struct {
-	GateToken string `json:"gateToken"`
-	PublicKey string `json:"publicKey"`
-	Username  string `json:"username"`
-	Mode      string `json:"mode"`
-	Timestamp int    `json:"timestamp"`
-	Signature string `json:"signature"`
+	GateToken string           `json:"gateToken"`
+	PublicKey string           `json:"publicKey"`
+	Username  string           `json:"username"`
+	Mode      session.UserMode `json:"mode"`
+	Timestamp int              `json:"timestamp"`
+	Signature string           `json:"signature"`
 }
 
 type gateAuthorizeResponse struct {
