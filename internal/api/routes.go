@@ -2,7 +2,6 @@ package api
 
 import (
 	"2L1nk/internal/api/handlers"
-	"2L1nk/internal/logger"
 	"2L1nk/internal/session"
 	"time"
 
@@ -20,7 +19,7 @@ func RegisterRoutes(e *echo.Echo, h *handlers.Handler, store *session.Store) {
 	e.Use(middleware.ContextTimeout(10 * time.Second))
 
 	//Logger middleware with costume config
-	e.Use(middleware.RequestLoggerWithConfig(logger.MinimalLoggerConfig()))
+	e.Use(middleware.RequestLogger())
 
 	api := e.Group("/api")
 

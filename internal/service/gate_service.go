@@ -2,23 +2,27 @@ package service
 
 import (
 	"2L1nk/internal/gate"
+	"2L1nk/internal/logger"
 	"2L1nk/internal/models"
 	"2L1nk/internal/session"
 	"2L1nk/internal/utils"
 	"crypto/ed25519"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 type GateService struct {
 	gate  *gate.Gate
 	store *session.Store
+	log   *logger.Logger
 }
 
-func NewGateService(g *gate.Gate, store *session.Store) *GateService {
+func NewGateService(g *gate.Gate, store *session.Store, log *logger.Logger) *GateService {
 	return &GateService{
 		gate:  g,
 		store: store,
+		log:   log,
 	}
 }
 
@@ -34,6 +38,7 @@ type GateResult struct {
 }
 
 func (s *GateService) Authorize(req GateRequest) (*GateResult, error) {
+	s.log.Debug("Authorize ", zap.String("GateToken", req.GateToken))
 	validated, err := s.gate.Validate(req.GateToken)
 	if err != nil {
 		return nil, err
