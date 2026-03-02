@@ -11,6 +11,7 @@ import (
 
 func RegisterRoutes(e *echo.Echo, h *handlers.Handler, store *session.Store) {
 	e.HideBanner = true
+	e.HidePort = true
 
 	// Security middleware
 	e.Use(middleware.RequestID())
