@@ -1,17 +1,24 @@
 package service
 
-import "time"
+import (
+	"2L1nk/internal/logger"
+	"time"
+)
 
 type HealthRepository interface {
 	Ping() error
 }
 
 type HealthService struct {
-	repo HealthRepository
+	repo   HealthRepository
+	logger *logger.Logger
 }
 
-func NewHealthService(repo HealthRepository) *HealthService {
-	return &HealthService{repo: repo}
+func NewHealthService(repo HealthRepository, log *logger.Logger) *HealthService {
+	return &HealthService{
+		repo:   repo,
+		logger: log,
+	}
 }
 
 func (s *HealthService) GetStatus() (map[string]any, error) {
