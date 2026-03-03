@@ -20,6 +20,9 @@
 | 24.2.2026 | 1.3.1 | 7:30 - 11:00  | 2,5     | LBS | Website Plannung                                    | -        | -       |
 | 26.2.2026 | 1.3.2 | 7:30 - 11:00  | 2,5     | LBS | Startseite			               | -        | -       |
 | 27.2.2026 | 1.3.3 | 10:00 - 13:00  | 2,5     | LBS | Hauptseite                            | -        | -       |
+| 2.3.2026 | 1.3.4 | 11:00 - 12:30  | 2,5     | LBS |  Nav Bar                           | -        | -       |
+
+
 
 ### Reza Sanjari
 | Datum     | AP NR | Zeitraum      | Aufwand | Ort | Tätigkeit                                           | Probleme | Quellen |
@@ -39,6 +42,7 @@
 | 24.2.2026 | 1.2.1 | 7:30 - 11:00  | 2,5     | LBS | API Design                                          | -        | -       |
 | 26.2.2026 | 1.2.2| 7:30 - 9:00  | 2,5     | LBS | Recherche Verbindungen			               | -        | -       |
 | 26.2.2026 | 1.2.3| 9:00 - 11:00  | 2,5     | LBS | Verbindungen Imp	               | -        | -       |
-| 27.2.2026 | 1.2.4 | 10:00 - 13:00  | 2,5     | LBS | Einladungs  link                            | -        | -       |
+| 27.2.2026 | 1.2.5 | 10:00 - 13:00  | 2,5     | LBS | Kern-Logic                          | -        | -       |
+| 2.3.2026 | 1.2.5 | 11:00 - 12:30  | 2,5     | LBS |  Kern-Logic                            | -        | -       |
 
 [![Review Assignment Due Date](https://classroom.github.com/assets/deadline-readme-button-22041afd0340ce965d47ae6ef1cefeee28c7c493a6346c4f15d667ab976d596c.svg)](https://classroom.github.com/a/vmXKgVrt)
