@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Geometric Background</title>
+
+<style>
+@keyframes fluidBG {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+@keyframes floatShape {
+    0%,100% { transform: translateY(0) rotate(0deg) scale(1); }
+    50% { transform: translateY(-40px) rotate(10deg) scale(1.1); }
+}
+
+body {
+    margin: 0;
+    height: 100vh;
+    overflow: hidden;
+    background: linear-gradient(-45deg, #0a0a0a, #1a0525, #310a5d, #000000);
+    background-size: 400% 400%;
+    animation: fluidBG 15s ease infinite;
+}
+
+/* Basis-Shape */
+.shape {
+    position: absolute;
+    opacity: 0.4;
+    animation: floatShape 20s infinite ease-in-out;
+}
+
+/* Kreis */
+.circle {
+    width: 250px;
+    height: 250px;
+    border-radius: 50%;
+    top: 10%;
+    left: 15%;
+    background: linear-gradient(135deg, #6a0dad, #000);
+    box-shadow: 0 0 40px rgba(188,19,254,0.3);
+}
+
+/* Dreieck */
+.triangle {
+    width: 200px;
+    height: 200px;
+    bottom: 15%;
+    left: 40%;
+    clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+    background: linear-gradient(135deg, #6a0dad, #000);
+    animation-delay: -5s;
+}
+
+/* Quadrat */
+.square {
+    width: 150px;
+    height: 150px;
+    top: 20%;
+    right: 20%;
+    background: linear-gradient(45deg, #4b0082, #000);
+    transform: rotate(45deg);
+    animation-delay: -2s;
+}
+
+/* Kleiner Ring */
+.small-circle {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    border-color: none;
+    bottom: 20%;
+    right: 10%;
+    
+    background: linear-gradient(135deg, #6a0dad, #000);
+    box-shadow: 0 0 40px rgba(188,19,254,0.3);
+}
+</style>
+</head>
+
+<body>
+    <div class="shape circle"></div>
+    <div class="shape triangle"></div>
+    <div class="shape square"></div>
+    <div class="shape small-circle"></div>
+</body>
+</html>
