@@ -8,17 +8,13 @@ import (
 )
 
 type User struct {
-	ID               string `json:"id"`
+	Fingerprint      string `json:"fingerprint"`
 	Username         string `json:"username"`
-	fingerprint      string
 	OutGoingMessages chan []byte
 	Websocket        *websocket.Conn
 	PeerMux          sync.Mutex
 	mode             models.UserMode
 }
-
-var userIDLock sync.Mutex
-var CurrentUserID = 1
 
 func (U *User) WritePump() error {
 	return nil
