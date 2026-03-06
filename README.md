@@ -24,6 +24,8 @@
 | 3.3.2026  | 1.4.1 | 7:30 - 10:00  | 2,5     | LBS | Chat Oberfläche                                     | -        | -       |
 | 5.3.2026  | 1.4.4 | 7:30 - 9:00   | 1,5     | LBS | Recherche Crypto Nachrichten                        | -        | -       |
 | 5.3.2026  | 1.4.5 | 9:00 - 11:00  | 2,0     | LBS | Verschlüsselung Gruppen Chat                        | -        | -       |
+| 6.3.2026  | 1.4.5 | 10:00 - 11:00  | 1,0     | LBS | Verschlüsselung Gruppen Chat                        | -        | -       |
+| 6.3.2026  | -  | 10:00 - 12:00  | 1,0     | LBS | Zwischengespräch                        | -        | -       |
 
 
 
