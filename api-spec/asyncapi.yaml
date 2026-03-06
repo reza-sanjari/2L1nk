@@ -1,0 +1,176 @@
+asyncapi: 2.6.0
+info:
+  title: 2L1nk WebSocket API
+  version: 1.0.0
+  description: |
+    Real-time encrypted messaging and signaling.
+    All communication occurs under /api/ws.
+    Server only routes ciphertext and signaling metadata.
+
+servers:
+  production:
+    url: ws://localhost:8080/api/ws
+    protocol: ws
+
+channels:
+
+  main:
+    description: Main WebSocket channel
+
+    publish:
+      summary: Client → Server
+      message:
+        oneOf:
+          - $ref: '#/components/messages/AuthorizeMessage'
+          - $ref: '#/components/messages/JoinRoomMessage'
+          - $ref: '#/components/messages/LeaveRoomMessage'
+          - $ref: '#/components/messages/ChatMessage'
+          - $ref: '#/components/messages/SignalMessage'
+
+    subscribe:
+      summary: Server → Client
+      message:
+        oneOf:
+          - $ref: '#/components/messages/AuthResultMessage'
+          - $ref: '#/components/messages/RoomJoinedMessage'
+          - $ref: '#/components/messages/ChatDeliveredMessage'
+          - $ref: '#/components/messages/SignalForwardedMessage'
+          - $ref: '#/components/messages/ErrorMessage'
+
+components:
+
+  messages:
+
+    AuthorizeMessage:
+      name: AuthorizeMessage
+      payload:
+        type: object
+        required: [type, gateToken]
+        properties:
+          type:
+            type: string
+            const: authorize
+          gateToken:
+            type: string
+            example: "server-generated-gate-key"
+
+    AuthResultMessage:
+      name: AuthResultMessage
+      payload:
+        type: object
+        properties:
+          type:
+            type: string
+            const: auth_result
+          authorized:
+            type: boolean
+            example: true
+
+    JoinRoomMessage:
+      name: JoinRoomMessage
+      payload:
+        type: object
+        required: [type, roomId]
+        properties:
+          type:
+            type: string
+            const: join_room
+          roomId:
+            type: string
+            example: "room_123"
+
+    RoomJoinedMessage:
+      name: RoomJoinedMessage
+      payload:
+        type: object
+        properties:
+          type:
+            type: string
+            const: room_joined
+          roomId:
+            type: string
+
+    LeaveRoomMessage:
+      name: LeaveRoomMessage
+      payload:
+        type: object
+        required: [type, roomId]
+        properties:
+          type:
+            type: string
+            const: leave_room
+          roomId:
+            type: string
+
+    ChatMessage:
+      name: ChatMessage
+      payload:
+        type: object
+        required: [type, roomId, senderFP, encryptedPayload]
+        properties:
+          type:
+            type: string
+            const: chat_message
+          roomId:
+            type: string
+          senderFP:
+            type: string
+          encryptedPayload:
+            type: string
+            format: byte
+            example: "QmFzZTY0RW5jcnlwdGVk..."
+
+    ChatDeliveredMessage:
+      name: ChatDeliveredMessage
+      payload:
+        type: object
+        properties:
+          type:
+            type: string
+            const: chat_delivered
+          roomId:
+            type: string
+          senderFP:
+            type: string
+          encryptedPayload:
+            type: string
+            format: byte
+
+    SignalMessage:
+      name: SignalMessage
+      payload:
+        type: object
+        required: [type, targetFP, signal]
+        properties:
+          type:
+            type: string
+            const: signal
+          targetFP:
+            type: string
+          signal:
+            type: object
+            description: WebRTC offer / answer / ICE candidate
+
+    SignalForwardedMessage:
+      name: SignalForwardedMessage
+      payload:
+        type: object
+        properties:
+          type:
+            type: string
+            const: signal_forwarded
+          fromFP:
+            type: string
+          signal:
+            type: object
+
+    ErrorMessage:
+      name: ErrorMessage
+      payload:
+        type: object
+        properties:
+          type:
+            type: string
+            const: error
+          message:
+            type: string
