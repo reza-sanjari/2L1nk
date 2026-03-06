@@ -1,0 +1,221 @@
+ <!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geometric Purple Chat</title>
+    <style>
+        /* Flüssiger Hintergrund-Verlauf */
+        @keyframes fluidBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', sans-serif;
+            background: linear-gradient(-45deg, #0a0a0a, #1a0525, #310a5d, #000000);
+            background-size: 400% 400%;
+            animation: fluidBG 15s ease infinite;
+            height: 100vh;
+            display: flex;
+            color: white;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* --- GEOMETRISCHE FORMEN IM HINTERGRUND --- */
+        .shape {
+            position: absolute;
+            z-index: 0;
+            opacity: 0.4;
+            animation: floatShape 20s infinite ease-in-out;
+            background: linear-gradient(135deg, #6a0dad 0%, #000000 100%);
+        }
+
+        @keyframes floatShape {
+            0%, 100% { transform: translateY(0) rotate(0deg) scale(1); }
+            50% { transform: translateY(-40px) rotate(10deg) scale(1.1); }
+        }
+
+        /* Kreis */
+        .circle {
+            width: 250px;
+            height: 250px;
+            border-radius: 50%;
+            top: 10%;
+            left: 15%;
+            filter: blur(2px);
+            box-shadow: 0 0 40px rgba(188, 19, 254, 0.2);
+        }
+
+        /* Dreieck */
+        .triangle {
+            width: 200px;
+            height: 200px;
+            clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+            bottom: 15%;
+            left: 40%;
+            background: linear-gradient(to top, #bc13fe, #1a0525);
+            animation-delay: -5s;
+        }
+
+        /* Quadrat (rotiert) */
+        .square {
+            width: 150px;
+            height: 150px;
+            top: 20%;
+            right: 20%;
+            transform: rotate(45deg);
+            background: linear-gradient(45deg, #4b0082, #000000);
+            animation-delay: -2s;
+        }
+
+        .small-circle {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            bottom: 20%;
+            right: 10%;
+            
+            background: linear-gradient(135deg, #6a0dad 0%, #000000 100%);
+        }
+
+        /* --- CHAT INTERFACE --- */
+        nav, main {
+            position: relative;
+            z-index: 10; /* Über den Formen */
+        }
+
+        nav {
+            width: 280px;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(20px);
+            border-right: 1px solid rgba(188, 19, 254, 0.3);
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+
+        .contact {
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.05);
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 1px solid transparent;
+        }
+
+        .contact:hover {
+            transform: translateX(10px);
+            border-color: #bc13fe;
+            background: rgba(188, 19, 254, 0.1);
+        }
+
+        main {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-messages {
+            flex-grow: 1;
+            padding: 40px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .bubble {
+            max-width: 60%;
+            padding: 15px;
+            border-radius: 18px;
+            backdrop-filter: blur(5px);
+        }
+
+        .sent {
+            align-self: flex-end;
+            background: linear-gradient(135deg, #6a0dad, #bc13fe);
+            box-shadow: 0 4px 15px rgba(188, 19, 254, 0.3);
+        }
+
+        .received {
+            align-self: flex-start;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .chat-input {
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            gap: 10px;
+        }
+
+        input {
+            flex-grow: 1;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid #444;
+            padding: 12px 20px;
+            border-radius: 30px;
+            color: white;
+            outline: none;
+        }
+
+        button {
+            background: #bc13fe;
+            border: none;
+            padding: 0 25px;
+            border-radius: 30px;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="shape circle"></div>
+    <div class="shape triangle"></div>
+    <div class="shape square"></div>
+    <div class="shape small-circle"></div>
+
+    <nav>
+        <h2 style="color: #bc13fe;">Kontakte</h2>
+        <div class="contact">👤 Max Mustermann</div>
+        <div class="contact">👤 Julia Admin</div>
+        <div class="contact">👤 Tech Support</div>
+    </nav>
+
+    <main>
+        <div class="chat-messages" id="chat">
+            <div class="bubble received">Schau dir das mal an! Geometrische Formen im Hintergrund.</div>
+            <div class="bubble sent">Sieht stark aus. Der Mix aus Dreiecken und Kreisen passt perfekt zum Lila.</div>
+            <div class="bubble received">Und alles bewegt sich ganz leicht.</div>
+        </div>
+
+        <div class="chat-input">
+            <input type="text" id="input" placeholder="Nachricht schreiben...">
+            <button onclick="send()">Senden</button>
+        </div>
+    </main>
+
+    <script>
+        function send() {
+            const input = document.getElementById('input');
+            if(input.value !== "") {
+                const msg = document.createElement('div');
+                msg.className = 'bubble sent';
+                msg.innerText = input.value;
+                document.getElementById('chat').appendChild(msg);
+                input.value = "";
+                document.getElementById('chat').scrollTop = document.getElementById('chat').scrollHeight;
+            }
+        }
+    </script>
+</body>
+</html>
