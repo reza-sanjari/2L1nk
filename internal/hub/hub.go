@@ -42,8 +42,8 @@ func New(s *session.Store) *Hub {
 func (h *Hub) Run() {
 	for {
 		select {
-		case groupOwner := <-h.RegisterRoom:
-			fmt.Printf("register room %v\n", groupOwner)
+		case newRoom := <-h.RegisterRoom:
+			fmt.Printf("register room %v\n", newRoom)
 		}
 	}
 }
