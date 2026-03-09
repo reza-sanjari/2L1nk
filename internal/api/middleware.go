@@ -10,7 +10,7 @@ import (
 func SessionAuthMiddleware(store *session.Store) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			sessionID := c.Request().Header.Get("X-Session-ID")
+			sessionID := c.Request().Header.Get("Chat-Session-ID")
 			if sessionID == "" {
 				return echo.NewHTTPError(http.StatusUnauthorized, "missing session ID")
 			}

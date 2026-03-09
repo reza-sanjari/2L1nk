@@ -2,6 +2,7 @@ package api
 
 import (
 	"2L1nk/internal/api/handlers"
+	"2L1nk/internal/logger"
 	"2L1nk/internal/session"
 	"time"
 
@@ -20,13 +21,13 @@ func RegisterRoutes(e *echo.Echo, h *handlers.Handler, store *session.Store) {
 	e.Use(middleware.ContextTimeout(10 * time.Second))
 
 	//Logger middleware with costume config
-	e.Use(middleware.RequestLogger())
+	e.Use(middleware.RequestLoggerWithConfig(logger.MinimalLoggerConfig()))
 
 	api := e.Group("/api")
 
 	api.GET("/health", h.Health)
 	api.POST("/auth/gate", h.GateAuthorize)
-	api.POST("/NewRoom", h.NewRoom)
+	api.POST("/rooms", h.NewRoom)
 
 	protected := api.Group("", SessionAuthMiddleware(store))
 	_ = protected

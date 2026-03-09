@@ -7,5 +7,7 @@ import (
 )
 
 func (h *Handler) NewRoom(c echo.Context) error {
-	return c.String(http.StatusCreated, "New Room handler called")
+	return c.JSON(http.StatusCreated, map[string]any{
+		"status": "created new room",
+	})
 }
