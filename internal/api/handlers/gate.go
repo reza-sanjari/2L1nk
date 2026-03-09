@@ -16,8 +16,6 @@ type gateAuthorizeRequest struct {
 	PublicKey ed25519.PublicKey `json:"publicKey"`
 	Username  string            `json:"username"`
 	Mode      models.UserMode   `json:"mode"`
-	Timestamp int               `json:"timestamp"`
-	Signature string            `json:"signature"`
 }
 
 func (h *Handler) GateAuthorize(c echo.Context) error {
