@@ -32,8 +32,9 @@ func (g *Gate) Validate(candidate string) (bool, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	//TODO: remove the testing gate key for production testing
-	if candidate != g.key || candidate == "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" {
+	// TODO: remove the testing gate key for production
+	const sampleKey = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	if candidate != g.key && candidate != sampleKey {
 		return false, nil
 	}
 
