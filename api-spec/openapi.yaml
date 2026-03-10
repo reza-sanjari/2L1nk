@@ -99,8 +99,7 @@ paths:
                   - status
                   - timestamp
           headers: {}
-      security:
-        - Combination: []
+      security: []
   /api/auth/gate:
     post:
       summary: Authorize with gate key, prove key ownership, receive session ID
@@ -139,8 +138,8 @@ paths:
               default:
                 value:
                   gateToken: '{{gateKey}}'
-                  publicKey: MIIBIjANBgkqhki...
-                  username: alice
+                  publicKey: anO9M+q/3WNuSUnxpak/GtLt0suBAGVakihtV3HoiDY=
+                  username: test
                   mode: 0
                 summary: Gate authorization example
         required: true
@@ -180,8 +179,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           headers: {}
-      security:
-        - Combination: []
+      security: []
   /api/users/me:
     get:
       summary: Get current user info (from session)
@@ -235,8 +233,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           headers: {}
-      security:
-        - Combination: []
+      security: []
   /api/users/me/chats:
     delete:
       summary: Delete all chats for current user (persistent mode only)
@@ -290,8 +287,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           headers: {}
-      security:
-        - Combination: []
+      security: []
   /api/rooms:
     post:
       summary: Create group chat
@@ -356,8 +352,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           headers: {}
-      security:
-        - Combination: []
+      security: []
   /api/rooms/members:
     post:
       summary: Add members to an existing group chat
@@ -425,8 +420,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           headers: {}
-      security:
-        - Combination: []
+      security: []
   /api/rooms/leave:
     post:
       summary: Leave a group chat
@@ -487,8 +481,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           headers: {}
-      security:
-        - Combination: []
+      security: []
 webhooks: {}
 components:
   schemas:
@@ -515,11 +508,9 @@ components:
           type: string
           description: Full public key (PEM or base64-encoded)
           examples:
-            - MIIBIjANBgkqhki...
+            - anO9M+q/3WNuSUnxpak/GtLt0suBAGVakihtV3HoiDY=
         username:
           type: string
-          examples:
-            - alice
         mode:
           type: integer
           description: 0 = ephemeral, 1 = persistent
@@ -615,11 +606,6 @@ components:
       name: Chat-Signature
       description: |
         Base64-encoded signature of the canonical request string.
-    Combination:
-      group:
-        - id: 490022
-        - id: 490023
-      type: http
   parameters:
     ChatSessionIdHeader:
       name: Chat-Session-ID
@@ -649,5 +635,4 @@ components:
         Base64-encoded signature of the canonical request string:
         METHOD + "\n" + PATH + "\n" + TIMESTAMP + "\n" + BODY_HASH
 servers: []
-security:
-  - Combination: []
+security: []
