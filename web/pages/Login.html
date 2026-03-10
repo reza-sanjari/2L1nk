@@ -8,14 +8,27 @@
     <style>
         /* --- ANIMATED BACKGROUND (Langsamer: 25s) --- */
         @keyframes fluidBG {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
+            0% {
+                background-position: 0% 50%;
+            }
+
+            50% {
+                background-position: 100% 50%;
+            }
+
+            100% {
+                background-position: 0% 50%;
+            }
         }
 
         @keyframes floatShape {
-            0%, 100% { transform: translateY(0) rotate(0deg) scale(1); }
-            50% { transform: translateY(-40px) rotate(10deg) scale(1.05); }
+            0%, 100% {
+                transform: translateY(0) rotate(0deg) scale(1);
+            }
+
+            50% {
+                transform: translateY(-40px) rotate(10deg) scale(1.05);
+            }
         }
 
         body {
@@ -124,11 +137,11 @@
             transition: 0.4s;
         }
 
-        .glass-card:hover {
-            border-color: #bc13fe;
-            transform: translateY(-5px);
-            background: rgba(255, 255, 255, 0.07);
-        }
+            .glass-card:hover {
+                border-color: #bc13fe;
+                transform: translateY(-5px);
+                background: rgba(255, 255, 255, 0.07);
+            }
 
         .info-section {
             background: rgba(0, 0, 0, 0.4);
@@ -200,15 +213,36 @@
             text-transform: uppercase;
         }
 
-        .btn-primary { background: #bc13fe; color: white; }
-        .btn-primary:hover { box-shadow: 0 0 20px rgba(188, 19, 254, 0.6); }
+        .btn-primary {
+            background: #bc13fe;
+            color: white;
+        }
 
-        .btn-secondary { background: transparent; border: 1px solid #bc13fe; color: white; }
-        .btn-secondary:hover { background: rgba(188, 19, 254, 0.15); }
+            .btn-primary:hover {
+                box-shadow: 0 0 20px rgba(188, 19, 254, 0.6);
+            }
 
-        h2 { color: #bc13fe; font-size: 2.5rem; text-align: center; }
-        .subtitle { text-align: center; opacity: 0.7; margin-bottom: 40px; }
+        .btn-secondary {
+            background: transparent;
+            border: 1px solid #bc13fe;
+            color: white;
+        }
 
+            .btn-secondary:hover {
+                background: rgba(188, 19, 254, 0.15);
+            }
+
+        h2 {
+            color: #bc13fe;
+            font-size: 2.5rem;
+            text-align: center;
+        }
+
+        .subtitle {
+            text-align: center;
+            opacity: 0.7;
+            margin-bottom: 40px;
+        }
     </style>
 </head>
 <body>
@@ -220,7 +254,7 @@
 
     <header>
         <div style="font-weight: bold; font-size: 1.4rem; color: #bc13fe;"><i class="fas fa-link"></i> 2L1nk</div>
-        <div style="font-size: 0.7rem; opacity: 0.5;">V. 3.0.1 // SECURE_NODE</div>
+        <div style="font-size: 0.7rem; opacity: 0.5;">SECURE_NODE</div>
     </header>
 
     <main>
@@ -232,24 +266,25 @@
                 <div class="glass-card">
                     <h3><i class="fas fa-door-open"></i> Gateway</h3>
                     <p>Schnellzugriff auf öffentliche Räume.</p>
-                    <input type="text" placeholder="Gateway Code eingeben...">
-                    <button class="btn btn-primary">Beitreten</button>
+                    <input type="text" id="gateway" value="ce77a0cb7c67a626a3dd63cac0bf1a72a3db9f5ceae17721d29dae99b98430d8" placeholder="Gateway Code eingeben...">
+                    <input type="text" id="loginname" placeholder="Username">
+                    <button class="btn btn-primary" onclick="connectToGateway()">Beitreten</button>
                 </div>
 
-                <div class="glass-card">
+                <!--<div class="glass-card">
                     <h3><i class="fas fa-lock"></i> Account Login</h3>
                     <p>Verwalte deine verschlüsselten Daten.</p>
                     <input type="email" placeholder="E-Mail">
                     <input type="password" placeholder="Passwort">
                     <button class="btn btn-secondary">Anmelden</button>
-                </div>
+                </div>-->
             </div>
         </section>
 
         <section class="info-section">
             <h2>Über das Projekt</h2>
             <p style="text-align: center; max-width: 700px; margin: 0 auto; line-height: 1.6;">
-                2L1nk ist eine hochmoderne Kommunikationsplattform, die auf absolute Privatsphäre ausgelegt ist. 
+                2L1nk ist eine hochmoderne Kommunikationsplattform, die auf absolute Privatsphäre ausgelegt ist.
                 Durch unsere Gateway-Technologie ermöglichen wir anonyme Zugänge, ohne die Sicherheit des Kernsystems zu gefährden.
             </p>
 
@@ -275,27 +310,17 @@
         <section>
             <h2>Unser Team</h2>
             <p class="subtitle">Die Köpfe hinter der Verschlüsselung.</p>
-            
+
             <div class="team-grid">
                 <div class="team-card">
-                    <div class="avatar"><i class="fas fa-code"></i></div>
-                    <strong>Alex Rivet</strong><br>
-                    <small style="color: #bc13fe;">Lead Architect</small>
+                    <div class="avatar"><i class="fas fa-user"></i></div>
+                    <strong>Florian Kirsch</strong><br>
+                    <small style="color: #bc13fe;">Frontend</small>
                 </div>
                 <div class="team-card">
-                    <div class="avatar"><i class="fas fa-user-shield"></i></div>
-                    <strong>Sarah Jenkins</strong><br>
-                    <small style="color: #bc13fe;">Security Analyst</small>
-                </div>
-                <div class="team-card">
-                    <div class="avatar"><i class="fas fa-paint-brush"></i></div>
-                    <strong>Marc Voller</strong><br>
-                    <small style="color: #bc13fe;">UI/UX Designer</small>
-                </div>
-                <div class="team-card">
-                    <div class="avatar"><i class="fas fa-server"></i></div>
-                    <strong>Lena Kraft</strong><br>
-                    <small style="color: #bc13fe;">Backend Dev</small>
+                    <div class="avatar"><i class="fas fa-user"></i></div>
+                    <strong>Reza Senjari</strong><br>
+                    <small style="color: #bc13fe;">Backend</small>
                 </div>
             </div>
         </section>
@@ -307,3 +332,58 @@
 
 </body>
 </html>
+<script>
+async function connectToGateway() {
+    // 1. Hole die Werte direkt korrekt ab
+    const gateKey = document.getElementById('gateway').value.trim();
+    const loginName = document.getElementById('loginname').value.trim();
+
+    // Validierung
+    if (!gateKey) {
+        alert("⚠️ Bitte gib einen Gateway-Code ein!");
+        return;
+    }
+    if (!loginName) {
+        alert("⚠️ Bitte gib einen Login-Namen ein!");
+        return;
+    }
+
+    // 2. Daten vorbereiten
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const signature = "DEINE_SIGNATUR"; // Hier muss später deine Signatur-Logik rein
+
+    const options = {
+        method: 'POST',
+        headers: {
+            'Chat-Timestamp': timestamp,
+            'Chat-Signature': signature,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            gateToken: gateKey,
+            publicKey: 'anO9M+q/3WNuSUnxpak/GtLt0suBAGVakihtV3HoiDY=',
+            username: loginName,
+            mode: 0
+        })
+    };
+
+    // 3. Den Request absenden
+    try {
+        const response = await fetch('http://localhost:8080/api/auth/gate', options);
+
+        if (!response.ok) {
+            // Hilfreich: Fehlertext vom Server anzeigen, falls vorhanden
+            const errorData = await response.text();
+            throw new Error(`Server antwortete mit ${response.status}: ${errorData}`);
+        }
+        // Auf der index.html nach dem erfolgreichen Login:
+        sessionStorage.setItem('username', loginName);
+        sessionStorage.setItem('gatewayKey', gateKey);
+        const data = await response.json();
+        sessionStorage.setItem('sessionId', data.sessionId);
+        window.location.href = "ChatOberface";
+    } catch (err) {
+        alert("❌ Fehler beim Gateway-Check:\n" + err.message);
+    }
+}
+</script>

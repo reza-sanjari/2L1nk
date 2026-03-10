@@ -8,9 +8,17 @@
     <style>
         /* --- BACKGROUND DESIGN --- */
         @keyframes fluidBG {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
+            0% {
+                background-position: 0% 50%;
+            }
+
+            50% {
+                background-position: 100% 50%;
+            }
+
+            100% {
+                background-position: 0% 50%;
+            }
         }
 
         body {
@@ -38,13 +46,41 @@
         }
 
         @keyframes floatShape {
-            0%, 100% { transform: translateY(0) rotate(0deg) scale(1); }
-            50% { transform: translateY(-40px) rotate(10deg) scale(1.1); }
+            0%, 100% {
+                transform: translateY(0) rotate(0deg) scale(1);
+            }
+
+            50% {
+                transform: translateY(-40px) rotate(10deg) scale(1.1);
+            }
         }
 
-        .circle { width: 300px; height: 300px; border-radius: 50%; top: -50px; left: 10%; filter: blur(40px); }
-        .triangle { width: 250px; height: 250px; clip-path: polygon(50% 0%, 0% 100%, 100% 100%); bottom: 10%; left: 30%; animation-delay: -5s; }
-        .square { width: 180px; height: 180px; top: 20%; right: 10%; transform: rotate(45deg); animation-delay: -2s; }
+        .circle {
+            width: 300px;
+            height: 300px;
+            border-radius: 50%;
+            top: -50px;
+            left: 10%;
+            filter: blur(40px);
+        }
+
+        .triangle {
+            width: 250px;
+            height: 250px;
+            clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+            bottom: 10%;
+            left: 30%;
+            animation-delay: -5s;
+        }
+
+        .square {
+            width: 180px;
+            height: 180px;
+            top: 20%;
+            right: 10%;
+            transform: rotate(45deg);
+            animation-delay: -2s;
+        }
 
         /* --- TOP NAVIGATION BAR --- */
         .top-bar {
@@ -72,10 +108,10 @@
             transition: 0.3s;
         }
 
-        .nav-icon:hover {
-            color: #bc13fe;
-            filter: drop-shadow(0 0 8px #bc13fe);
-        }
+            .nav-icon:hover {
+                color: #bc13fe;
+                filter: drop-shadow(0 0 8px #bc13fe);
+            }
 
         .avatar-group {
             display: flex;
@@ -119,11 +155,17 @@
             z-index: 10;
         }
 
-        .brand { display: flex; align-items: center; gap: 15px; margin-bottom: 30px; }
-        .brand-icon { 
-            border: 1px solid #bc13fe; 
-            padding: 8px 10px; 
-            border-radius: 8px; 
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .brand-icon {
+            border: 1px solid #bc13fe;
+            padding: 8px 10px;
+            border-radius: 8px;
             box-shadow: 0 0 15px rgba(188, 19, 254, 0.4);
             color: #bc13fe;
         }
@@ -138,13 +180,20 @@
             gap: 10px;
             margin-bottom: 30px;
         }
-        .search-box input { background: none; border: none; color: white; outline: none; width: 100%; }
+
+            .search-box input {
+                background: none;
+                border: none;
+                color: white;
+                outline: none;
+                width: 100%;
+            }
 
         .chat-list-header {
-            display: flex; 
-            justify-content: space-between; 
-            font-size: 0.75rem; 
-            letter-spacing: 2px; 
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            letter-spacing: 2px;
             color: rgba(255,255,255,0.5);
             margin-bottom: 20px;
         }
@@ -169,7 +218,11 @@
             transition: 0.3s;
             margin-bottom: 12px;
         }
-        .btn-action:hover { background: rgba(188, 19, 254, 0.2); border-color: #bc13fe; }
+
+            .btn-action:hover {
+                background: rgba(188, 19, 254, 0.2);
+                border-color: #bc13fe;
+            }
 
         .btn-voice {
             background: linear-gradient(90deg, #4b0082, #bc13fe);
@@ -219,11 +272,12 @@
             gap: 10px;
             transition: 0.3s;
         }
-        .feature-card:hover { 
-            border-color: #bc13fe; 
-            transform: translateY(-5px);
-            background: rgba(188, 19, 254, 0.1);
-        }
+
+            .feature-card:hover {
+                border-color: #bc13fe;
+                transform: translateY(-5px);
+                background: rgba(188, 19, 254, 0.1);
+            }
 
         .status-bar {
             position: absolute;
@@ -241,8 +295,27 @@
             background: #bc13fe;
             animation: blink 1s infinite;
         }
-        @keyframes blink { 50% { opacity: 0; } }
 
+        @keyframes blink {
+            50% {
+                opacity: 0;
+            }
+        }
+        dialog[open] {
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
     </style>
 </head>
 <body>
@@ -258,14 +331,23 @@
             <i class="fas fa-cog nav-icon" title="Settings"></i>
             <div class="avatar-group">
                 <div style="text-align: right; line-height: 1;">
-                    <div style="font-size: 0.85rem; font-weight: bold;">User</div>
+                    <div style="font-size: 0.85rem; font-weight: bold;" id="username"></div>
                     <div style="font-size: 0.6rem; opacity: 0.5; color: #4ade80;">ONLINE</div>
                 </div>
-                <div class="avatar">AC</div>
+                <div class="avatar" id="avatar"></div>
             </div>
         </div>
     </header>
+    
 
+    <dialog id="newChatModal" style="background: #1a0525; color: white; border: 1px solid #bc13fe; border-radius: 15px; padding: 25px; width: 320px; box-shadow: 0 0 30px rgba(188, 19, 254, 0.3);">
+        <h3 style="margin-top: 0; color: #bc13fe;">Neuer Chat erstellen</h3>
+        <input type="text" id="groupNameInput" placeholder="Gruppenname..." style="width: 90%; margin-bottom: 20px; padding: 12px; background: #000; border: 1px solid #4b0082; color: white; border-radius: 8px;">
+        <div style="display: flex; gap: 10px;">
+            <button onclick="document.getElementById('newChatModal').close()" style="flex: 1; padding: 10px; background: transparent; border: 1px solid #4b0082; color: white; border-radius: 8px; cursor: pointer;">Abbrechen</button>
+            <button onclick="submitNewChat()" style="flex: 1; padding: 10px; background: #bc13fe; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">Erstellen</button>
+        </div>
+    </dialog>
     <div class="app-container">
         <nav>
             <div class="brand">
@@ -291,12 +373,12 @@
                 <p>Keine aktiven Chats</p>
             </div>
 
-            <button class="btn-action">+ Neuer Chat</button>
+            <button class="btn-action" onclick="document.getElementById('newChatModal').showModal()">Neuer Chat</button>
             <button class="btn-action btn-voice"><i class="fas fa-voice"></i> &nbsp;  Anrufen</button>
-            
+
             <div style="display: flex; justify-content: space-around; margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); opacity: 0.6;">
                 <i class="fas fa-question-circle"></i>
-                <i class="fas fa-sign-out-alt"></i>
+                <i class="fas fa-sign-out-alt" onclick="logout()"></i>
             </div>
         </nav>
 
@@ -330,6 +412,84 @@
             </div>
         </main>
     </div>
-
 </body>
 </html>
+<script>
+// 1. Deine eigentliche Funktion
+    function whoAmI() {
+        const username = sessionStorage.getItem('username');
+
+        // Sicherheit: Falls niemand eingeloggt ist, direkt zurückwerfen
+        if (!username) {
+            window.location.href = "index.html";
+            return null;
+        }
+        return username;
+    }
+    async function submitNewChat() {
+        const inputField = document.getElementById('groupNameInput');
+        const groupName = inputField.value.trim();
+
+        if (!groupName) {
+            alert("⚠️ Bitte gib einen Gruppennamen ein!");
+            return;
+        }
+
+        // Ruft deine API-Funktion auf
+        await newChat(groupName);
+        
+        // Aufräumen
+        inputField.value = "";
+        document.getElementById('newChatModal').close();
+    }
+    async function newChat(groupName) {
+    // 1. SessionID aus dem sessionStorage abrufen
+    const sessionId = sessionStorage.getItem('sessionId');
+    
+    // 2. Zeitstempel und Platzhalter für die Signatur
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const signature = "DEINE_SIGNATUR_LOGIK"; // Hier muss deine HMAC-Signatur hin
+
+    try {
+        const response = await fetch('http://localhost:8080/api/rooms', {
+            method: 'POST',
+            headers: {
+                'Chat-Session-ID': sessionId, // Hier wird die ID dynamisch eingesetzt
+                'Chat-Signature': signature,
+                'Chat-Timestamp': timestamp,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                groupName: groupName
+            })
+        });
+        
+        const data = await response.json();
+        
+        // UI-Feedback
+        alert("✅ Gruppe '" + groupName + "' wurde erstellt!");
+        
+    } catch (err) {
+        console.error("Fehler beim Request:", err);
+        alert("❌ Fehler: " + err.message);
+    }
+}
+    function logout() {
+        sessionStorage.removeItem('username');
+        window.location.href = "Login";
+    }
+
+    // 2. Automatischer Aufruf beim Laden der Seite
+    document.addEventListener("DOMContentLoaded", () => {
+        const user = whoAmI();
+        const h1Element = document.getElementById('username');
+        if (h1Element) {
+            h1Element.innerText = user;
+        }
+        
+        const avatarElement = document.getElementById('avatar');
+        if (h1Element) {
+            avatarElement.innerText = user.substring(0, 2).toUpperCase();;
+        }
+    });
+</script>
