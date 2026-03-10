@@ -1,0 +1,35 @@
+/**
+ * Zentrale API-Funktion
+ * @param {string} endpoint - Der API-Pfad (z.B. '/rooms')
+ * @param {string} method - 'GET', 'POST', 'PUT', etc.
+ * @param {object} bodyData - Das Datenobjekt (optional)
+ */
+async function apiCall(endpoint, method = 'POST', bodyData = null) {
+    const url = `<DEINE_API_BASIS_URL>` + endpoint;
+    
+    const headers = {
+        'Chat-Session-ID': `<DEINE_SESSION_ID>`,
+        'Chat-Signature': `<DEINE_SIGNATUR_LOGIK>`,
+        'Chat-Timestamp': Date.now().toString(),
+        'Content-Type': 'application/json'
+    };
+
+    const config = {
+        method: method,
+        headers: headers
+    };
+
+    if (bodyData) {
+        config.body = JSON.stringify(bodyData);
+    }
+
+    const response = await fetch(url, config);
+
+    // Zentrale Fehlerbehandlung
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`Fehler: ${response.status} - ${errorData.message || '<FEHLER_BESCHREIBUNG>'}`);
+    }
+
+    return await response.json();
+}
