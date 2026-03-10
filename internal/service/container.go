@@ -5,12 +5,14 @@ package service
 type Container struct {
 	Health *HealthService
 	Gate   *GateService
+	Room   *RoomService
 }
 
 // NewContainer constructs the service container with all services wired.
-func NewContainer(health *HealthService, Gate *GateService) *Container {
+func NewContainer(health *HealthService, Gate *GateService, Room *RoomService) *Container {
 	return &Container{
 		Health: health,
 		Gate:   Gate,
+		Room:   Room,
 	}
 }
