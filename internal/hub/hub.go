@@ -21,7 +21,7 @@ type Hub struct {
 
 type WSMessageEnvelope struct {
 	Type    models.WSEventType `json:"type"`
-	payload json.RawMessage
+	Payload json.RawMessage
 }
 
 type room struct {
