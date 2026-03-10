@@ -9,6 +9,7 @@ import (
 	"2L1nk/internal/service"
 
 	"github.com/labstack/echo/v4"
+	"go.uber.org/zap"
 )
 
 type gateAuthorizeRequest struct {
@@ -21,6 +22,7 @@ type gateAuthorizeRequest struct {
 func (h *Handler) GateAuthorize(c echo.Context) error {
 	var req gateAuthorizeRequest
 	if err := c.Bind(&req); err != nil {
+		h.Logg.Error("failed to process request", zap.Error(err))
 		return c.JSON(http.StatusBadRequest, map[string]string{
 			"error": "invalid request body",
 		})
