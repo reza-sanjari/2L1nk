@@ -70,6 +70,13 @@ func (h *Hub) Run() {
 
 		case newUser := <-h.RegisterUser:
 			fmt.Printf("register username %v\n", newUser)
+
+		case msg := <-h.InboundMessages:
+			switch msg.Type {
+			case models.Message:
+				fmt.Printf("broadcast message %v\n", msg)
+
+			}
 		}
 	}
 }
