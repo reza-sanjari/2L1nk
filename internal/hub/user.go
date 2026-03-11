@@ -4,7 +4,7 @@ import (
 	"2L1nk/internal/models"
 	"sync"
 
-	"golang.org/x/net/websocket"
+	"github.com/gorilla/websocket"
 )
 
 type User struct {
@@ -13,7 +13,7 @@ type User struct {
 	OutGoingMessages chan []byte
 	Websocket        *websocket.Conn
 	PeerMux          sync.Mutex
-	mode             models.UserMode
+	Mode             models.UserMode
 }
 
 func (U *User) WritePump() error {
@@ -31,6 +31,6 @@ func NewUser(fingerprint string, username string, websocket *websocket.Conn, mod
 		OutGoingMessages: make(chan []byte),
 		Websocket:        websocket,
 		PeerMux:          sync.Mutex{},
-		mode:             mode,
+		Mode:             mode,
 	}
 }
