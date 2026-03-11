@@ -83,5 +83,7 @@ func (h *Handler) Ws(c echo.Context) error {
 	h.Logg.Debug("active user authenticated through websocket", zap.String("username", activeUser.Username))
 	// TODO: validate timestamp + signature here
 
+	newUser := hub.NewUser(activeUser.PublicKeyFingerprint, activeUser.Username, ws, activeUser.Mode)
+	h.Hub.RegisterUser <- newUser
 	return nil
 }
