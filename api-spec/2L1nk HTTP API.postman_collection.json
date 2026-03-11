@@ -1,0 +1,1285 @@
+{
+  "info": {
+    "_postman_id": "198c9035-d8bc-4305-9300-e8fb3cb8e240",
+    "name": "2L1nk HTTP API",
+    "description": "REST API for gate access, user management, and chat lifecycle.\nAll endpoints are under /api.\n\nAuthentication and authenticity model:\n- The gate key is used only for the initial gate authorization step.\n- All requests are signed by the client using the same canonical signing method.\n- After gate authorization, authenticated endpoints also require a session header.\n\nCanonical signature input (same for all endpoints):\n  METHOD + \"\\n\" +\n  PATH + \"\\n\" +\n  TIMESTAMP + \"\\n\" +\n  BODY_HASH\n\nWhere:\n- METHOD is the uppercase HTTP method, for example POST\n- PATH is the exact request path, for example /api/auth/gate\n- TIMESTAMP is the value of the request header Chat-Timestamp\n- BODY_HASH is the lowercase hex SHA-256 hash of the exact raw request body bytes\n\nExample canonical string:\n  POST\n  /api/rooms\n  1741262400\n  8f434346648f6b96df89dda901c5176b10a6d83961fca65a509cf3307f10db86\n\nSignature transport:\n- Chat-Timestamp header carries the Unix timestamp\n- Chat-Signature header carries the base64-encoded signature of the canonical string\n\nVerification rules:\n- Server rejects stale timestamps outside the allowed clock skew window\n- Server reconstructs the canonical string from the incoming request\n- Server verifies the signature using:\n  - the public key in the auth request for /api/auth/gate\n  - the public key already bound to the session for authenticated endpoints\n",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "37724767"
+  },
+  "item": [
+    {
+      "name": "api",
+      "item": [
+        {
+          "name": "health",
+          "item": [
+            {
+              "name": "Health check",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/health",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "health"
+                  ]
+                }
+              },
+              "response": [
+                {
+                  "name": "Server alive",
+                  "originalRequest": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{baseUrl}}/api/health",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "health"
+                      ]
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"mode\": \"string\",\n  \"status\": \"string\",\n  \"timestamp\": \"string\"\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "auth",
+          "item": [
+            {
+              "name": "gate",
+              "item": [
+                {
+                  "name": "Authorize with gate key, prove key ownership, receive session ID",
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "exec": [
+                          "const body = pm.response.json();\r",
+                          "pm.environment.set(\"chatSessionId\", body.sessionId);\r",
+                          ""
+                        ],
+                        "type": "text/javascript",
+                        "packages": {},
+                        "requests": {}
+                      }
+                    }
+                  ],
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Chat-Timestamp",
+                        "value": "0",
+                        "description": "Unix timestamp used as part of the canonical signing string.\n"
+                      },
+                      {
+                        "key": "Chat-Signature",
+                        "value": "",
+                        "description": "Base64-encoded signature of the canonical request string:\nMETHOD + \"\\n\" + PATH + \"\\n\" + TIMESTAMP + \"\\n\" + BODY_HASH\n"
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"gateToken\": \"{{gateKey}}\",\n  \"publicKey\": \"anO9M+q/3WNuSUnxpak/GtLt0suBAGVakihtV3HoiDY=\",\n  \"username\": \"{{$randomUserName}}\",\n  \"mode\": 0\n}",
+                      "options": {
+                        "raw": {
+                          "headerFamily": "json",
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/auth/gate",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "auth",
+                        "gate"
+                      ]
+                    }
+                  },
+                  "response": [
+                    {
+                      "name": "Authorized",
+                      "originalRequest": {
+                        "method": "POST",
+                        "header": [
+                          {
+                            "description": "Unix timestamp used as part of the canonical signing string.\n",
+                            "key": "Chat-Timestamp",
+                            "value": "0"
+                          },
+                          {
+                            "description": "Base64-encoded signature of the canonical request string:\nMETHOD + \"\\n\" + PATH + \"\\n\" + TIMESTAMP + \"\\n\" + BODY_HASH\n",
+                            "key": "Chat-Signature",
+                            "value": ""
+                          },
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json"
+                          },
+                          {
+                            "key": "Accept",
+                            "value": "application/json"
+                          }
+                        ],
+                        "body": {
+                          "mode": "raw",
+                          "raw": "{\n  \"gateToken\": \"{{gateKey}}\",\n  \"publicKey\": \"anO9M+q/3WNuSUnxpak/GtLt0suBAGVakihtV3HoiDY=\",\n  \"username\": \"test\",\n  \"mode\": 0\n}",
+                          "options": {
+                            "raw": {
+                              "headerFamily": "json",
+                              "language": "json"
+                            }
+                          }
+                        },
+                        "url": {
+                          "raw": "{{baseUrl}}/api/auth/gate",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "api",
+                            "auth",
+                            "gate"
+                          ]
+                        }
+                      },
+                      "status": "OK",
+                      "code": 200,
+                      "_postman_previewlanguage": "json",
+                      "header": [
+                        {
+                          "key": "Content-Type",
+                          "value": "application/json"
+                        }
+                      ],
+                      "cookie": [],
+                      "body": "{\n  \"sessionId\": \"8211d5cf-5880-0ae3-7c61-459d733bc2dd\"\n}"
+                    },
+                    {
+                      "name": "Invalid request body or missing required fields",
+                      "originalRequest": {
+                        "method": "POST",
+                        "header": [
+                          {
+                            "description": "Unix timestamp used as part of the canonical signing string.\n",
+                            "key": "Chat-Timestamp",
+                            "value": "0"
+                          },
+                          {
+                            "description": "Base64-encoded signature of the canonical request string:\nMETHOD + \"\\n\" + PATH + \"\\n\" + TIMESTAMP + \"\\n\" + BODY_HASH\n",
+                            "key": "Chat-Signature",
+                            "value": ""
+                          },
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json"
+                          },
+                          {
+                            "key": "Accept",
+                            "value": "application/json"
+                          }
+                        ],
+                        "body": {
+                          "mode": "raw",
+                          "raw": "{\n  \"gateToken\": \"{{gateKey}}\",\n  \"publicKey\": \"anO9M+q/3WNuSUnxpak/GtLt0suBAGVakihtV3HoiDY=\",\n  \"username\": \"test\",\n  \"mode\": 0\n}",
+                          "options": {
+                            "raw": {
+                              "headerFamily": "json",
+                              "language": "json"
+                            }
+                          }
+                        },
+                        "url": {
+                          "raw": "{{baseUrl}}/api/auth/gate",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "api",
+                            "auth",
+                            "gate"
+                          ]
+                        }
+                      },
+                      "status": "Bad Request",
+                      "code": 400,
+                      "_postman_previewlanguage": "json",
+                      "header": [
+                        {
+                          "key": "Content-Type",
+                          "value": "application/json"
+                        }
+                      ],
+                      "cookie": [],
+                      "body": "{\n  \"error\": \"string\"\n}"
+                    },
+                    {
+                      "name": "Invalid gate key or signature verification failed",
+                      "originalRequest": {
+                        "method": "POST",
+                        "header": [
+                          {
+                            "description": "Unix timestamp used as part of the canonical signing string.\n",
+                            "key": "Chat-Timestamp",
+                            "value": "0"
+                          },
+                          {
+                            "description": "Base64-encoded signature of the canonical request string:\nMETHOD + \"\\n\" + PATH + \"\\n\" + TIMESTAMP + \"\\n\" + BODY_HASH\n",
+                            "key": "Chat-Signature",
+                            "value": ""
+                          },
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json"
+                          },
+                          {
+                            "key": "Accept",
+                            "value": "application/json"
+                          }
+                        ],
+                        "body": {
+                          "mode": "raw",
+                          "raw": "{\n  \"gateToken\": \"{{gateKey}}\",\n  \"publicKey\": \"anO9M+q/3WNuSUnxpak/GtLt0suBAGVakihtV3HoiDY=\",\n  \"username\": \"test\",\n  \"mode\": 0\n}",
+                          "options": {
+                            "raw": {
+                              "headerFamily": "json",
+                              "language": "json"
+                            }
+                          }
+                        },
+                        "url": {
+                          "raw": "{{baseUrl}}/api/auth/gate",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "api",
+                            "auth",
+                            "gate"
+                          ]
+                        }
+                      },
+                      "status": "Unauthorized",
+                      "code": 401,
+                      "_postman_previewlanguage": "json",
+                      "header": [
+                        {
+                          "key": "Content-Type",
+                          "value": "application/json"
+                        }
+                      ],
+                      "cookie": [],
+                      "body": "{\n  \"error\": \"string\"\n}"
+                    },
+                    {
+                      "name": "Username already in use",
+                      "originalRequest": {
+                        "method": "POST",
+                        "header": [
+                          {
+                            "description": "Unix timestamp used as part of the canonical signing string.\n",
+                            "key": "Chat-Timestamp",
+                            "value": "0"
+                          },
+                          {
+                            "description": "Base64-encoded signature of the canonical request string:\nMETHOD + \"\\n\" + PATH + \"\\n\" + TIMESTAMP + \"\\n\" + BODY_HASH\n",
+                            "key": "Chat-Signature",
+                            "value": ""
+                          },
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json"
+                          },
+                          {
+                            "key": "Accept",
+                            "value": "application/json"
+                          }
+                        ],
+                        "body": {
+                          "mode": "raw",
+                          "raw": "{\n  \"gateToken\": \"{{gateKey}}\",\n  \"publicKey\": \"anO9M+q/3WNuSUnxpak/GtLt0suBAGVakihtV3HoiDY=\",\n  \"username\": \"test\",\n  \"mode\": 0\n}",
+                          "options": {
+                            "raw": {
+                              "headerFamily": "json",
+                              "language": "json"
+                            }
+                          }
+                        },
+                        "url": {
+                          "raw": "{{baseUrl}}/api/auth/gate",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "api",
+                            "auth",
+                            "gate"
+                          ]
+                        }
+                      },
+                      "status": "Conflict",
+                      "code": 409,
+                      "_postman_previewlanguage": "json",
+                      "header": [
+                        {
+                          "key": "Content-Type",
+                          "value": "application/json"
+                        }
+                      ],
+                      "cookie": [],
+                      "body": "{\n  \"error\": \"string\"\n}"
+                    },
+                    {
+                      "name": "Internal server error",
+                      "originalRequest": {
+                        "method": "POST",
+                        "header": [
+                          {
+                            "description": "Unix timestamp used as part of the canonical signing string.\n",
+                            "key": "Chat-Timestamp",
+                            "value": "0"
+                          },
+                          {
+                            "description": "Base64-encoded signature of the canonical request string:\nMETHOD + \"\\n\" + PATH + \"\\n\" + TIMESTAMP + \"\\n\" + BODY_HASH\n",
+                            "key": "Chat-Signature",
+                            "value": ""
+                          },
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json"
+                          },
+                          {
+                            "key": "Accept",
+                            "value": "application/json"
+                          }
+                        ],
+                        "body": {
+                          "mode": "raw",
+                          "raw": "{\n  \"gateToken\": \"{{gateKey}}\",\n  \"publicKey\": \"anO9M+q/3WNuSUnxpak/GtLt0suBAGVakihtV3HoiDY=\",\n  \"username\": \"test\",\n  \"mode\": 0\n}",
+                          "options": {
+                            "raw": {
+                              "headerFamily": "json",
+                              "language": "json"
+                            }
+                          }
+                        },
+                        "url": {
+                          "raw": "{{baseUrl}}/api/auth/gate",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "api",
+                            "auth",
+                            "gate"
+                          ]
+                        }
+                      },
+                      "status": "Internal Server Error",
+                      "code": 500,
+                      "_postman_previewlanguage": "json",
+                      "header": [
+                        {
+                          "key": "Content-Type",
+                          "value": "application/json"
+                        }
+                      ],
+                      "cookie": [],
+                      "body": "{\n  \"error\": \"string\"\n}"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "users",
+          "item": [
+            {
+              "name": "me",
+              "item": [
+                {
+                  "name": "chats",
+                  "item": [
+                    {
+                      "name": "Delete all chats for current user (persistent mode only)",
+                      "request": {
+                        "method": "DELETE",
+                        "header": [
+                          {
+                            "key": "Chat-Session-ID",
+                            "value": "",
+                            "description": "Session ID returned by POST /api/auth/gate."
+                          },
+                          {
+                            "key": "Chat-Timestamp",
+                            "value": "0",
+                            "description": "Unix timestamp used as part of the canonical signing string.\n"
+                          },
+                          {
+                            "key": "Chat-Signature",
+                            "value": "",
+                            "description": "Base64-encoded signature of the canonical request string:\nMETHOD + \"\\n\" + PATH + \"\\n\" + TIMESTAMP + \"\\n\" + BODY_HASH\n"
+                          },
+                          {
+                            "key": "Accept",
+                            "value": "application/json"
+                          }
+                        ],
+                        "url": {
+                          "raw": "{{baseUrl}}/api/users/me/chats",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "api",
+                            "users",
+                            "me",
+                            "chats"
+                          ]
+                        }
+                      },
+                      "response": [
+                        {
+                          "name": "Chats deleted",
+                          "originalRequest": {
+                            "method": "DELETE",
+                            "header": [
+                              {
+                                "description": "Session ID returned by POST /api/auth/gate.",
+                                "key": "Chat-Session-ID",
+                                "value": ""
+                              },
+                              {
+                                "description": "Unix timestamp used as part of the canonical signing string.\n",
+                                "key": "Chat-Timestamp",
+                                "value": "0"
+                              },
+                              {
+                                "description": "Base64-encoded signature of the canonical request string:\nMETHOD + \"\\n\" + PATH + \"\\n\" + TIMESTAMP + \"\\n\" + BODY_HASH\n",
+                                "key": "Chat-Signature",
+                                "value": ""
+                              },
+                              {
+                                "key": "Accept",
+                                "value": "application/json"
+                              }
+                            ],
+                            "url": {
+                              "raw": "{{baseUrl}}/api/users/me/chats",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "api",
+                                "users",
+                                "me",
+                                "chats"
+                              ]
+                            }
+                          },
+                          "status": "OK",
+                          "code": 200,
+                          "_postman_previewlanguage": "json",
+                          "header": [
+                            {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                            }
+                          ],
+                          "cookie": [],
+                          "body": "{\n  \"deleted\": false\n}"
+                        },
+                        {
+                          "name": "Invalid or missing session ID, or signature verification failed",
+                          "originalRequest": {
+                            "method": "DELETE",
+                            "header": [
+                              {
+                                "description": "Session ID returned by POST /api/auth/gate.",
+                                "key": "Chat-Session-ID",
+                                "value": ""
+                              },
+                              {
+                                "description": "Unix timestamp used as part of the canonical signing string.\n",
+                                "key": "Chat-Timestamp",
+                                "value": "0"
+                              },
+                              {
+                                "description": "Base64-encoded signature of the canonical request string:\nMETHOD + \"\\n\" + PATH + \"\\n\" + TIMESTAMP + \"\\n\" + BODY_HASH\n",
+                                "key": "Chat-Signature",
+                                "value": ""
+                              },
+                              {
+                                "key": "Accept",
+                                "value": "application/json"
+                              }
+                            ],
+                            "url": {
+                              "raw": "{{baseUrl}}/api/users/me/chats",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "api",
+                                "users",
+                                "me",
+                                "chats"
+                              ]
+                            }
+                          },
+                          "status": "Unauthorized",
+                          "code": 401,
+                          "_postman_previewlanguage": "json",
+                          "header": [
+                            {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                            }
+                          ],
+                          "cookie": [],
+                          "body": "{\n  \"error\": \"string\"\n}"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Get current user info (from session)",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Chat-Session-ID",
+                        "value": "",
+                        "description": "Session ID returned by POST /api/auth/gate."
+                      },
+                      {
+                        "key": "Chat-Timestamp",
+                        "value": "0",
+                        "description": "Unix timestamp used as part of the canonical signing string.\n"
+                      },
+                      {
+                        "key": "Chat-Signature",
+                        "value": "",
+                        "description": "Base64-encoded signature of the canonical request string:\nMETHOD + \"\\n\" + PATH + \"\\n\" + TIMESTAMP + \"\\n\" + BODY_HASH\n"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{baseUrl}}/api/users/me",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "users",
+                        "me"
+                      ]
+                    }
+                  },
+                  "response": [
+                    {
+                      "name": "Current user",
+                      "originalRequest": {
+                        "method": "GET",
+                        "header": [
+                          {
+                            "description": "Session ID returned by POST /api/auth/gate.",
+                            "key": "Chat-Session-ID",
+                            "value": ""
+                          },
+                          {
+                            "description": "Unix timestamp used as part of the canonical signing string.\n",
+                            "key": "Chat-Timestamp",
+                            "value": "0"
+                          },
+                          {
+                            "description": "Base64-encoded signature of the canonical request string:\nMETHOD + \"\\n\" + PATH + \"\\n\" + TIMESTAMP + \"\\n\" + BODY_HASH\n",
+                            "key": "Chat-Signature",
+                            "value": ""
+                          },
+                          {
+                            "key": "Accept",
+                            "value": "application/json"
+                          }
+                        ],
+                        "url": {
+                          "raw": "{{baseUrl}}/api/users/me",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "api",
+                            "users",
+                            "me"
+                          ]
+                        }
+                      },
+                      "status": "OK",
+                      "code": 200,
+                      "_postman_previewlanguage": "json",
+                      "header": [
+                        {
+                          "key": "Content-Type",
+                          "value": "application/json"
+                        }
+                      ],
+                      "cookie": [],
+                      "body": "{}"
+                    },
+                    {
+                      "name": "Invalid or missing session ID, or signature verification failed",
+                      "originalRequest": {
+                        "method": "GET",
+                        "header": [
+                          {
+                            "description": "Session ID returned by POST /api/auth/gate.",
+                            "key": "Chat-Session-ID",
+                            "value": ""
+                          },
+                          {
+                            "description": "Unix timestamp used as part of the canonical signing string.\n",
+                            "key": "Chat-Timestamp",
+                            "value": "0"
+                          },
+                          {
+                            "description": "Base64-encoded signature of the canonical request string:\nMETHOD + \"\\n\" + PATH + \"\\n\" + TIMESTAMP + \"\\n\" + BODY_HASH\n",
+                            "key": "Chat-Signature",
+                            "value": ""
+                          },
+                          {
+                            "key": "Accept",
+                            "value": "application/json"
+                          }
+                        ],
+                        "url": {
+                          "raw": "{{baseUrl}}/api/users/me",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "api",
+                            "users",
+                            "me"
+                          ]
+                        }
+                      },
+                      "status": "Unauthorized",
+                      "code": 401,
+                      "_postman_previewlanguage": "json",
+                      "header": [
+                        {
+                          "key": "Content-Type",
+                          "value": "application/json"
+                        }
+                      ],
+                      "cookie": [],
+                      "body": "{\n  \"error\": \"string\"\n}"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "rooms",
+          "item": [
+            {
+              "name": "members",
+              "item": [
+                {
+                  "name": "Add members to an existing group chat",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Chat-Session-ID",
+                        "value": "",
+                        "description": "Session ID returned by POST /api/auth/gate."
+                      },
+                      {
+                        "key": "Chat-Timestamp",
+                        "value": "0",
+                        "description": "Unix timestamp used as part of the canonical signing string.\n"
+                      },
+                      {
+                        "key": "Chat-Signature",
+                        "value": "",
+                        "description": "Base64-encoded signature of the canonical request string:\nMETHOD + \"\\n\" + PATH + \"\\n\" + TIMESTAMP + \"\\n\" + BODY_HASH\n"
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"id\": \"room_123\",\n  \"members\": [\n    \"bob\",\n    \"charlie\"\n  ]\n}",
+                      "options": {
+                        "raw": {
+                          "headerFamily": "json",
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/rooms/members",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "rooms",
+                        "members"
+                      ]
+                    }
+                  },
+                  "response": [
+                    {
+                      "name": "Members added",
+                      "originalRequest": {
+                        "method": "POST",
+                        "header": [
+                          {
+                            "description": "Session ID returned by POST /api/auth/gate.",
+                            "key": "Chat-Session-ID",
+                            "value": ""
+                          },
+                          {
+                            "description": "Unix timestamp used as part of the canonical signing string.\n",
+                            "key": "Chat-Timestamp",
+                            "value": "0"
+                          },
+                          {
+                            "description": "Base64-encoded signature of the canonical request string:\nMETHOD + \"\\n\" + PATH + \"\\n\" + TIMESTAMP + \"\\n\" + BODY_HASH\n",
+                            "key": "Chat-Signature",
+                            "value": ""
+                          },
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json"
+                          },
+                          {
+                            "key": "Accept",
+                            "value": "application/json"
+                          }
+                        ],
+                        "body": {
+                          "mode": "raw",
+                          "raw": "{\n  \"id\": \"room_123\",\n  \"members\": [\n    \"bob\",\n    \"charlie\"\n  ]\n}",
+                          "options": {
+                            "raw": {
+                              "headerFamily": "json",
+                              "language": "json"
+                            }
+                          }
+                        },
+                        "url": {
+                          "raw": "{{baseUrl}}/api/rooms/members",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "api",
+                            "rooms",
+                            "members"
+                          ]
+                        }
+                      },
+                      "status": "OK",
+                      "code": 200,
+                      "_postman_previewlanguage": "json",
+                      "header": [
+                        {
+                          "key": "Content-Type",
+                          "value": "application/json"
+                        }
+                      ],
+                      "cookie": [],
+                      "body": "{\n  \"id\": \"string\",\n  \"groupName\": \"string\",\n  \"members\": [\n    \"string\",\n    \"string\"\n  ]\n}"
+                    },
+                    {
+                      "name": "Invalid or missing session ID, or signature verification failed",
+                      "originalRequest": {
+                        "method": "POST",
+                        "header": [
+                          {
+                            "description": "Session ID returned by POST /api/auth/gate.",
+                            "key": "Chat-Session-ID",
+                            "value": ""
+                          },
+                          {
+                            "description": "Unix timestamp used as part of the canonical signing string.\n",
+                            "key": "Chat-Timestamp",
+                            "value": "0"
+                          },
+                          {
+                            "description": "Base64-encoded signature of the canonical request string:\nMETHOD + \"\\n\" + PATH + \"\\n\" + TIMESTAMP + \"\\n\" + BODY_HASH\n",
+                            "key": "Chat-Signature",
+                            "value": ""
+                          },
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json"
+                          },
+                          {
+                            "key": "Accept",
+                            "value": "application/json"
+                          }
+                        ],
+                        "body": {
+                          "mode": "raw",
+                          "raw": "{\n  \"id\": \"room_123\",\n  \"members\": [\n    \"bob\",\n    \"charlie\"\n  ]\n}",
+                          "options": {
+                            "raw": {
+                              "headerFamily": "json",
+                              "language": "json"
+                            }
+                          }
+                        },
+                        "url": {
+                          "raw": "{{baseUrl}}/api/rooms/members",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "api",
+                            "rooms",
+                            "members"
+                          ]
+                        }
+                      },
+                      "status": "Unauthorized",
+                      "code": 401,
+                      "_postman_previewlanguage": "json",
+                      "header": [
+                        {
+                          "key": "Content-Type",
+                          "value": "application/json"
+                        }
+                      ],
+                      "cookie": [],
+                      "body": "{\n  \"error\": \"string\"\n}"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "leave",
+              "item": [
+                {
+                  "name": "Leave a group chat",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Chat-Session-ID",
+                        "value": "",
+                        "description": "Session ID returned by POST /api/auth/gate."
+                      },
+                      {
+                        "key": "Chat-Timestamp",
+                        "value": "0",
+                        "description": "Unix timestamp used as part of the canonical signing string.\n"
+                      },
+                      {
+                        "key": "Chat-Signature",
+                        "value": "",
+                        "description": "Base64-encoded signature of the canonical request string:\nMETHOD + \"\\n\" + PATH + \"\\n\" + TIMESTAMP + \"\\n\" + BODY_HASH\n"
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"id\": \"room_123\"\n}",
+                      "options": {
+                        "raw": {
+                          "headerFamily": "json",
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/rooms/leave",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "rooms",
+                        "leave"
+                      ]
+                    }
+                  },
+                  "response": [
+                    {
+                      "name": "Left chat successfully",
+                      "originalRequest": {
+                        "method": "POST",
+                        "header": [
+                          {
+                            "description": "Session ID returned by POST /api/auth/gate.",
+                            "key": "Chat-Session-ID",
+                            "value": ""
+                          },
+                          {
+                            "description": "Unix timestamp used as part of the canonical signing string.\n",
+                            "key": "Chat-Timestamp",
+                            "value": "0"
+                          },
+                          {
+                            "description": "Base64-encoded signature of the canonical request string:\nMETHOD + \"\\n\" + PATH + \"\\n\" + TIMESTAMP + \"\\n\" + BODY_HASH\n",
+                            "key": "Chat-Signature",
+                            "value": ""
+                          },
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json"
+                          }
+                        ],
+                        "body": {
+                          "mode": "raw",
+                          "raw": "{\n  \"id\": \"room_123\"\n}",
+                          "options": {
+                            "raw": {
+                              "headerFamily": "json",
+                              "language": "json"
+                            }
+                          }
+                        },
+                        "url": {
+                          "raw": "{{baseUrl}}/api/rooms/leave",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "api",
+                            "rooms",
+                            "leave"
+                          ]
+                        }
+                      },
+                      "status": "OK",
+                      "code": 200,
+                      "_postman_previewlanguage": "text",
+                      "header": [],
+                      "cookie": [],
+                      "body": ""
+                    },
+                    {
+                      "name": "Invalid or missing session ID, or signature verification failed",
+                      "originalRequest": {
+                        "method": "POST",
+                        "header": [
+                          {
+                            "description": "Session ID returned by POST /api/auth/gate.",
+                            "key": "Chat-Session-ID",
+                            "value": ""
+                          },
+                          {
+                            "description": "Unix timestamp used as part of the canonical signing string.\n",
+                            "key": "Chat-Timestamp",
+                            "value": "0"
+                          },
+                          {
+                            "description": "Base64-encoded signature of the canonical request string:\nMETHOD + \"\\n\" + PATH + \"\\n\" + TIMESTAMP + \"\\n\" + BODY_HASH\n",
+                            "key": "Chat-Signature",
+                            "value": ""
+                          },
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json"
+                          },
+                          {
+                            "key": "Accept",
+                            "value": "application/json"
+                          }
+                        ],
+                        "body": {
+                          "mode": "raw",
+                          "raw": "{\n  \"id\": \"room_123\"\n}",
+                          "options": {
+                            "raw": {
+                              "headerFamily": "json",
+                              "language": "json"
+                            }
+                          }
+                        },
+                        "url": {
+                          "raw": "{{baseUrl}}/api/rooms/leave",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "api",
+                            "rooms",
+                            "leave"
+                          ]
+                        }
+                      },
+                      "status": "Unauthorized",
+                      "code": 401,
+                      "_postman_previewlanguage": "json",
+                      "header": [
+                        {
+                          "key": "Content-Type",
+                          "value": "application/json"
+                        }
+                      ],
+                      "cookie": [],
+                      "body": "{\n  \"error\": \"string\"\n}"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Create group chat",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Chat-Session-ID",
+                    "value": "",
+                    "description": "Session ID returned by POST /api/auth/gate."
+                  },
+                  {
+                    "key": "Chat-Timestamp",
+                    "value": "0",
+                    "description": "Unix timestamp used as part of the canonical signing string.\n"
+                  },
+                  {
+                    "key": "Chat-Signature",
+                    "value": "",
+                    "description": "Base64-encoded signature of the canonical request string:\nMETHOD + \"\\n\" + PATH + \"\\n\" + TIMESTAMP + \"\\n\" + BODY_HASH\n"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"groupName\": \"study-group\"\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/rooms",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "rooms"
+                  ]
+                }
+              },
+              "response": [
+                {
+                  "name": "Room created",
+                  "originalRequest": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "description": "Session ID returned by POST /api/auth/gate.",
+                        "key": "Chat-Session-ID",
+                        "value": ""
+                      },
+                      {
+                        "description": "Unix timestamp used as part of the canonical signing string.\n",
+                        "key": "Chat-Timestamp",
+                        "value": "0"
+                      },
+                      {
+                        "description": "Base64-encoded signature of the canonical request string:\nMETHOD + \"\\n\" + PATH + \"\\n\" + TIMESTAMP + \"\\n\" + BODY_HASH\n",
+                        "key": "Chat-Signature",
+                        "value": ""
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"groupName\": \"study-group\"\n}",
+                      "options": {
+                        "raw": {
+                          "headerFamily": "json",
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/rooms",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "rooms"
+                      ]
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"id\": \"string\",\n  \"groupName\": \"string\",\n  \"members\": [\n    \"string\",\n    \"string\"\n  ]\n}"
+                },
+                {
+                  "name": "Invalid or missing session ID, or signature verification failed",
+                  "originalRequest": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "description": "Session ID returned by POST /api/auth/gate.",
+                        "key": "Chat-Session-ID",
+                        "value": ""
+                      },
+                      {
+                        "description": "Unix timestamp used as part of the canonical signing string.\n",
+                        "key": "Chat-Timestamp",
+                        "value": "0"
+                      },
+                      {
+                        "description": "Base64-encoded signature of the canonical request string:\nMETHOD + \"\\n\" + PATH + \"\\n\" + TIMESTAMP + \"\\n\" + BODY_HASH\n",
+                        "key": "Chat-Signature",
+                        "value": ""
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"groupName\": \"study-group\"\n}",
+                      "options": {
+                        "raw": {
+                          "headerFamily": "json",
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/rooms",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "rooms"
+                      ]
+                    }
+                  },
+                  "status": "Unauthorized",
+                  "code": 401,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"error\": \"string\"\n}"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    }
+  ]
+}
