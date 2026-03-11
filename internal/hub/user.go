@@ -29,6 +29,8 @@ func (u *User) ReadPump(inbound chan<- WSMessageEnvelope) error {
 			continue
 		}
 
+		envelope.Sender = u
+
 		inbound <- envelope
 	}
 }

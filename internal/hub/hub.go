@@ -29,6 +29,7 @@ type RoomRequest struct {
 }
 
 type WSMessageEnvelope struct {
+	Sender  *User              `json:"-"` // server-only
 	Type    models.WSEventType `json:"type"`
 	Payload json.RawMessage    `json:"payload"`
 }
@@ -67,13 +68,15 @@ func (h *Hub) Run() {
 			fmt.Printf("register room %v\n", newRoom)
 
 		case newUser := <-h.RegisterUser:
-			fmt.Printf("register username %v\n", newUser)
+			h.Users[newUser.Fingerprint] = newUser
+
+		case user := <-h.UnregisterUser:
+			delete(h.Users, user.Fingerprint)
 
 		case msg := <-h.InboundMessages:
 			switch msg.Type {
 			case models.Message:
-				fmt.Printf("broadcast message %v\n", msg)
-
+				fmt.Printf("message received from %v\n", msg.Sender.Username)
 			}
 		}
 	}
