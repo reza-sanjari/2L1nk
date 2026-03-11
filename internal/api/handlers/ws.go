@@ -84,6 +84,23 @@ func (h *Handler) Ws(c echo.Context) error {
 	// TODO: validate timestamp + signature here
 
 	newUser := hub.NewUser(activeUser.PublicKeyFingerprint, activeUser.Username, ws, activeUser.Mode)
+
 	h.Hub.RegisterUser <- newUser
+	
+	// start writer
+	go func() {
+		if err := newUser.WritePump(); err != nil {
+			h.Logg.Debug("write pump closed", zap.Error(err))
+		}
+	}()
+
+	// reader blocks until disconnect
+	if err := newUser.ReadPump(h.Hub.InboundMessages); err != nil {
+		h.Logg.Debug("read pump closed", zap.Error(err))
+	}
+
+	// cleanup
+	h.Hub.UnregisterUser <- newUser
+
 	return nil
 }
