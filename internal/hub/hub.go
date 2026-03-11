@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"2L1nk/internal/logger"
 	"2L1nk/internal/models"
 	"2L1nk/internal/session"
 	"encoding/json"
@@ -8,6 +9,7 @@ import (
 )
 
 type Hub struct {
+	logg            *logger.Logger
 	s               *session.Store
 	Rooms           map[string]*room
 	Users           map[string]*User
@@ -28,7 +30,7 @@ type RoomRequest struct {
 
 type WSMessageEnvelope struct {
 	Type    models.WSEventType `json:"type"`
-	Payload json.RawMessage
+	Payload json.RawMessage    `json:"payload"`
 }
 
 type room struct {
@@ -42,8 +44,9 @@ type CreateRoomRequest struct {
 	ResponseChan chan string
 }
 
-func New(s *session.Store) *Hub {
+func New(s *session.Store, logg *logger.Logger) *Hub {
 	return &Hub{
+		logg:            logg,
 		s:               s,
 		Rooms:           make(map[string]*room),
 		Users:           make(map[string]*User),
