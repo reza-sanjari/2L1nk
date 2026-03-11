@@ -2,6 +2,7 @@ package hub
 
 import (
 	"2L1nk/internal/models"
+	"encoding/json"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -16,11 +17,34 @@ type User struct {
 	Mode             models.UserMode
 }
 
-func (U *User) WritePump() error {
-	return nil
+func (u *User) ReadPump(inbound chan<- WSMessageEnvelope) error {
+	for {
+		_, message, err := u.Websocket.ReadMessage()
+		if err != nil {
+			return err
+		}
+
+		var envelope WSMessageEnvelope
+		if err := json.Unmarshal(message, &envelope); err != nil {
+			continue
+		}
+
+		inbound <- envelope
+	}
 }
 
-func (U *User) ReadPump() error {
+func (u *User) WritePump() error {
+	for msg := range u.OutGoingMessages {
+		u.PeerMux.Lock()
+
+		err := u.Websocket.WriteMessage(websocket.TextMessage, msg)
+
+		u.PeerMux.Unlock()
+
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
