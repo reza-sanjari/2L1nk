@@ -17,16 +17,11 @@ type Hub struct {
 	UnregisterRoom  chan map[string]*room
 	RegisterUser    chan *User
 	UnregisterUser  chan *User
-	JoinRoom        chan JoinRoomRequest
-	LeaveRoom       chan LeaveRoomRequest
+	JoinRoom        chan RoomRequest
+	LeaveRoom       chan RoomRequest
 }
 
-type JoinRoomRequest struct {
-	RoomID string
-	User   *User
-}
-
-type LeaveRoomRequest struct {
+type RoomRequest struct {
 	RoomID string
 	User   *User
 }
@@ -58,8 +53,8 @@ func New(s *session.Store) *Hub {
 		UnregisterRoom:  make(chan map[string]*room),
 		RegisterUser:    make(chan *User),
 		UnregisterUser:  make(chan *User),
-		JoinRoom:        make(chan JoinRoomRequest),
-		LeaveRoom:       make(chan LeaveRoomRequest)}
+		JoinRoom:        make(chan RoomRequest),
+		LeaveRoom:       make(chan RoomRequest)}
 }
 
 func (h *Hub) Run() {
