@@ -11,12 +11,25 @@ import (
 type Hub struct {
 	s               *session.Store
 	Rooms           map[string]*room
+	Users           map[string]*User
 	Broadcast       chan WSMessageEnvelope
 	InboundMessages chan WSMessageEnvelope
 	RegisterRoom    chan CreateRoomRequest
 	UnregisterRoom  chan map[string]*room
-	RegisterUser    chan map[string]*user.User
-	UnregisterUser  chan *user.User
+	RegisterUser    chan *User
+	UnregisterUser  chan *User
+	JoinRoom        chan JoinRoomRequest
+	LeaveRoom       chan LeaveRoomRequest
+}
+
+type JoinRoomRequest struct {
+	RoomID string
+	User   *user.User
+}
+
+type LeaveRoomRequest struct {
+	RoomID string
+	User   *user.User
 }
 
 type WSMessageEnvelope struct {
@@ -36,7 +49,18 @@ type CreateRoomRequest struct {
 }
 
 func New(s *session.Store) *Hub {
-	return &Hub{s: s}
+	return &Hub{
+		s:               s,
+		Rooms:           make(map[string]*room),
+		Users:           make(map[string]*User),
+		Broadcast:       make(chan WSMessageEnvelope),
+		InboundMessages: make(chan WSMessageEnvelope),
+		RegisterRoom:    make(chan CreateRoomRequest),
+		UnregisterRoom:  make(chan map[string]*room),
+		RegisterUser:    make(chan *User),
+		UnregisterUser:  make(chan *User),
+		JoinRoom:        make(chan JoinRoomRequest),
+		LeaveRoom:       make(chan LeaveRoomRequest)}
 }
 
 func (h *Hub) Run() {
@@ -44,6 +68,9 @@ func (h *Hub) Run() {
 		select {
 		case newRoom := <-h.RegisterRoom:
 			fmt.Printf("register room %v\n", newRoom)
+
+		case newUser := <-h.RegisterUser:
+			fmt.Printf("register username %v\n", newUser)
 		}
 	}
 }
