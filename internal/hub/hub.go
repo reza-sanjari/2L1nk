@@ -5,7 +5,6 @@ import (
 	"2L1nk/internal/session"
 	"encoding/json"
 	"fmt"
-	"os/user"
 )
 
 type Hub struct {
@@ -24,12 +23,12 @@ type Hub struct {
 
 type JoinRoomRequest struct {
 	RoomID string
-	User   *user.User
+	User   *User
 }
 
 type LeaveRoomRequest struct {
 	RoomID string
-	User   *user.User
+	User   *User
 }
 
 type WSMessageEnvelope struct {
