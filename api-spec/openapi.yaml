@@ -70,12 +70,12 @@ paths:
     get:
       summary: Health check
       deprecated: false
-      description: ''
+      description: ""
       tags:
         - System
       parameters: []
       responses:
-        '200':
+        "200":
           description: Server alive
           content:
             application/json:
@@ -93,7 +93,7 @@ paths:
                   timestamp:
                     type: string
                     examples:
-                      - '2026-03-10T10:44:19.961599979Z'
+                      - "2026-03-10T10:44:19.961599979Z"
                 required:
                   - mode
                   - status
@@ -104,7 +104,7 @@ paths:
     post:
       summary: Authorize with gate key, prove key ownership, receive session ID
       deprecated: false
-      description: ''
+      description: ""
       tags:
         - Auth
       parameters:
@@ -124,67 +124,67 @@ paths:
             Base64-encoded signature of the canonical request string:
             METHOD + "\n" + PATH + "\n" + TIMESTAMP + "\n" + BODY_HASH
           required: true
-          example: ''
+          example: ""
           schema:
             type: string
             examples:
-              - '{{signature}}'
+              - "{{signature}}"
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GateAuthorizeRequest'
+              $ref: "#/components/schemas/GateAuthorizeRequest"
             examples:
               default:
                 value:
-                  gateToken: '{{gateKey}}'
+                  gateToken: "{{gateKey}}"
                   publicKey: anO9M+q/3WNuSUnxpak/GtLt0suBAGVakihtV3HoiDY=
                   username: test
                   mode: 0
                 summary: Gate authorization example
         required: true
       responses:
-        '200':
+        "200":
           description: Authorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GateAuthorizeResponse'
+                $ref: "#/components/schemas/GateAuthorizeResponse"
           headers: {}
-        '400':
+        "400":
           description: Invalid request body or missing required fields
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
           headers: {}
-        '401':
+        "401":
           description: Invalid gate key or signature verification failed
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
           headers: {}
-        '409':
+        "409":
           description: Username already in use
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
           headers: {}
-        '500':
+        "500":
           description: Internal server error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
           headers: {}
       security: []
   /api/users/me:
     get:
       summary: Get current user info (from session)
       deprecated: false
-      description: ''
+      description: ""
       tags:
         - Users
       parameters:
@@ -192,11 +192,11 @@ paths:
           in: header
           description: Session ID returned by POST /api/auth/gate.
           required: true
-          example: ''
+          example: ""
           schema:
             type: string
             examples:
-              - '{{sessionId}}'
+              - "{{sessionId}}"
         - name: Chat-Timestamp
           in: header
           description: |
@@ -213,32 +213,32 @@ paths:
             Base64-encoded signature of the canonical request string:
             METHOD + "\n" + PATH + "\n" + TIMESTAMP + "\n" + BODY_HASH
           required: true
-          example: ''
+          example: ""
           schema:
             type: string
             examples:
-              - '{{signature}}'
+              - "{{signature}}"
       responses:
-        '200':
+        "200":
           description: Current user
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserResponse'
+                $ref: "#/components/schemas/UserResponse"
           headers: {}
-        '401':
+        "401":
           description: Invalid or missing session ID, or signature verification failed
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
           headers: {}
       security: []
   /api/users/me/chats:
     delete:
       summary: Delete all chats for current user (persistent mode only)
       deprecated: false
-      description: ''
+      description: ""
       tags:
         - Users
       parameters:
@@ -246,11 +246,11 @@ paths:
           in: header
           description: Session ID returned by POST /api/auth/gate.
           required: true
-          example: ''
+          example: ""
           schema:
             type: string
             examples:
-              - '{{sessionId}}'
+              - "{{sessionId}}"
         - name: Chat-Timestamp
           in: header
           description: |
@@ -267,32 +267,32 @@ paths:
             Base64-encoded signature of the canonical request string:
             METHOD + "\n" + PATH + "\n" + TIMESTAMP + "\n" + BODY_HASH
           required: true
-          example: ''
+          example: ""
           schema:
             type: string
             examples:
-              - '{{signature}}'
+              - "{{signature}}"
       responses:
-        '200':
+        "200":
           description: Chats deleted
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DeleteChatsResponse'
+                $ref: "#/components/schemas/DeleteChatsResponse"
           headers: {}
-        '401':
+        "401":
           description: Invalid or missing session ID, or signature verification failed
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
           headers: {}
       security: []
   /api/rooms:
     post:
       summary: Create group chat
       deprecated: false
-      description: ''
+      description: ""
       tags:
         - Rooms
       parameters:
@@ -300,11 +300,11 @@ paths:
           in: header
           description: Session ID returned by POST /api/auth/gate.
           required: true
-          example: ''
+          example: ""
           schema:
             type: string
             examples:
-              - '{{sessionId}}'
+              - "{{sessionId}}"
         - name: Chat-Timestamp
           in: header
           description: |
@@ -321,16 +321,16 @@ paths:
             Base64-encoded signature of the canonical request string:
             METHOD + "\n" + PATH + "\n" + TIMESTAMP + "\n" + BODY_HASH
           required: true
-          example: ''
+          example: ""
           schema:
             type: string
             examples:
-              - '{{signature}}'
+              - "{{signature}}"
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateRoomRequest'
+              $ref: "#/components/schemas/CreateRoomRequest"
             examples:
               default:
                 value:
@@ -338,26 +338,26 @@ paths:
                 summary: default
         required: true
       responses:
-        '200':
+        "200":
           description: Room created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RoomResponse'
+                $ref: "#/components/schemas/RoomResponse"
           headers: {}
-        '401':
+        "401":
           description: Invalid or missing session ID, or signature verification failed
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
           headers: {}
       security: []
   /api/rooms/members:
     post:
       summary: Add members to an existing group chat
       deprecated: false
-      description: ''
+      description: ""
       tags:
         - Rooms
       parameters:
@@ -365,11 +365,11 @@ paths:
           in: header
           description: Session ID returned by POST /api/auth/gate.
           required: true
-          example: ''
+          example: ""
           schema:
             type: string
             examples:
-              - '{{sessionId}}'
+              - "{{sessionId}}"
         - name: Chat-Timestamp
           in: header
           description: |
@@ -386,16 +386,16 @@ paths:
             Base64-encoded signature of the canonical request string:
             METHOD + "\n" + PATH + "\n" + TIMESTAMP + "\n" + BODY_HASH
           required: true
-          example: ''
+          example: ""
           schema:
             type: string
             examples:
-              - '{{signature}}'
+              - "{{signature}}"
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AddMembersRequest'
+              $ref: "#/components/schemas/AddMembersRequest"
             examples:
               default:
                 value:
@@ -406,26 +406,26 @@ paths:
                 summary: default
         required: true
       responses:
-        '200':
+        "200":
           description: Members added
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RoomResponse'
+                $ref: "#/components/schemas/RoomResponse"
           headers: {}
-        '401':
+        "401":
           description: Invalid or missing session ID, or signature verification failed
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
           headers: {}
       security: []
   /api/rooms/leave:
     post:
       summary: Leave a group chat
       deprecated: false
-      description: ''
+      description: ""
       tags:
         - Rooms
       parameters:
@@ -433,11 +433,11 @@ paths:
           in: header
           description: Session ID returned by POST /api/auth/gate.
           required: true
-          example: ''
+          example: ""
           schema:
             type: string
             examples:
-              - '{{sessionId}}'
+              - "{{sessionId}}"
         - name: Chat-Timestamp
           in: header
           description: |
@@ -454,16 +454,16 @@ paths:
             Base64-encoded signature of the canonical request string:
             METHOD + "\n" + PATH + "\n" + TIMESTAMP + "\n" + BODY_HASH
           required: true
-          example: ''
+          example: ""
           schema:
             type: string
             examples:
-              - '{{signature}}'
+              - "{{signature}}"
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/LeaveChatRequest'
+              $ref: "#/components/schemas/LeaveChatRequest"
             examples:
               default:
                 value:
@@ -471,15 +471,15 @@ paths:
                 summary: default
         required: true
       responses:
-        '200':
+        "200":
           description: Left chat successfully
           headers: {}
-        '401':
+        "401":
           description: Invalid or missing session ID, or signature verification failed
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: "#/components/schemas/ErrorResponse"
           headers: {}
       security: []
 webhooks: {}
@@ -503,7 +503,7 @@ components:
         gateToken:
           type: string
           examples:
-            - '{{gateKey}}'
+            - "{{gateKey}}"
         publicKey:
           type: string
           description: Full public key (PEM or base64-encoded)
@@ -613,7 +613,7 @@ components:
       required: true
       schema:
         type: string
-        example: '{{sessionId}}'
+        example: "{{sessionId}}"
       description: Session ID returned by POST /api/auth/gate.
     ChatTimestampHeader:
       name: Chat-Timestamp
@@ -630,9 +630,10 @@ components:
       required: true
       schema:
         type: string
-        example: '{{signature}}'
+        example: "{{signature}}"
       description: |
         Base64-encoded signature of the canonical request string:
         METHOD + "\n" + PATH + "\n" + TIMESTAMP + "\n" + BODY_HASH
-servers: []
-security: []
+servers:
+  - url: http://localhost:8080
+    description: local host for dev testing
