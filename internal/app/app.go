@@ -56,6 +56,7 @@ func New(cfg *config.Config) *App {
 
 	// Hub
 	mainHub := hub.New(sessionStore)
+	go mainHub.Run()
 
 	// Handler
 	handler := handlers.NewHandler(services, mainHub, sessionStore, logg)
