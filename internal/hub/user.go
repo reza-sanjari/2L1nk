@@ -24,6 +24,13 @@ func (U *User) ReadPump() error {
 	return nil
 }
 
-func NewUser() (*User, error) {
-	return nil, nil
+func NewUser(fingerprint string, username string, websocket *websocket.Conn, mode models.UserMode) *User {
+	return &User{
+		Fingerprint:      fingerprint,
+		Username:         username,
+		OutGoingMessages: make(chan []byte),
+		Websocket:        websocket,
+		PeerMux:          sync.Mutex{},
+		mode:             mode,
+	}
 }
