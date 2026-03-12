@@ -86,7 +86,7 @@ func (h *Handler) Ws(c echo.Context) error {
 	newUser := hub.NewUser(activeUser.PublicKeyFingerprint, activeUser.Username, ws, activeUser.Mode)
 
 	h.Hub.RegisterUser <- newUser
-	
+
 	// start writer
 	go func() {
 		if err := newUser.WritePump(); err != nil {
