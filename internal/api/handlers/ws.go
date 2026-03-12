@@ -49,8 +49,6 @@ func (h *Handler) Ws(c echo.Context) error {
 		return nil
 	}
 
-	h.Logg.Debug("raw websocket message received", zap.ByteString("raw", raw))
-
 	// 2. decode envelope
 	var msg hub.WSMessageEnvelope
 	if err := json.Unmarshal(raw, &msg); err != nil {
@@ -58,18 +56,16 @@ func (h *Handler) Ws(c echo.Context) error {
 		return nil
 	}
 
-	h.Logg.Debug("received message", zap.Any("msg", msg))
-
 	// 3. require auth as first message
 	if msg.Type != "auth" {
-		log.Println("first message must be auth")
+		h.Logg.Debug("websocket closed, invalid first message type", zap.Any("msg", msg))
 		return nil
 	}
 
 	// 4. decode auth payload
 	var auth AuthPayload
 	if err := json.Unmarshal(msg.Payload, &auth); err != nil {
-		log.Println("invalid auth payload:", err)
+		h.Logg.Debug("websocket closed, invalid auth payload", zap.Any("msg", msg))
 		return nil
 	}
 
@@ -80,7 +76,7 @@ func (h *Handler) Ws(c echo.Context) error {
 		return nil
 	}
 
-	h.Logg.Debug("active user authenticated through websocket", zap.String("username", activeUser.Username))
+	h.Logg.Debug("websocket authenticated", zap.String("username", activeUser.Username), zap.String("fingerprint", activeUser.PublicKeyFingerprint))
 	// TODO: validate timestamp + signature here
 
 	newUser := hub.NewUser(activeUser.PublicKeyFingerprint, activeUser.Username, ws, activeUser.Mode)
