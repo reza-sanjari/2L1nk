@@ -5,9 +5,9 @@ import (
 	"2L1nk/internal/models"
 	"2L1nk/internal/session"
 	"encoding/json"
-	"fmt"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 type Hub struct {
@@ -33,12 +33,6 @@ type RoomMembersChangeRequest struct {
 type CreateRoomRequest struct {
 	Host         string
 	ResponseChan chan string
-}
-
-type WSMessageEnvelope struct {
-	Sender  *User              `json:"-"` // server-only
-	Type    models.WSEventType `json:"type"`
-	Payload json.RawMessage    `json:"payload"`
 }
 
 type room struct {
@@ -81,7 +75,7 @@ func (h *Hub) Run() {
 
 		case newUser := <-h.RegisterUser:
 			h.Users[newUser.Fingerprint] = newUser
-			fmt.Printf("register user %v with fingerprint %v \n", newUser.Username, newUser.Fingerprint)
+			h.logg.Info("user authenticated", zap.String("username", newUser.Username), zap.String("fingerprint", newUser.Fingerprint))
 
 		case user := <-h.UnregisterUser:
 			delete(h.Users, user.Fingerprint)
@@ -89,7 +83,17 @@ func (h *Hub) Run() {
 		case msg := <-h.InboundMessages:
 			switch msg.Type {
 			case models.Message:
-				fmt.Printf("message received from %v\n", msg.Sender.Username)
+				var p MessagePayload
+				err := json.Unmarshal(msg.Payload, &p)
+				if err != nil {
+					h.logg.Error("Failed to unmarshal payload", zap.String("payload", string(msg.Payload)), zap.Error(err))
+					return
+				}
+				h.logg.Debug(
+					"received message",
+					zap.String("message", p.Ciphertext),
+					zap.String("sender", msg.Sender.Username),
+				)
 			}
 		}
 	}
