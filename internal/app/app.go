@@ -55,10 +55,11 @@ func New(cfg *config.Config) *App {
 	services := service.NewContainer(healthSvc, gateSvc, RoomSvc)
 
 	// Hub
-	mainHub := hub.New(sessionStore)
+	mainHub := hub.New(sessionStore, logg)
+	go mainHub.Run()
 
 	// Handler
-	handler := handlers.NewHandler(services, mainHub)
+	handler := handlers.NewHandler(services, mainHub, sessionStore, logg)
 
 	// Server
 	srv := server.New(cfg, handler, sessionStore)
