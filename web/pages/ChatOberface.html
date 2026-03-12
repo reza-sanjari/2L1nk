@@ -354,7 +354,7 @@
                 <div class="brand-icon"><i class="fas fa-shield-alt"></i></div>
                 <div>
                     <div style="font-weight: bold; font-size: 1.2rem; color: #bc13fe;">2L1nk</div>
-                    <div style="font-size: 0.6rem; opacity: 0.5; letter-spacing: 2px;">ENCRYPTED</div>
+                    <div style="font-size: 0.6rem; opacity: 0.5; letter-spacing: 2px;"onclick="sendMessage();">ENCRYPTED</div>
                 </div>
             </div>
 
@@ -370,8 +370,10 @@
 
             <div class="empty-state">
                 <i class="fas fa-users" style="font-size: 2rem; margin-bottom: 10px;"></i>
-                <p>Keine aktiven Chats</p>
+                <p onclick="LoadRooms()">Keine aktiven Chats </p>
             </div>
+            
+            <div id="chat-list-container" ></div>
 
             <button class="btn-action" onclick="document.getElementById('newChatModal').showModal()">Neuer Chat</button>
             <button class="btn-action btn-voice" onclick="connectLocalChat()"><i class="fas fa-voice"></i> &nbsp;  Anrufen</button>
@@ -394,7 +396,7 @@
             <div class="feature-grid">
                 <div class="feature-card">
                     <i class="fas fa-lock" style="color: #4ade80;"></i>
-                    <span style="font-size: 0.7rem; font-weight: bold; opacity: 0.6;" onclick="sendMessage()">AES-256</span>
+                    <span style="font-size: 0.7rem; font-weight: bold; opacity: 0.6;" >AES-256</span>
                 </div>
                 <div class="feature-card">
                     <i class="fas fa-comment" style="color: #bc13fe;"></i>
@@ -416,9 +418,10 @@
 </html>
 <script>
     let socket;
+    let roomList = [];
+    fetchRooms();
+    connectLocalChat();
     function connectLocalChat() {
-        // Port 8080 ist ein gängiger Standard, passe ihn ggf. an (z.B. 3000 oder 5000)
-        alert("⚠️ Phase1!");
         socket = new WebSocket('ws://localhost:8080/api/ws');
         socket.onopen = () => {
             const authPayload = {
@@ -431,24 +434,64 @@
             };
 
             socket.send(JSON.stringify(authPayload));
-            console.log("Auth-Payload an localhost gesendet.");
-            alert("Auth-Payload an localhost gesendet.");
         };
-
-        socket.onmessage = (event) => {
-            console.log("Server sagt:", event.data);
-            alert("Server sagt:");
-        };
-
-        socket.onerror = (err) => console.error("Socket Fehler:", err);
-
-    
     }
+    function LoadRooms() {
+        const container = document.getElementById('chat-list-container');
+        const emptyState = document.getElementById('empty-state');
+
+        // Prüfen, ob Container existiert
+        if (!container) return;
+
+        if (roomList && roomList.length > 0) {
+            // Räume gefunden
+            if (emptyState) emptyState.style.display = 'none';
+            container.innerHTML = "";
+
+            roomList.forEach(room => {
+                const div = document.createElement('div');
+                div.className = 'chat-item';
+                div.innerHTML = `
+                <div style="font-weight: bold; cursor: pointer; padding: 10px; border-bottom: 1px solid #4b0082;">
+                    ${room.RoomID}
+                    <div style="font-size: 0.7rem; opacity: 0.6;">Host: ${room.Host}</div>
+                </div>
+            `;
+                div.onclick = () => console.log("Chat ausgewählt:", room.RoomID);
+                container.appendChild(div);
+            });
+        } else {
+            // Falls Liste leer ist
+            if (emptyState) emptyState.style.display = 'flex';
+            container.innerHTML = "<p style='padding: 10px; opacity: 0.5;'>Keine Chats gefunden.</p>";
+        }
+    }
+    async function fetchRooms() {
+        try {
+            const response = await fetch('http://localhost:8080/api/test/rooms', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP-Fehler: ${response.status}`);
+            }
+
+            roomList = await response.json();
+
+            // Wenn Räume da sind, Empty-State ausblenden
+           
+            console.log("Daten erfolgreich geladen:", roomList);
+
+        } catch (error) {
+            console.error("Fehler beim Abrufen der API-Daten:", error);
+        }
+    }
+    
     function sendMessage(roomID, senderFP, ciphertext) {
-        // 1. Prüfen, ob der Socket überhaupt noch offen ist
+
         if (socket && socket.readyState === WebSocket.OPEN) {
 
-            // 2. Das Payload-Objekt nach deinem Schema aufbauen
             const messagePayload = {
                 "type": "message",
                 "payload": {
@@ -459,15 +502,16 @@
                 }
             };
 
-            // 3. Als String senden
             socket.send(JSON.stringify(messagePayload));
-            console.log("Nachricht erfolgreich an Server übertragen:", messagePayload);
         } else {
             console.error("Socket ist nicht bereit. Verbindung prüfen!");
         }
+        console.error("nachrichtende gesendet");
     }
     function whoAmI() {
         const username = sessionStorage.getItem('username');
+        const usernamefield = document.getElementById('username');
+        usernamefield.textContent = username.substring(0, 2).toUpperCase();
 
         // Sicherheit: Falls niemand eingeloggt ist, direkt zurückwerfen
         if (!username) {
@@ -493,53 +537,42 @@
         document.getElementById('newChatModal').close();
     }
     async function newChat(groupName) {
-    // 1. SessionID aus dem sessionStorage abrufen
-    const sessionId = sessionStorage.getItem('sessionId');
+        // 1. SessionID aus dem sessionStorage abrufen
+        const sessionId = sessionStorage.getItem('sessionId');
     
-    // 2. Zeitstempel und Platzhalter für die Signatur
-    const timestamp = Math.floor(Date.now() / 1000).toString();
-    const signature = "DEINE_SIGNATUR_LOGIK"; // Hier muss deine HMAC-Signatur hin
+        // 2. Zeitstempel und Platzhalter für die Signatur
+        const timestamp = Math.floor(Date.now() / 1000).toString();
+        const signature = "DEINE_SIGNATUR_LOGIK"; // Hier muss deine HMAC-Signatur hin
 
-    try {
-        const response = await fetch('http://localhost:8080/api/rooms', {
-            method: 'POST',
-            headers: {
-                'Chat-Session-ID': sessionId, // Hier wird die ID dynamisch eingesetzt
-                'Chat-Signature': signature,
-                'Chat-Timestamp': timestamp,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                groupName: groupName
-            })
-        });
+        try {
+            const response = await fetch('http://localhost:8080/api/rooms', {
+                method: 'POST',
+                headers: {
+                    'Chat-Session-ID': sessionId, // Hier wird die ID dynamisch eingesetzt
+                    'Chat-Signature': signature,
+                    'Chat-Timestamp': timestamp,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    groupName: groupName
+                })
+            });
         
-        const data = await response.json();
+            const data = await response.json();
         
-        // UI-Feedback
-        alert("✅ Gruppe '" + groupName + "' wurde erstellt!");
+            // UI-Feedback
+            alert("✅ Gruppe '" + groupName + "' wurde erstellt!");
         
-    } catch (err) {
-        console.error("Fehler beim Request:", err);
-        alert("❌ Fehler: " + err.message);
+        } catch (err) {
+            console.error("Fehler beim Request:", err);
+            alert("❌ Fehler: " + err.message);
+        }
     }
-}
     function logout() {
         sessionStorage.removeItem('username');
         window.location.href = "Login";
     }
-
-    // 2. Automatischer Aufruf beim Laden der Seite
-    document.addEventListener("DOMContentLoaded", () => {
-        const user = whoAmI();
-        const h1Element = document.getElementById('username');
-        if (h1Element) {
-            h1Element.innerText = user;
-        }
-        
-        const avatarElement = document.getElementById('avatar');
-        if (h1Element) {
-            avatarElement.innerText = user.substring(0, 2).toUpperCase();;
-        }
+    window.addEventListener('DOMContentLoaded', () => {
+        whoAmI();
     });
 </script>
