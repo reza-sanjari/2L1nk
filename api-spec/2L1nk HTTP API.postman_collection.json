@@ -1,6 +1,6 @@
 {
   "info": {
-    "_postman_id": "198c9035-d8bc-4305-9300-e8fb3cb8e240",
+    "_postman_id": "c30b0c6a-7225-4ed9-8b57-3a01f9167fdf",
     "name": "2L1nk HTTP API",
     "description": "REST API for gate access, user management, and chat lifecycle.\nAll endpoints are under /api.\n\nAuthentication and authenticity model:\n- The gate key is used only for the initial gate authorization step.\n- All requests are signed by the client using the same canonical signing method.\n- After gate authorization, authenticated endpoints also require a session header.\n\nCanonical signature input (same for all endpoints):\n  METHOD + \"\\n\" +\n  PATH + \"\\n\" +\n  TIMESTAMP + \"\\n\" +\n  BODY_HASH\n\nWhere:\n- METHOD is the uppercase HTTP method, for example POST\n- PATH is the exact request path, for example /api/auth/gate\n- TIMESTAMP is the value of the request header Chat-Timestamp\n- BODY_HASH is the lowercase hex SHA-256 hash of the exact raw request body bytes\n\nExample canonical string:\n  POST\n  /api/rooms\n  1741262400\n  8f434346648f6b96df89dda901c5176b10a6d83961fca65a509cf3307f10db86\n\nSignature transport:\n- Chat-Timestamp header carries the Unix timestamp\n- Chat-Signature header carries the base64-encoded signature of the canonical string\n\nVerification rules:\n- Server rejects stale timestamps outside the allowed clock skew window\n- Server reconstructs the canonical string from the incoming request\n- Server verifies the signature using:\n  - the public key in the auth request for /api/auth/gate\n  - the public key already bound to the session for authenticated endpoints\n",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
@@ -1101,17 +1101,17 @@
                 "header": [
                   {
                     "key": "Chat-Session-ID",
-                    "value": "",
+                    "value": "{{chatSessionId}}",
                     "description": "Session ID returned by POST /api/auth/gate."
                   },
                   {
                     "key": "Chat-Timestamp",
-                    "value": "0",
+                    "value": "{{$timestamp}}",
                     "description": "Unix timestamp used as part of the canonical signing string.\n"
                   },
                   {
                     "key": "Chat-Signature",
-                    "value": "",
+                    "value": "{{$randomLoremText}}",
                     "description": "Base64-encoded signature of the canonical request string:\nMETHOD + \"\\n\" + PATH + \"\\n\" + TIMESTAMP + \"\\n\" + BODY_HASH\n"
                   },
                   {
@@ -1125,7 +1125,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"groupName\": \"study-group\"\n}",
+                  "raw": "{\n  \"groupName\": \"{{$randomStreetName}}\"\n}",
                   "options": {
                     "raw": {
                       "headerFamily": "json",
