@@ -374,7 +374,7 @@
             </div>
 
             <button class="btn-action" onclick="document.getElementById('newChatModal').showModal()">Neuer Chat</button>
-            <button class="btn-action btn-voice"><i class="fas fa-voice"></i> &nbsp;  Anrufen</button>
+            <button class="btn-action btn-voice" onclick="connectLocalChat()"><i class="fas fa-voice"></i> &nbsp;  Anrufen</button>
 
             <div style="display: flex; justify-content: space-around; margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); opacity: 0.6;">
                 <i class="fas fa-question-circle"></i>
@@ -415,7 +415,34 @@
 </body>
 </html>
 <script>
-// 1. Deine eigentliche Funktion
+    function connectLocalChat() {
+        // Port 8080 ist ein gängiger Standard, passe ihn ggf. an (z.B. 3000 oder 5000)
+        alert("⚠️ Phase1!");
+        const socket = new WebSocket('ws://localhost:8080/api/ws');
+        socket.onopen = () => {
+            const authPayload = {
+                "type": "auth",
+                "payload": {
+                    "Chat-Session-ID": sessionStorage.getItem('sessionId'),
+                    "Chat-Timestamp": Math.floor(Date.now() / 1000), // Aktueller Unix-Timestamp
+                    "Chat-Signature": "test"
+                }
+            };
+
+            socket.send(JSON.stringify(authPayload));
+            console.log("Auth-Payload an localhost gesendet.");
+            alert("Auth-Payload an localhost gesendet.");
+        };
+
+        socket.onmessage = (event) => {
+            console.log("Server sagt:", event.data);
+            alert("Server sagt:");
+        };
+
+        socket.onerror = (err) => console.error("Socket Fehler:", err);
+
+        return socket;
+    }
     function whoAmI() {
         const username = sessionStorage.getItem('username');
 
