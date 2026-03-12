@@ -8,8 +8,6 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-const ContextUserKey = "authenticated_user"
-
 func AuthMiddleware(store *session.Store) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
@@ -46,7 +44,7 @@ func AuthMiddleware(store *session.Store) echo.MiddlewareFunc {
 
 			// todo: validate signature here
 
-			c.Set(ContextUserKey, user)
+			c.Set("user", user)
 
 			return next(c)
 		}
