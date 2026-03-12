@@ -13,7 +13,7 @@ import (
 type Hub struct {
 	logg            *logger.Logger
 	s               *session.Store
-	Rooms           map[string]*room
+	Rooms           map[string]*Room
 	Users           map[string]*User
 	Broadcast       chan WSMessageEnvelope
 	InboundMessages chan WSMessageEnvelope
@@ -35,18 +35,18 @@ type CreateRoomRequest struct {
 	ResponseChan chan string
 }
 
-type room struct {
-	roomID string
+type Room struct {
+	RoomID string
 	Host   string
-	users  map[string]*User
-	epoch  int64
+	Users  map[string]*User
+	Epoch  int64
 }
 
 func New(s *session.Store, logg *logger.Logger) *Hub {
 	return &Hub{
 		logg:            logg,
 		s:               s,
-		Rooms:           make(map[string]*room),
+		Rooms:           make(map[string]*Room),
 		Users:           make(map[string]*User),
 		Broadcast:       make(chan WSMessageEnvelope),
 		InboundMessages: make(chan WSMessageEnvelope),
@@ -64,11 +64,11 @@ func (h *Hub) Run() {
 		case req := <-h.RegisterRoom:
 			roomID := uuid.NewString()
 
-			h.Rooms[roomID] = &room{
-				roomID: roomID,
+			h.Rooms[roomID] = &Room{
+				RoomID: roomID,
 				Host:   req.Host,
-				users:  make(map[string]*User),
-				epoch:  0,
+				Users:  make(map[string]*User),
+				Epoch:  0,
 			}
 
 			req.ResponseChan <- roomID
