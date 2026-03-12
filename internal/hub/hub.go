@@ -31,7 +31,7 @@ type RoomMembersChangeRequest struct {
 }
 
 type CreateRoomRequest struct {
-	Host         string
+	GroupName    string
 	ResponseChan chan string
 }
 
@@ -66,7 +66,7 @@ func (h *Hub) Run() {
 
 			h.Rooms[roomID] = &Room{
 				RoomID: roomID,
-				Host:   req.Host,
+				Host:   req.GroupName,
 				Users:  make(map[string]*User),
 				Epoch:  0,
 			}

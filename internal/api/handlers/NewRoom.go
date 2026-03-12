@@ -8,12 +8,12 @@ import (
 )
 
 func (h *Handler) NewRoom(c echo.Context) error {
-	host := c.FormValue("groupName")
+	groupName := c.FormValue("groupName")
 
 	respChan := make(chan string)
 
 	h.Hub.RegisterRoom <- hub.CreateRoomRequest{
-		Host:         host,
+		GroupName:    groupName,
 		ResponseChan: respChan,
 	}
 
