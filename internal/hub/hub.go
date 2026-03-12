@@ -6,6 +6,8 @@ import (
 	"2L1nk/internal/session"
 	"encoding/json"
 	"fmt"
+
+	"github.com/google/uuid"
 )
 
 type Hub struct {
@@ -16,16 +18,21 @@ type Hub struct {
 	Broadcast       chan WSMessageEnvelope
 	InboundMessages chan WSMessageEnvelope
 	RegisterRoom    chan CreateRoomRequest
-	UnregisterRoom  chan map[string]*room
+	UnregisterRoom  chan string
 	RegisterUser    chan *User
 	UnregisterUser  chan *User
-	JoinRoom        chan RoomRequest
-	LeaveRoom       chan RoomRequest
+	JoinRoom        chan RoomMembersChangeRequest
+	LeaveRoom       chan RoomMembersChangeRequest
 }
 
-type RoomRequest struct {
+type RoomMembersChangeRequest struct {
 	RoomID string
 	User   *User
+}
+
+type CreateRoomRequest struct {
+	Host         string
+	ResponseChan chan string
 }
 
 type WSMessageEnvelope struct {
@@ -36,13 +43,9 @@ type WSMessageEnvelope struct {
 
 type room struct {
 	roomID string
+	Host   string
 	users  map[string]*User
 	epoch  int64
-}
-
-type CreateRoomRequest struct {
-	Host         string
-	ResponseChan chan string
 }
 
 func New(s *session.Store, logg *logger.Logger) *Hub {
@@ -54,21 +57,31 @@ func New(s *session.Store, logg *logger.Logger) *Hub {
 		Broadcast:       make(chan WSMessageEnvelope),
 		InboundMessages: make(chan WSMessageEnvelope),
 		RegisterRoom:    make(chan CreateRoomRequest),
-		UnregisterRoom:  make(chan map[string]*room),
+		UnregisterRoom:  make(chan string),
 		RegisterUser:    make(chan *User),
 		UnregisterUser:  make(chan *User),
-		JoinRoom:        make(chan RoomRequest),
-		LeaveRoom:       make(chan RoomRequest)}
+		JoinRoom:        make(chan RoomMembersChangeRequest),
+		LeaveRoom:       make(chan RoomMembersChangeRequest)}
 }
 
 func (h *Hub) Run() {
 	for {
 		select {
-		case newRoom := <-h.RegisterRoom:
-			fmt.Printf("register room %v\n", newRoom)
+		case req := <-h.RegisterRoom:
+			roomID := uuid.NewString()
+
+			h.Rooms[roomID] = &room{
+				roomID: roomID,
+				Host:   req.Host,
+				users:  make(map[string]*User),
+				epoch:  0,
+			}
+
+			req.ResponseChan <- roomID
 
 		case newUser := <-h.RegisterUser:
 			h.Users[newUser.Fingerprint] = newUser
+			fmt.Printf("register user %v with fingerprint %v \n", newUser.Username, newUser.Fingerprint)
 
 		case user := <-h.UnregisterUser:
 			delete(h.Users, user.Fingerprint)
