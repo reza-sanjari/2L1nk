@@ -2,9 +2,10 @@ package hub
 
 import (
 	"2L1nk/internal/models"
+	"encoding/json"
 	"sync"
 
-	"golang.org/x/net/websocket"
+	"github.com/gorilla/websocket"
 )
 
 type User struct {
@@ -13,17 +14,49 @@ type User struct {
 	OutGoingMessages chan []byte
 	Websocket        *websocket.Conn
 	PeerMux          sync.Mutex
-	mode             models.UserMode
+	Mode             models.UserMode
 }
 
-func (U *User) WritePump() error {
+func (u *User) ReadPump(inbound chan<- WSMessageEnvelope) error {
+	for {
+		_, message, err := u.Websocket.ReadMessage()
+		if err != nil {
+			return err
+		}
+
+		var envelope WSMessageEnvelope
+		if err := json.Unmarshal(message, &envelope); err != nil {
+			continue
+		}
+
+		envelope.Sender = u
+
+		inbound <- envelope
+	}
+}
+
+func (u *User) WritePump() error {
+	for msg := range u.OutGoingMessages {
+		u.PeerMux.Lock()
+
+		err := u.Websocket.WriteMessage(websocket.TextMessage, msg)
+
+		u.PeerMux.Unlock()
+
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
-func (U *User) ReadPump() error {
-	return nil
-}
-
-func NewUser() (*User, error) {
-	return nil, nil
+func NewUser(fingerprint string, username string, websocket *websocket.Conn, mode models.UserMode) *User {
+	return &User{
+		Fingerprint:      fingerprint,
+		Username:         username,
+		OutGoingMessages: make(chan []byte),
+		Websocket:        websocket,
+		PeerMux:          sync.Mutex{},
+		Mode:             mode,
+	}
 }

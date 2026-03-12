@@ -20,14 +20,15 @@ func RegisterRoutes(e *echo.Echo, h *handlers.Handler, store *session.Store) {
 	e.Use(middleware.ContextTimeout(10 * time.Second))
 
 	//Logger middleware with costume config
-	e.Use(middleware.RequestLogger())
+	//e.Use(middleware.RequestLoggerWithConfig(logger.MinimalLoggerConfig()))
 
 	api := e.Group("/api")
 
 	api.GET("/health", h.Health)
 	api.POST("/auth/gate", h.GateAuthorize)
-	api.POST("/NewRoom", h.NewRoom)
+	api.POST("/rooms", h.NewRoom)
+	api.GET("/ws", h.Ws)
 
-	protected := api.Group("", SessionAuthMiddleware(store))
+	protected := api.Group("", AuthMiddleware(store))
 	_ = protected
 }
