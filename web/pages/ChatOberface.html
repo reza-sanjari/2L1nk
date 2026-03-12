@@ -394,7 +394,7 @@
             <div class="feature-grid">
                 <div class="feature-card">
                     <i class="fas fa-lock" style="color: #4ade80;"></i>
-                    <span style="font-size: 0.7rem; font-weight: bold; opacity: 0.6;">AES-256</span>
+                    <span style="font-size: 0.7rem; font-weight: bold; opacity: 0.6;" onclick="sendMessage()">AES-256</span>
                 </div>
                 <div class="feature-card">
                     <i class="fas fa-comment" style="color: #bc13fe;"></i>
@@ -415,10 +415,11 @@
 </body>
 </html>
 <script>
+    let socket;
     function connectLocalChat() {
         // Port 8080 ist ein gängiger Standard, passe ihn ggf. an (z.B. 3000 oder 5000)
         alert("⚠️ Phase1!");
-        const socket = new WebSocket('ws://localhost:8080/api/ws');
+        socket = new WebSocket('ws://localhost:8080/api/ws');
         socket.onopen = () => {
             const authPayload = {
                 "type": "auth",
@@ -441,7 +442,29 @@
 
         socket.onerror = (err) => console.error("Socket Fehler:", err);
 
-        return socket;
+    
+    }
+    function sendMessage(roomID, senderFP, ciphertext) {
+        // 1. Prüfen, ob der Socket überhaupt noch offen ist
+        if (socket && socket.readyState === WebSocket.OPEN) {
+
+            // 2. Das Payload-Objekt nach deinem Schema aufbauen
+            const messagePayload = {
+                "type": "message",
+                "payload": {
+                    "room_id": "romm1",
+                    "sender_fp": "kasdkajskdjak",
+                    "epoch": 0, // Falls das dynamisch ist, hier anpassen
+                    "ciphertext": "test"
+                }
+            };
+
+            // 3. Als String senden
+            socket.send(JSON.stringify(messagePayload));
+            console.log("Nachricht erfolgreich an Server übertragen:", messagePayload);
+        } else {
+            console.error("Socket ist nicht bereit. Verbindung prüfen!");
+        }
     }
     function whoAmI() {
         const username = sessionStorage.getItem('username');
