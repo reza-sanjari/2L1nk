@@ -2,18 +2,20 @@ package handlers
 
 import (
 	"2L1nk/internal/hub"
+	"2L1nk/internal/session"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
 )
 
 func (h *Handler) NewRoom(c echo.Context) error {
-	host := c.FormValue("groupName")
+	groupName := c.FormValue("groupName")
 
 	respChan := make(chan string)
 
-	h.Hub.RegisterRoom <- hub.CreateRoomRequest{
-		Host:         host,
+	h.hub.RegisterRoom <- hub.CreateRoomRequest{
+		Host:         c.Get("user").(*session.User),
+		GroupName:    groupName,
 		ResponseChan: respChan,
 	}
 
