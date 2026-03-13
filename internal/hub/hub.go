@@ -15,7 +15,7 @@ type Hub struct {
 	s               *session.Store
 	Rooms           map[string]*Room
 	Users           map[string]*User
-	Broadcast       chan WSMessageEnvelope
+	Broadcast       chan BroadcastRequest
 	InboundMessages chan WSMessageEnvelope
 	RegisterRoom    chan CreateRoomRequest
 	UnregisterRoom  chan string
@@ -50,7 +50,7 @@ func New(s *session.Store, logg *logger.Logger) *Hub {
 		s:               s,
 		Rooms:           make(map[string]*Room),
 		Users:           make(map[string]*User),
-		Broadcast:       make(chan WSMessageEnvelope),
+		Broadcast:       make(chan BroadcastRequest),
 		InboundMessages: make(chan WSMessageEnvelope),
 		RegisterRoom:    make(chan CreateRoomRequest),
 		UnregisterRoom:  make(chan string),
@@ -80,6 +80,7 @@ func (h *Hub) Run() {
 			}
 
 			req.ResponseChan <- roomID
+			h.logg.Debug("room created", zap.String("roomID", roomID), zap.String("host", req.Host.Username))
 
 		case newUser := <-h.RegisterUser:
 			h.Users[newUser.Fingerprint] = newUser
@@ -87,22 +88,40 @@ func (h *Hub) Run() {
 
 		case user := <-h.UnregisterUser:
 			delete(h.Users, user.Fingerprint)
+			h.logg.Info("user disconnected", zap.String("username", user.Username), zap.String("fingerprint", user.Fingerprint))
 
 		case msg := <-h.InboundMessages:
 			switch msg.Type {
 			case models.Message:
-				var p MessagePayload
-				err := json.Unmarshal(msg.Payload, &p)
+				var payload MessagePayload
+				err := json.Unmarshal(msg.Payload, &payload)
+				h.logg.Debug("message received", zap.String("user", msg.Sender.Username))
 				if err != nil {
 					h.logg.Error("Failed to unmarshal payload", zap.String("payload", string(msg.Payload)), zap.Error(err))
-					return
+					continue
 				}
-				h.logg.Debug(
-					"received message",
-					zap.String("message", p.Ciphertext),
-					zap.String("sender", msg.Sender.Username),
-				)
+				h.logg.Info("Received message", zap.String("user", string(msg.Sender.Username)), zap.String("text", payload.Ciphertext))
+				targetRoom := h.getRoom(payload.RoomID)
+				h.logg.Debug("target room found")
+				if targetRoom == nil {
+					h.logg.Info("target room not found", zap.String("roomId", payload.RoomID))
+					continue
+				}
+				if !h.isUserInRoom(msg.Sender, targetRoom) {
+					h.logg.Debug("message not sent", zap.String("error", "user not in room"), zap.String("fingerprint", msg.Sender.Username))
+					continue
+				}
+				h.logg.Debug("user is in room")
+				data, err := json.Marshal(msg)
+				if err != nil {
+					h.logg.Error("failed to marshal message", zap.Error(err))
+					continue
+				}
+				for _, user := range targetRoom.Users {
+					user.OutGoingMessages <- data
+				}
 			}
+
 		}
 	}
 }
@@ -113,4 +132,13 @@ func (h *Hub) Status() (string, error) {
 func (h *Hub) getUser(fingerPrint string) *User {
 	user, _ := h.Users[fingerPrint]
 	return user
+}
+
+func (h *Hub) isUserInRoom(user *User, room *Room) bool {
+	_, ok := room.Users[user.Fingerprint]
+	return ok
+}
+
+func (h *Hub) getRoom(roomId string) *Room {
+	return h.Rooms[roomId]
 }
