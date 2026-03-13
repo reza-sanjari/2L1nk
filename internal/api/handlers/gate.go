@@ -28,7 +28,7 @@ func (h *Handler) GateAuthorize(c echo.Context) error {
 		})
 	}
 
-	h.Logg.Debug("authorization request", zap.Any("req", req))
+	h.Logg.Debug("session issue request", zap.String("Username", req.Username))
 
 	if req.GateToken == "" || req.PublicKey == nil || req.Username == "" {
 		return c.JSON(http.StatusBadRequest, map[string]string{
@@ -66,7 +66,7 @@ func (h *Handler) GateAuthorize(c echo.Context) error {
 	}
 
 	h.Logg.Info(
-		"user authorized",
+		"sessionId issued",
 		zap.String("username", req.Username),
 		zap.String("sessionId", result.SessionID),
 	)

@@ -66,7 +66,7 @@ func (h *Hub) Run() {
 		case req := <-h.RegisterRoom:
 			roomHost := h.getUser(req.Host.PublicKeyFingerprint)
 			if roomHost == nil {
-				h.logg.Error("host user not found", zap.String("fingerprint", req.Host.PublicKeyFingerprint))
+				h.logg.Debug("host user not found", zap.String("fingerprint", req.Host.PublicKeyFingerprint))
 				req.ResponseChan <- ""
 				continue
 			}
@@ -83,7 +83,7 @@ func (h *Hub) Run() {
 
 		case newUser := <-h.RegisterUser:
 			h.Users[newUser.Fingerprint] = newUser
-			h.logg.Info("user authenticated", zap.String("username", newUser.Username), zap.String("fingerprint", newUser.Fingerprint))
+			h.logg.Info("user connected", zap.String("username", newUser.Username), zap.String("fingerprint", newUser.Fingerprint))
 
 		case user := <-h.UnregisterUser:
 			delete(h.Users, user.Fingerprint)
