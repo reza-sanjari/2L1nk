@@ -381,7 +381,7 @@ async function connectToGateway() {
         sessionStorage.setItem('gatewayKey', gateKey);
         const data = await response.json();
         sessionStorage.setItem('sessionId', data.sessionId);
-        window.location.href = "ChatOberface";
+        window.location.href = "Mainsite";
     } catch (err) {
         alert("❌ Fehler beim Gateway-Check:\n" + err.message);
     }
