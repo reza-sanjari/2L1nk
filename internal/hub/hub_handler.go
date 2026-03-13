@@ -20,7 +20,7 @@ func (h *Hub) handleInboundMessage(msg WSMessageEnvelope) {
 		}
 		targetRoom := h.getRoom(payload.RoomID)
 		if targetRoom == nil {
-			h.logg.Info("target room not found", zap.String("roomId", payload.RoomID))
+			h.logg.Debug("target room not found", zap.String("roomId", payload.RoomID))
 			return
 		}
 		if !h.isUserInRoom(msg.Sender, targetRoom) {
@@ -39,7 +39,7 @@ func (h *Hub) handleInboundMessage(msg WSMessageEnvelope) {
 func (h *Hub) handleRegisterRoom(req CreateRoomRequest) {
 	roomHost := h.getUser(req.Host.PublicKeyFingerprint)
 	if roomHost == nil {
-		h.logg.Debug("host user not found", zap.String("fingerprint", req.Host.PublicKeyFingerprint))
+		h.logg.Debug("host user not found", zap.String("sessionId", req.Host.SessionID))
 		req.ResponseChan <- ""
 		return
 	}
