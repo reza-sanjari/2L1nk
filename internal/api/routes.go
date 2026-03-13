@@ -35,4 +35,5 @@ func RegisterRoutes(e *echo.Echo, h *handlers.Handler, store *session.Store) {
 	protected := api.Group("", AuthMiddleware(store))
 	protected.POST("/rooms", h.NewRoom)
 	protected.POST("/:roomId/rooms", h.RoomChange)
+	protected.GET("/users/me", h.UserInfo)
 }
