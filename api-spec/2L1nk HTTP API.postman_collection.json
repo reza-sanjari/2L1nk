@@ -766,7 +766,21 @@
               "response": []
             },
             {
-              "name": "Create group chat",
+              "name": "Create room",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const res = pm.response.json();\r",
+                      "pm.environment.set(\"room_id\", res.room_id);"
+                    ],
+                    "type": "text/javascript",
+                    "packages": {},
+                    "requests": {}
+                  }
+                }
+              ],
               "request": {
                 "method": "POST",
                 "header": [
@@ -943,7 +957,7 @@
               ]
             },
             {
-              "name": "Leave a group chat",
+              "name": "Leave room",
               "request": {
                 "method": "POST",
                 "header": [
@@ -1114,7 +1128,7 @@
               ]
             },
             {
-              "name": "Add members to an existing group chat",
+              "name": "Add members to an existing room",
               "request": {
                 "method": "POST",
                 "header": [
