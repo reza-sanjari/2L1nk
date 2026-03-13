@@ -13,7 +13,7 @@ func (h *Handler) NewRoom(c echo.Context) error {
 
 	respChan := make(chan string)
 
-	h.Hub.RegisterRoom <- hub.CreateRoomRequest{
+	h.hub.RegisterRoom <- hub.CreateRoomRequest{
 		Host:         c.Get("user").(*session.User),
 		GroupName:    groupName,
 		ResponseChan: respChan,
