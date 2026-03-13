@@ -22,13 +22,13 @@ type gateAuthorizeRequest struct {
 func (h *Handler) GateAuthorize(c echo.Context) error {
 	var req gateAuthorizeRequest
 	if err := c.Bind(&req); err != nil {
-		h.Logg.Error("failed to process request", zap.Error(err))
+		h.logg.Error("failed to process request", zap.Error(err))
 		return c.JSON(http.StatusBadRequest, map[string]string{
 			"error": "invalid request body",
 		})
 	}
 
-	h.Logg.Debug("session issue request", zap.String("Username", req.Username))
+	h.logg.Debug("session issue request", zap.String("Username", req.Username))
 
 	if req.GateToken == "" || req.PublicKey == nil || req.Username == "" {
 		return c.JSON(http.StatusBadRequest, map[string]string{
@@ -42,7 +42,7 @@ func (h *Handler) GateAuthorize(c echo.Context) error {
 		})
 	}
 
-	result, err := h.Services.Gate.Authorize(service.GateRequest{
+	result, err := h.services.Gate.Authorize(service.GateRequest{
 		GateToken: req.GateToken,
 		PublicKey: req.PublicKey,
 		Username:  req.Username,
@@ -65,7 +65,7 @@ func (h *Handler) GateAuthorize(c echo.Context) error {
 		})
 	}
 
-	h.Logg.Info(
+	h.logg.Info(
 		"sessionId issued",
 		zap.String("username", req.Username),
 		zap.String("sessionId", result.SessionID),
