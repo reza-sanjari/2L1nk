@@ -70,7 +70,7 @@ func (h *Handler) Ws(c echo.Context) error {
 	// 5. validate auth
 	activeUser, ok := h.session.Get(auth.SessionID)
 	if !ok {
-		log.Println("user not active")
+		h.logg.Debug("websocket closed, user is not authenticated", zap.String("username", activeUser.Username), zap.String("sessionId", activeUser.SessionID))
 		return nil
 	}
 
@@ -78,7 +78,7 @@ func (h *Handler) Ws(c echo.Context) error {
 
 	// TODO: validate timestamp + signature here
 
-	newUser := hub.NewUser(activeUser.PublicKeyFingerprint, activeUser.Username, ws, activeUser.Mode)
+	newUser := hub.NewUser(activeUser.PublicKeyFingerprint, activeUser.Username, ws, activeUser.Mode, h.logg)
 
 	h.hub.RegisterUser <- newUser
 
