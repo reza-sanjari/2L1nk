@@ -199,13 +199,13 @@
         }
 
         .empty-state {
-            flex-grow: 1;
-            display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            opacity: 0.4;
             text-align: center;
+            overflow-y: auto;
+            scrollbar-width: none; /* Firefox */
+            -ms-overflow-style: none; /* IE / Edge */
         }
 
         .btn-action {
@@ -238,9 +238,7 @@
             flex-grow: 1;
             display: flex;
             flex-direction: column;
-            align-items: center;
             justify-content: center;
-            text-align: center;
             padding: 20px;
             position: relative;
             z-index: 10;
@@ -301,6 +299,7 @@
                 opacity: 0;
             }
         }
+
         dialog[open] {
             animation: fadeIn 0.3s ease-out;
         }
@@ -315,6 +314,61 @@
                 opacity: 1;
                 transform: translateY(0);
             }
+        }
+            
+        .chat-messages {
+            scrollbar-width: none; /* Firefox */
+            -ms-overflow-style: none; /* IE / Edge */
+            flex-grow: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .bubble {
+            max-width: 60%;
+            padding: 15px;
+            border-radius: 18px;
+            backdrop-filter: blur(5px);
+        }
+
+        .sent {
+            align-self: flex-end;
+            background: linear-gradient(135deg, #6a0dad, #bc13fe);
+            box-shadow: 0 4px 15px rgba(188, 19, 254, 0.3);
+        }
+
+        .received {
+            align-self: flex-start;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .chat-input {
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            gap: 10px;
+        }
+
+        input {
+            flex-grow: 1;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid #444;
+            padding: 12px 20px;
+            border-radius: 30px;
+            color: white;
+            outline: none;
+        }
+
+        button {
+            background: #bc13fe;
+            border: none;
+            padding: 0 25px;
+            border-radius: 30px;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
         }
     </style>
 </head>
@@ -334,7 +388,7 @@
                     <div style="font-size: 0.85rem; font-weight: bold;" id="username"></div>
                     <div style="font-size: 0.6rem; opacity: 0.5; color: #4ade80;">ONLINE</div>
                 </div>
-                <div class="avatar" id="avatar"></div>
+                <div class="avatar" id="avatar"><div id="usernameshort"></div></div>
             </div>
         </div>
     </header>
@@ -360,7 +414,7 @@
 
             <div class="search-box">
                 <i class="fas fa-search" style="opacity: 0.4;"></i>
-                <input type="text" placeholder="Suchen...">
+                <input type="text" placeholder="Suchen..." id="searchbar" oninput="searchfunction(event)">
             </div>
 
             <div class="chat-list-header">
@@ -368,12 +422,10 @@
                 <i class="fas fa-plus"></i>
             </div>
 
-            <div class="empty-state">
+            <div id="chat-list-container" class="empty-state">
                 <i class="fas fa-users" style="font-size: 2rem; margin-bottom: 10px;"></i>
-                <p onclick="LoadRooms()">Keine aktiven Chats </p>
+                <p>Keine aktiven Chats </p>
             </div>
-            
-            <div id="chat-list-container" ></div>
 
             <button class="btn-action" onclick="document.getElementById('newChatModal').showModal()">Neuer Chat</button>
             <button class="btn-action btn-voice" onclick="connectLocalChat()"><i class="fas fa-voice"></i> &nbsp;  Anrufen</button>
@@ -384,42 +436,43 @@
             </div>
         </nav>
 
-        <main>
-            <div class="welcome-icon">
-                <i class="fas fa-shield-alt"></i>
-            </div>
-            <h1 style="font-size: 2.5rem; margin: 0;">Willkommen bei <span style="color: #bc13fe;">2L1nk</span></h1>
-            <!--<p style="opacity: 0.7; max-width: 500px; line-height: 1.6; margin-top: 20px;">
-                End-to-End verschlüsselte Kommunikation. Wähle einen Chat aus oder starte eine neue Konversation über das Menü links.
-            </p>-->
+        <main id="main">
+                <div class="welcome-icon">
+                    <i class="fas fa-shield-alt"></i>
+                </div>
+                <h1 style="font-size: 2.5rem; margin: 0;">Willkommen bei <span style="color: #bc13fe;">2L1nk</span></h1>
+                <!--<p style="opacity: 0.7; max-width: 500px; line-height: 1.6; margin-top: 20px;">
+        End-to-End verschlüsselte Kommunikation. Wähle einen Chat aus oder starte eine neue Konversation über das Menü links.
+    </p>-->
 
-            <div class="feature-grid">
-                <div class="feature-card">
-                    <i class="fas fa-lock" style="color: #4ade80;"></i>
-                    <span style="font-size: 0.7rem; font-weight: bold; opacity: 0.6;" >AES-256</span>
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <i class="fas fa-lock" style="color: #4ade80;"></i>
+                        <span style="font-size: 0.7rem; font-weight: bold; opacity: 0.6;">AES-256</span>
+                    </div>
+                    <div class="feature-card">
+                        <i class="fas fa-comment" style="color: #bc13fe;"></i>
+                        <span style="font-size: 0.7rem; font-weight: bold; opacity: 0.6;">CHAT</span>
+                    </div>
+                    <div class="feature-card">
+                        <i class="fas fa-voice" style="color: #a855f7;"></i>
+                        <span style="font-size: 0.7rem; font-weight: bold; opacity: 0.6;">Voice</span>
+                    </div>
                 </div>
-                <div class="feature-card">
-                    <i class="fas fa-comment" style="color: #bc13fe;"></i>
-                    <span style="font-size: 0.7rem; font-weight: bold; opacity: 0.6;">CHAT</span>
-                </div>
-                <div class="feature-card">
-                    <i class="fas fa-voice" style="color: #a855f7;"></i>
-                    <span style="font-size: 0.7rem; font-weight: bold; opacity: 0.6;">Voice</span>
-                </div>
-            </div>
 
-            <div class="status-bar">
-                <span>> Sichere Verbindung aktiv</span>
-                <div class="cursor"></div>
-            </div>
+                <div class="status-bar">
+                    <span>> Sichere Verbindung aktiv</span>
+                    <div class="cursor"></div>
+                </div>
         </main>
+        
     </div>
 </body>
 </html>
 <script>
     let socket;
     let roomList = [];
-    fetchRooms();
+    let gefilterteListe = [];
     connectLocalChat();
     function connectLocalChat() {
         socket = new WebSocket('ws://localhost:8080/api/ws');
@@ -436,36 +489,6 @@
             socket.send(JSON.stringify(authPayload));
         };
     }
-    function LoadRooms() {
-        const container = document.getElementById('chat-list-container');
-        const emptyState = document.getElementById('empty-state');
-
-        // Prüfen, ob Container existiert
-        if (!container) return;
-
-        if (roomList && roomList.length > 0) {
-            // Räume gefunden
-            if (emptyState) emptyState.style.display = 'none';
-            container.innerHTML = "";
-
-            roomList.forEach(room => {
-                const div = document.createElement('div');
-                div.className = 'chat-item';
-                div.innerHTML = `
-                <div style="font-weight: bold; cursor: pointer; padding: 10px; border-bottom: 1px solid #4b0082;">
-                    ${room.RoomID}
-                    <div style="font-size: 0.7rem; opacity: 0.6;">Host: ${room.Host}</div>
-                </div>
-            `;
-                div.onclick = () => console.log("Chat ausgewählt:", room.RoomID);
-                container.appendChild(div);
-            });
-        } else {
-            // Falls Liste leer ist
-            if (emptyState) emptyState.style.display = 'flex';
-            container.innerHTML = "<p style='padding: 10px; opacity: 0.5;'>Keine Chats gefunden.</p>";
-        }
-    }
     async function fetchRooms() {
         try {
             const response = await fetch('http://localhost:8080/api/test/rooms', {
@@ -480,14 +503,72 @@
             roomList = await response.json();
 
             // Wenn Räume da sind, Empty-State ausblenden
-           
+
             console.log("Daten erfolgreich geladen:", roomList);
+            renderFunc(roomList);
 
         } catch (error) {
             console.error("Fehler beim Abrufen der API-Daten:", error);
         }
     }
-    
+    function searchfunction(event) {
+        const searchTerm = event.target.value.toLowerCase();
+
+        const gefilterteListe = roomList.filter(room => {
+            return room.RoomID.toLowerCase().includes(searchTerm) ||
+                room.Host.toLowerCase().includes(searchTerm);
+        });
+        renderFunc(gefilterteListe);
+        console.log("Daten erfolgreich geladen:", gefilterteListe);
+    }
+    function clickroom(room) {
+        console.log("Chat ausgewählt:", room.RoomID);
+        const main = document.getElementById('main');   
+        main.innerHTML = `
+                <div class="chat-messages" id="chat">
+                    <div class="bubble received">Schau dir das mal an! Geometrische Formen im Hintergrund.</div>
+                    <div class="bubble sent">Sieht stark aus. Der Mix aus Dreiecken und Kreisen passt perfekt zum Lila.</div>
+                    <div class="bubble received">Und alles bewegt sich ganz leicht.</div>
+                </div>
+
+                <div class="chat-input">
+                    <input type="text" id="input" placeholder="Nachricht schreiben...">
+                    <button onclick="send()">Senden</button>
+                </div>
+
+            `;
+    }
+    function renderFunc(RenderList) {
+
+        const container = document.getElementById('chat-list-container');
+        const emptyState = document.getElementById('empty-state');
+
+        // Prüfen, ob Container existiert
+        if (!container) return;
+
+        if (RenderList && RenderList.length > 0) {
+            // Räume gefunden
+            if (emptyState) emptyState.style.display = 'none';
+            container.innerHTML = "";
+
+            RenderList.forEach(room => {
+                const div = document.createElement('div');
+                div.className = 'chat-item';
+                div.innerHTML = `
+                        <div style="font-weight: bold; cursor: pointer; padding: 10px; border-bottom: 1px solid #4b0082;">
+                            ${room.RoomID}
+                            <div style="font-size: 0.7rem; opacity: 0.6;">Host: ${room.Host}</div>
+                        </div>
+                    `;
+                div.onclick = () => clickroom(room);
+                container.appendChild(div);
+            });
+        } else {
+            // Falls Liste leer ist
+            if (emptyState) emptyState.style.display = 'flex';
+            container.innerHTML = '<i class="fas fa-users" style="font-size: 2rem; margin-bottom: 10px;"></i><p>Keine aktiven Chats</p>';
+        }
+    }
     function sendMessage(roomID, senderFP, ciphertext) {
 
         if (socket && socket.readyState === WebSocket.OPEN) {
@@ -508,10 +589,24 @@
         }
         console.error("nachrichtende gesendet");
     }
+
+    function send() {
+        const input = document.getElementById('input');
+        if (input.value !== "") {
+            const msg = document.createElement('div');
+            msg.className = 'bubble sent';
+            msg.innerText = input.value;
+            document.getElementById('chat').appendChild(msg);
+            input.value = "";
+            document.getElementById('chat').scrollTop = document.getElementById('chat').scrollHeight;
+        }
+    }
     function whoAmI() {
         const username = sessionStorage.getItem('username');
         const usernamefield = document.getElementById('username');
-        usernamefield.textContent = username.substring(0, 2).toUpperCase();
+        usernamefield.textContent = username;
+        const usernameshortfield = document.getElementById('usernameshort');
+        usernameshortfield.textContent = username.substring(0, 2).toUpperCase();
 
         // Sicherheit: Falls niemand eingeloggt ist, direkt zurückwerfen
         if (!username) {
@@ -531,7 +626,7 @@
 
         // Ruft deine API-Funktion auf
         await newChat(groupName);
-        
+
         // Aufräumen
         inputField.value = "";
         document.getElementById('newChatModal').close();
@@ -539,7 +634,7 @@
     async function newChat(groupName) {
         // 1. SessionID aus dem sessionStorage abrufen
         const sessionId = sessionStorage.getItem('sessionId');
-    
+
         // 2. Zeitstempel und Platzhalter für die Signatur
         const timestamp = Math.floor(Date.now() / 1000).toString();
         const signature = "DEINE_SIGNATUR_LOGIK"; // Hier muss deine HMAC-Signatur hin
@@ -557,12 +652,12 @@
                     groupName: groupName
                 })
             });
-        
+
             const data = await response.json();
-        
+
             // UI-Feedback
             alert("✅ Gruppe '" + groupName + "' wurde erstellt!");
-        
+
         } catch (err) {
             console.error("Fehler beim Request:", err);
             alert("❌ Fehler: " + err.message);
@@ -574,5 +669,6 @@
     }
     window.addEventListener('DOMContentLoaded', () => {
         whoAmI();
+        fetchRooms();
     });
 </script>
