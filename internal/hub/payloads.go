@@ -5,6 +5,11 @@ import (
 	"encoding/json"
 )
 
+type BroadcastRequest struct {
+	Room     *Room
+	Envelope WSMessageEnvelope
+}
+
 type WSMessageEnvelope struct {
 	Sender  *User              `json:"-"` // server-only
 	Type    models.WSEventType `json:"type"`
