@@ -31,13 +31,15 @@ type RoomMembersChangeRequest struct {
 }
 
 type CreateRoomRequest struct {
+	Host         *session.User
 	GroupName    string
 	ResponseChan chan string
 }
 
 type Room struct {
+	name   string
 	RoomID string
-	Host   string
+	Host   *User
 	Users  map[string]*User
 	Epoch  int64
 }
@@ -62,12 +64,18 @@ func (h *Hub) Run() {
 	for {
 		select {
 		case req := <-h.RegisterRoom:
+			roomHost := h.getUser(req.Host.PublicKeyFingerprint)
+			if roomHost == nil {
+				h.logg.Error("host user not found", zap.String("fingerprint", req.Host.PublicKeyFingerprint))
+				req.ResponseChan <- ""
+				continue
+			}
 			roomID := uuid.NewString()
-
 			h.Rooms[roomID] = &Room{
+				name:   req.GroupName,
 				RoomID: roomID,
-				Host:   req.GroupName,
-				Users:  make(map[string]*User),
+				Host:   roomHost,
+				Users:  map[string]*User{roomHost.Fingerprint: roomHost},
 				Epoch:  0,
 			}
 
@@ -100,4 +108,9 @@ func (h *Hub) Run() {
 }
 func (h *Hub) Status() (string, error) {
 	return "OK", nil
+}
+
+func (h *Hub) getUser(fingerPrint string) *User {
+	user, _ := h.Users[fingerPrint]
+	return user
 }
