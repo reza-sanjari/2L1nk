@@ -19,7 +19,6 @@ type WSMessageEnvelope struct {
 // MessagePayload todo: chance ciphertext type to []byte
 type MessagePayload struct {
 	RoomID     string `json:"room_id"`
-	SenderFP   string `json:"sender_fp"`
 	Epoch      uint64 `json:"epoch"`
 	Ciphertext string `json:"ciphertext"`
 }
