@@ -26,7 +26,7 @@ var upgrader = websocket.Upgrader{
 func (h *Handler) Ws(c echo.Context) error {
 	ws, err := upgrader.Upgrade(c.Response(), c.Request(), nil)
 	if err != nil {
-		log.Printf("websocket upgrade failed: %v", err)
+		h.Logg.Warn("websocket upgrade failed", zap.Error(err))
 		return err
 	}
 	defer func() {
@@ -35,24 +35,22 @@ func (h *Handler) Ws(c echo.Context) error {
 		}
 	}()
 
-	h.Logg.Debug("websocket connection opened")
+	h.Logg.Debug("websocket connection opened by", zap.String("remoteAddr", c.RealIP()))
 	if err := ws.WriteMessage(websocket.TextMessage, []byte(`{"type":"info","payload":{"message":"initiated"}}`)); err != nil {
 		log.Printf("failed to send initiated message: %v", err)
 	}
 
-	h.Logg.Debug("waiting for first websocket message")
-
 	// 1. read first message
 	_, raw, err := ws.ReadMessage()
 	if err != nil {
-		log.Println("failed to receive first message:", err)
+		h.Logg.Debug("websocket closed, failed to read first message", zap.Error(err))
 		return nil
 	}
 
 	// 2. decode envelope
 	var msg hub.WSMessageEnvelope
 	if err := json.Unmarshal(raw, &msg); err != nil {
-		log.Println("invalid message:", err)
+		h.Logg.Debug("websocket closed, invalid message", zap.Error(err))
 		return nil
 	}
 
@@ -77,6 +75,7 @@ func (h *Handler) Ws(c echo.Context) error {
 	}
 
 	h.Logg.Debug("websocket authenticated", zap.String("username", activeUser.Username), zap.String("fingerprint", activeUser.PublicKeyFingerprint))
+
 	// TODO: validate timestamp + signature here
 
 	newUser := hub.NewUser(activeUser.PublicKeyFingerprint, activeUser.Username, ws, activeUser.Mode)
