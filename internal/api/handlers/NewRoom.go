@@ -20,7 +20,9 @@ func (h *Handler) NewRoom(c echo.Context) error {
 	}
 
 	roomID := <-respChan
-
+	if roomID == "" {
+		return c.JSON(http.StatusInternalServerError, "Room creation failed")
+	}
 	return c.JSON(http.StatusCreated, map[string]any{
 		"room_id": roomID,
 	})
