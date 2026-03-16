@@ -116,7 +116,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"gateToken\": \"{{gateKey}}\",\n  \"publicKey\": \"anO9M+q/3WNuSUnxpak/GtLt0suBAGVakihtV3HoiDY=\",\n  \"username\": \"{{$randomUserName}}\",\n  \"mode\": 0\n}",
+                  "raw": "{\n  \"gateToken\": \"{{gatekey}}\",\n  \"publicKey\": \"anO9M+q/3WNuSUnxpak/GtLt0suBAGVakihtV3HoiDY=\",\n  \"username\": \"{{$randomUserName}}\",\n  \"mode\": 0\n}",
                   "options": {
                     "raw": {
                       "headerFamily": "json",
@@ -1153,7 +1153,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "",
+                  "raw": "{\r\n    \"users\": [\r\n        \"fp1\",\r\n        \"fp1\",\r\n        \"fp1\"\r\n    ]\r\n}",
                   "options": {
                     "raw": {
                       "headerFamily": "json",
@@ -1162,14 +1162,15 @@
                   }
                 },
                 "url": {
-                  "raw": "{{baseUrl}}/api/test1234/rooms",
+                  "raw": "{{baseUrl}}/api/rooms/{{room_id}}/users",
                   "host": [
                     "{{baseUrl}}"
                   ],
                   "path": [
                     "api",
-                    "test1234",
-                    "rooms"
+                    "rooms",
+                    "{{room_id}}",
+                    "users"
                   ]
                 }
               },
