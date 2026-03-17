@@ -512,10 +512,6 @@
             }
 
             roomList = await response.json();
-
-            // Wenn Räume da sind, Empty-State ausblenden
-
-            console.log("Daten erfolgreich geladen:", roomList);
             renderFunc(roomList);
 
         } catch (error) {
@@ -533,16 +529,12 @@
         console.log("Daten erfolgreich geladen:", gefilterteListe);
     }
     function clickroom(room) {
-        console.log("Chat ausgewählt:", room.RoomID);
         const maininfo = document.querySelector('.maininfo');
         maininfo.style.display = 'none';
         const main = document.getElementById('main');
         main.style.display = 'flex';
         main.innerHTML = `
                 <div class="chat-messages" id="chat">
-                    <div class="bubble received">Schau dir das mal an! Geometrische Formen im Hintergrund.</div>
-                    <div class="bubble sent">Sieht stark aus. Der Mix aus Dreiecken und Kreisen passt perfekt zum Lila.</div>
-                    <div class="bubble received">Und alles bewegt sich ganz leicht.</div>
                 </div>
 
                 <div class="chat-input">
@@ -551,6 +543,22 @@
                 </div>
 
             `;
+        loadChat(room);
+    }
+    function loadChat(room) {
+        //console.log("Lade Chat für Raum:", room.RoomID);
+        const loadchatList = [
+            { sender: 'received', text: 'Willkommen im Chat!' },
+            { sender: 'sent', text: 'Danke! Freue mich hier zu sein.' },
+            { sender: 'received', text: 'Wie findest du die App bisher?' },
+            { sender: 'sent', text: 'Sieht super aus, besonders das Design!' }
+        ];
+        loadchatList.forEach(message => {
+            const msg = document.createElement('div');
+            msg.className = `bubble ${message.sender}`;
+            msg.innerText = message.text;
+            document.getElementById('chat').appendChild(msg);
+        });
     }
     function renderFunc(RenderList) {
 
@@ -586,8 +594,8 @@
     function sendMessage(roomID) {
         const senderFP = "";
         const ciphertext = document.getElementById('schreibnachricht').value;
+        document.getElementById('schreibnachricht').value = "";
         if (socket && socket.readyState === WebSocket.OPEN) {
-
             const messagePayload = {
                 "type": "message",
                 "payload": {
@@ -596,22 +604,19 @@
                     "ciphertext": ciphertext
                 }
             };
-
             socket.send(JSON.stringify(messagePayload));
+            send(ciphertext);
         } else {
             console.error("Socket ist nicht bereit. Verbindung prüfen!");
-        }();
-        console.error("nachrichtende gesendet");
+        }
     }
 
-    function send() {
-        const input = document.getElementById('input');
-        if (input.value !== "") {
+    function send(ciphertext) {
+        if (ciphertext !== "") {
             const msg = document.createElement('div');
             msg.className = 'bubble sent';
-            msg.innerText = input.value;
+            msg.innerText = ciphertext;
             document.getElementById('chat').appendChild(msg);
-            input.value = "";
             document.getElementById('chat').scrollTop = document.getElementById('chat').scrollHeight;
         }
     }
