@@ -116,7 +116,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"gateToken\": \"{{gateKey}}\",\n  \"publicKey\": \"anO9M+q/3WNuSUnxpak/GtLt0suBAGVakihtV3HoiDY=\",\n  \"username\": \"{{$randomUserName}}\",\n  \"mode\": 0\n}",
+                  "raw": "{\n  \"gateToken\": \"{{gatekey}}\",\n  \"publicKey\": \"anO9M+q/3WNuSUnxpak/GtLt0suBAGVakihtV3HoiDY=\",\n  \"username\": \"{{$randomUserName}}\",\n  \"mode\": 0\n}",
                   "options": {
                     "raw": {
                       "headerFamily": "json",
@@ -571,6 +571,84 @@
                   "body": "{\n  \"error\": \"string\"\n}"
                 }
               ]
+            },
+            {
+              "name": "get all users",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Chat-Session-ID",
+                    "value": "{{chatSessionId}}",
+                    "description": "Session ID returned by POST /api/auth/gate."
+                  },
+                  {
+                    "key": "Chat-Timestamp",
+                    "value": "{{$timestamp}}",
+                    "description": "Unix timestamp used as part of the canonical signing string.\n"
+                  },
+                  {
+                    "key": "Chat-Signature",
+                    "value": "random",
+                    "description": "Base64-encoded signature of the canonical request string:\nMETHOD + \"\\n\" + PATH + \"\\n\" + TIMESTAMP + \"\\n\" + BODY_HASH\n"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/users",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "users"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "get user rooms",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Chat-Session-ID",
+                    "value": "{{chatSessionId}}",
+                    "description": "Session ID returned by POST /api/auth/gate."
+                  },
+                  {
+                    "key": "Chat-Timestamp",
+                    "value": "{{$timestamp}}",
+                    "description": "Unix timestamp used as part of the canonical signing string.\n"
+                  },
+                  {
+                    "key": "Chat-Signature",
+                    "value": "random",
+                    "description": "Base64-encoded signature of the canonical request string:\nMETHOD + \"\\n\" + PATH + \"\\n\" + TIMESTAMP + \"\\n\" + BODY_HASH\n"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/users/me/rooms",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "users",
+                    "me",
+                    "rooms"
+                  ]
+                }
+              },
+              "response": []
             },
             {
               "name": "Delete all chats for current user (persistent mode only)",
@@ -1153,7 +1231,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "",
+                  "raw": "{\r\n    \"users\": [\r\n        \"fp1\",\r\n        \"fp1\",\r\n        \"fp1\"\r\n    ]\r\n}",
                   "options": {
                     "raw": {
                       "headerFamily": "json",
@@ -1162,14 +1240,15 @@
                   }
                 },
                 "url": {
-                  "raw": "{{baseUrl}}/api/test1234/rooms",
+                  "raw": "{{baseUrl}}/api/rooms/{{room_id}}/users",
                   "host": [
                     "{{baseUrl}}"
                   ],
                   "path": [
                     "api",
-                    "test1234",
-                    "rooms"
+                    "rooms",
+                    "{{room_id}}",
+                    "users"
                   ]
                 }
               },

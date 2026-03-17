@@ -8,9 +8,19 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-func (h *Handler) NewRoom(c echo.Context) error {
-	groupName := c.FormValue("groupName")
+type CreateRoomRequest struct {
+	GroupName string `json:"groupName"`
+}
 
+func (h *Handler) NewRoom(c echo.Context) error {
+	var req CreateRoomRequest
+
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(400, map[string]string{"error": "invalid body"})
+	}
+
+	groupName := req.GroupName
+	
 	respChan := make(chan string)
 
 	h.hub.RegisterRoom <- hub.CreateRoomRequest{
@@ -20,7 +30,9 @@ func (h *Handler) NewRoom(c echo.Context) error {
 	}
 
 	roomID := <-respChan
-
+	if roomID == "" {
+		return c.JSON(http.StatusInternalServerError, "Room creation failed")
+	}
 	return c.JSON(http.StatusCreated, map[string]any{
 		"room_id": roomID,
 	})
