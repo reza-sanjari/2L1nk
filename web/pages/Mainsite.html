@@ -470,7 +470,7 @@
             </div>
 
             <div class="status-bar">
-                <span>> Sichere Verbindung aktiv</span>
+                <span>> Sichere Verbindung : </span>
                 <div class="cursor"></div>
             </div>
         </div>
@@ -600,7 +600,7 @@
             socket.send(JSON.stringify(messagePayload));
         } else {
             console.error("Socket ist nicht bereit. Verbindung prüfen!");
-        }
+        }();
         console.error("nachrichtende gesendet");
     }
 
