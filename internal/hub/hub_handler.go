@@ -68,7 +68,19 @@ func (h *Hub) handleUnregisterUser(user *User) {
 
 }
 
-func (h *Hub) handleJoinRoom(req RoomMembersChangeRequest)  {}
+func (h *Hub) handleJoinRoom(req RoomMembersChangeRequest) {
+	ownerUser := h.getUser(req.OwnerFP)
+	room := h.getRoom(req.RoomID)
+	if h.isUserInRoom(ownerUser, room) {
+		newUser := h.getUser(req.UserFP)
+		if newUser == nil {
+			h.logg.Debug("user not online can't add to room", zap.String("fingerprint", req.UserFP))
+		} else {
+			room.Users[newUser.Fingerprint] = newUser
+			h.logg.Debug("user joined", zap.String("fingerprint", req.UserFP))
+		}
+	}
+}
 func (h *Hub) handleLeaveRoom(req RoomMembersChangeRequest) {}
 
 func (h *Hub) handleBroadcast(req BroadcastRequest) {}

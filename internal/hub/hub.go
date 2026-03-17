@@ -21,8 +21,9 @@ type Hub struct {
 }
 
 type RoomMembersChangeRequest struct {
-	RoomID string
-	User   *User
+	OwnerFP string
+	RoomID  string
+	UserFP  string
 }
 
 type CreateRoomRequest struct {
@@ -66,9 +67,12 @@ func (h *Hub) Run() {
 
 		case user := <-h.UnregisterUser:
 			h.handleUnregisterUser(user)
-			
+
 		case msg := <-h.InboundMessages:
 			h.handleInboundMessage(msg)
+
+		case req := <-h.JoinRoom:
+			h.handleJoinRoom(req)
 		}
 	}
 }
