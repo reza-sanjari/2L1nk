@@ -19,12 +19,15 @@ help:
 	@echo "Build:"
 	@echo "  make build          - Build normal binaries (Linux + Windows)"
 	@echo "  make build-static   - Build static binaries (Linux + Windows)"
-	@echo "  make run            - Run Linux normal binary"
+	@echo "  make run            - Run Linux binary from ./bin/linux/$(BINARY_NAME)"
 	@echo ""
 	@echo "Testing:"
-	@echo "  make test           - Run all tests"
+	@echo "  make test           - Run all tests with race detector"
+	@echo "  make test-verbose   - Run all tests with race detector and verbose output"
 	@echo "  make test-api       - Run API tests only"
 	@echo "  make test-db        - Run DB tests only"
+	@echo ""
+	@echo "Coverage:"
 	@echo "  make coverage       - Show test coverage in terminal"
 	@echo "  make coverage-html  - Generate HTML coverage report"
 	@echo ""
@@ -94,7 +97,7 @@ test:
 
 .PHONY: test-verbose
 test-verbose:
-	gotestsum --format testname -- -race ./...
+	$(GO) test -race -v ./...
 
 .PHONY: test-api
 test-api:
