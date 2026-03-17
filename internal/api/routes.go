@@ -37,4 +37,5 @@ func RegisterRoutes(e *echo.Echo, h *handlers.Handler, store *session.Store) {
 	protected.POST("/rooms", h.NewRoom)
 	protected.POST("/rooms/:room_id/users", h.AddUsersToRoom)
 	protected.GET("/users/me", h.UserInfo)
+	protected.GET("/users", h.GetAllUsers)
 }
