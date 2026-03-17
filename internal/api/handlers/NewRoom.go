@@ -8,9 +8,19 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-func (h *Handler) NewRoom(c echo.Context) error {
-	groupName := c.FormValue("groupName")
+type CreateRoomRequest struct {
+	GroupName string `json:"groupName"`
+}
 
+func (h *Handler) NewRoom(c echo.Context) error {
+	var req CreateRoomRequest
+
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(400, map[string]string{"error": "invalid body"})
+	}
+
+	groupName := req.GroupName
+	
 	respChan := make(chan string)
 
 	h.hub.RegisterRoom <- hub.CreateRoomRequest{
