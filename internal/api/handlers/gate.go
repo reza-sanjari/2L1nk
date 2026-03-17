@@ -9,6 +9,7 @@ import (
 	"2L1nk/internal/service"
 
 	"github.com/labstack/echo/v4"
+	"go.uber.org/zap"
 )
 
 type gateAuthorizeRequest struct {
@@ -16,17 +17,18 @@ type gateAuthorizeRequest struct {
 	PublicKey ed25519.PublicKey `json:"publicKey"`
 	Username  string            `json:"username"`
 	Mode      models.UserMode   `json:"mode"`
-	Timestamp int               `json:"timestamp"`
-	Signature string            `json:"signature"`
 }
 
 func (h *Handler) GateAuthorize(c echo.Context) error {
 	var req gateAuthorizeRequest
 	if err := c.Bind(&req); err != nil {
+		h.logg.Error("failed to process request", zap.Error(err))
 		return c.JSON(http.StatusBadRequest, map[string]string{
 			"error": "invalid request body",
 		})
 	}
+
+	h.logg.Debug("session issue request", zap.String("Username", req.Username))
 
 	if req.GateToken == "" || req.PublicKey == nil || req.Username == "" {
 		return c.JSON(http.StatusBadRequest, map[string]string{
@@ -40,7 +42,7 @@ func (h *Handler) GateAuthorize(c echo.Context) error {
 		})
 	}
 
-	result, err := h.Services.Gate.Authorize(service.GateRequest{
+	result, err := h.services.Gate.Authorize(service.GateRequest{
 		GateToken: req.GateToken,
 		PublicKey: req.PublicKey,
 		Username:  req.Username,
@@ -63,6 +65,11 @@ func (h *Handler) GateAuthorize(c echo.Context) error {
 		})
 	}
 
+	h.logg.Info(
+		"sessionId issued",
+		zap.String("username", req.Username),
+		zap.String("sessionId", result.SessionID),
+	)
 	return c.JSON(http.StatusOK, map[string]string{
 		"sessionId": result.SessionID,
 	})
