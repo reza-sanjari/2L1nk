@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"2L1nk/internal/hub"
 	"2L1nk/internal/session"
 	"net/http"
 
@@ -19,6 +20,14 @@ func (h *Handler) AddUsersToRoom(c echo.Context) error {
 	}
 
 	user := c.Get("user").(*session.User)
+
+	for u := range req.Users {
+		h.hub.JoinRoom <- hub.RoomMembersChangeRequest{
+			RequestOwner: user.PublicKeyFingerprint,
+			RoomID:       roomID,
+			User:         req.Users[u],
+		}
+	}
 
 	return c.JSON(http.StatusCreated, map[string]any{
 		"room":  roomID,
