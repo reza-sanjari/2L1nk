@@ -90,7 +90,11 @@ clean:
 # ==========================
 .PHONY: test
 test:
-	$(GO) test ./...
+	$(GO) test -race ./...
+
+.PHONY: test-verbose
+test-verbose:
+	gotestsum --format testname -- -race ./...
 
 .PHONY: test-api
 test-api:

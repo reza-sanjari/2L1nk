@@ -9,7 +9,6 @@ import (
 	"crypto/ed25519"
 
 	"github.com/google/uuid"
-	"go.uber.org/zap"
 )
 
 type GateService struct {
@@ -38,7 +37,6 @@ type GateResult struct {
 }
 
 func (s *GateService) Authorize(req GateRequest) (*GateResult, error) {
-	s.log.Debug("Authorize ", zap.String("GateToken", req.GateToken))
 	validated, err := s.gate.Validate(req.GateToken)
 	if err != nil {
 		return nil, err
