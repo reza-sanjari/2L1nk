@@ -2,12 +2,7 @@ package hub
 
 import (
 	"2L1nk/internal/logger"
-	"2L1nk/internal/models"
 	"2L1nk/internal/session"
-	"encoding/json"
-
-	"github.com/google/uuid"
-	"go.uber.org/zap"
 )
 
 type Hub struct {
@@ -15,7 +10,7 @@ type Hub struct {
 	s               *session.Store
 	Rooms           map[string]*Room
 	Users           map[string]*User
-	Broadcast       chan WSMessageEnvelope
+	Broadcast       chan BroadcastRequest
 	InboundMessages chan WSMessageEnvelope
 	RegisterRoom    chan CreateRoomRequest
 	UnregisterRoom  chan string
@@ -31,13 +26,15 @@ type RoomMembersChangeRequest struct {
 }
 
 type CreateRoomRequest struct {
-	Host         string
+	Host         *session.User
+	GroupName    string
 	ResponseChan chan string
 }
 
 type Room struct {
+	Name   string
 	RoomID string
-	Host   string
+	Host   *User
 	Users  map[string]*User
 	Epoch  int64
 }
@@ -48,7 +45,7 @@ func New(s *session.Store, logg *logger.Logger) *Hub {
 		s:               s,
 		Rooms:           make(map[string]*Room),
 		Users:           make(map[string]*User),
-		Broadcast:       make(chan WSMessageEnvelope),
+		Broadcast:       make(chan BroadcastRequest),
 		InboundMessages: make(chan WSMessageEnvelope),
 		RegisterRoom:    make(chan CreateRoomRequest),
 		UnregisterRoom:  make(chan string),
@@ -62,42 +59,16 @@ func (h *Hub) Run() {
 	for {
 		select {
 		case req := <-h.RegisterRoom:
-			roomID := uuid.NewString()
-
-			h.Rooms[roomID] = &Room{
-				RoomID: roomID,
-				Host:   req.Host,
-				Users:  make(map[string]*User),
-				Epoch:  0,
-			}
-
-			req.ResponseChan <- roomID
+			h.handleRegisterRoom(req)
 
 		case newUser := <-h.RegisterUser:
-			h.Users[newUser.Fingerprint] = newUser
-			h.logg.Info("user authenticated", zap.String("username", newUser.Username), zap.String("fingerprint", newUser.Fingerprint))
+			h.handleRegisterUser(newUser)
 
 		case user := <-h.UnregisterUser:
-			delete(h.Users, user.Fingerprint)
-
+			h.handleUnregisterUser(user)
+			
 		case msg := <-h.InboundMessages:
-			switch msg.Type {
-			case models.Message:
-				var p MessagePayload
-				err := json.Unmarshal(msg.Payload, &p)
-				if err != nil {
-					h.logg.Error("Failed to unmarshal payload", zap.String("payload", string(msg.Payload)), zap.Error(err))
-					return
-				}
-				h.logg.Debug(
-					"received message",
-					zap.String("message", p.Ciphertext),
-					zap.String("sender", msg.Sender.Username),
-				)
-			}
+			h.handleInboundMessage(msg)
 		}
 	}
-}
-func (h *Hub) Status() (string, error) {
-	return "OK", nil
 }

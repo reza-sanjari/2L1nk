@@ -26,7 +26,7 @@ var upgrader = websocket.Upgrader{
 func (h *Handler) Ws(c echo.Context) error {
 	ws, err := upgrader.Upgrade(c.Response(), c.Request(), nil)
 	if err != nil {
-		log.Printf("websocket upgrade failed: %v", err)
+		h.logg.Warn("websocket upgrade failed", zap.Error(err))
 		return err
 	}
 	defer func() {
@@ -35,68 +35,67 @@ func (h *Handler) Ws(c echo.Context) error {
 		}
 	}()
 
-	h.Logg.Debug("websocket connection opened")
+	h.logg.Debug("websocket connection opened by", zap.String("remoteAddr", c.RealIP()))
 	if err := ws.WriteMessage(websocket.TextMessage, []byte(`{"type":"info","payload":{"message":"initiated"}}`)); err != nil {
 		log.Printf("failed to send initiated message: %v", err)
 	}
 
-	h.Logg.Debug("waiting for first websocket message")
-
 	// 1. read first message
 	_, raw, err := ws.ReadMessage()
 	if err != nil {
-		log.Println("failed to receive first message:", err)
+		h.logg.Debug("websocket closed, failed to read first message", zap.Error(err))
 		return nil
 	}
 
 	// 2. decode envelope
 	var msg hub.WSMessageEnvelope
 	if err := json.Unmarshal(raw, &msg); err != nil {
-		log.Println("invalid message:", err)
+		h.logg.Debug("websocket closed, invalid message", zap.Error(err))
 		return nil
 	}
 
 	// 3. require auth as first message
 	if msg.Type != "auth" {
-		h.Logg.Debug("websocket closed, invalid first message type", zap.Any("msg", msg))
+		h.logg.Debug("websocket closed, invalid first message type", zap.Any("msg", msg))
 		return nil
 	}
 
 	// 4. decode auth payload
 	var auth AuthPayload
 	if err := json.Unmarshal(msg.Payload, &auth); err != nil {
-		h.Logg.Debug("websocket closed, invalid auth payload", zap.Any("msg", msg))
+		h.logg.Debug("websocket closed, invalid auth payload", zap.Any("msg", msg))
 		return nil
 	}
 
 	// 5. validate auth
-	activeUser, ok := h.Session.Get(auth.SessionID)
+	activeUser, ok := h.session.Get(auth.SessionID)
 	if !ok {
-		log.Println("user not active")
+		h.logg.Debug("websocket closed, user is not authenticated", zap.String("username", activeUser.Username), zap.String("sessionId", activeUser.SessionID))
 		return nil
 	}
 
-	h.Logg.Debug("websocket authenticated", zap.String("username", activeUser.Username), zap.String("fingerprint", activeUser.PublicKeyFingerprint))
+	h.logg.Debug("websocket authenticated", zap.String("username", activeUser.Username), zap.String("fingerprint", activeUser.PublicKeyFingerprint))
+
 	// TODO: validate timestamp + signature here
 
-	newUser := hub.NewUser(activeUser.PublicKeyFingerprint, activeUser.Username, ws, activeUser.Mode)
+	newUser := hub.NewUser(activeUser.PublicKeyFingerprint, activeUser.Username, ws, activeUser.Mode, h.logg)
 
-	h.Hub.RegisterUser <- newUser
+	h.hub.RegisterUser <- newUser
 
 	// start writer
 	go func() {
 		if err := newUser.WritePump(); err != nil {
-			h.Logg.Debug("write pump closed", zap.Error(err))
+			h.logg.Debug("write pump closed", zap.Error(err))
 		}
 	}()
 
 	// reader blocks until disconnect
-	if err := newUser.ReadPump(h.Hub.InboundMessages); err != nil {
-		h.Logg.Debug("read pump closed", zap.Error(err))
+	if err := newUser.ReadPump(h.hub.InboundMessages); err != nil {
+		h.logg.Debug("read pump closed", zap.Error(err))
 	}
 
 	// cleanup
-	h.Hub.UnregisterUser <- newUser
+	h.hub.UnregisterUser <- newUser
 
 	return nil
 }
