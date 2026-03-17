@@ -23,9 +23,9 @@ func (h *Handler) AddUsersToRoom(c echo.Context) error {
 
 	for u := range req.Users {
 		h.hub.JoinRoom <- hub.RoomMembersChangeRequest{
-			RequestOwner: user.PublicKeyFingerprint,
-			RoomID:       roomID,
-			User:         req.Users[u],
+			OwnerFP: user.PublicKeyFingerprint,
+			RoomID:  roomID,
+			UserFP:  req.Users[u],
 		}
 	}
 
