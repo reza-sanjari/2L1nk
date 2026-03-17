@@ -5,125 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Geometric Purple Chat</title>
     <style>
-        /* Flüssiger Hintergrund-Verlauf */
-        @keyframes fluidBG {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
-        }
 
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: 'Segoe UI', sans-serif;
-            background: linear-gradient(-45deg, #0a0a0a, #1a0525, #310a5d, #000000);
-            background-size: 400% 400%;
-            animation: fluidBG 15s ease infinite;
-            height: 100vh;
-            display: flex;
-            color: white;
-            overflow: hidden;
-            position: relative;
-        }
-
-        /* --- GEOMETRISCHE FORMEN IM HINTERGRUND --- */
-        .shape {
-            position: absolute;
-            z-index: 0;
-            opacity: 0.4;
-            animation: floatShape 20s infinite ease-in-out;
-            background: linear-gradient(135deg, #6a0dad 0%, #000000 100%);
-        }
-
-        @keyframes floatShape {
-            0%, 100% { transform: translateY(0) rotate(0deg) scale(1); }
-            50% { transform: translateY(-40px) rotate(10deg) scale(1.1); }
-        }
-
-        /* Kreis */
-        .circle {
-            width: 250px;
-            height: 250px;
-            border-radius: 50%;
-            top: 10%;
-            left: 15%;
-            filter: blur(2px);
-            box-shadow: 0 0 40px rgba(188, 19, 254, 0.2);
-        }
-
-        /* Dreieck */
-        .triangle {
-            width: 200px;
-            height: 200px;
-            clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
-            bottom: 15%;
-            left: 40%;
-            background: linear-gradient(to top, #bc13fe, #1a0525);
-            animation-delay: -5s;
-        }
-
-        /* Quadrat (rotiert) */
-        .square {
-            width: 150px;
-            height: 150px;
-            top: 20%;
-            right: 20%;
-            transform: rotate(45deg);
-            background: linear-gradient(45deg, #4b0082, #000000);
-            animation-delay: -2s;
-        }
-
-        .small-circle {
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            bottom: 20%;
-            right: 10%;
-            
-            background: linear-gradient(135deg, #6a0dad 0%, #000000 100%);
-        }
-
-        /* --- CHAT INTERFACE --- */
-        nav, main {
-            position: relative;
-            z-index: 10; /* Über den Formen */
-        }
-
-        nav {
-            width: 280px;
-            background: rgba(0, 0, 0, 0.8);
-            backdrop-filter: blur(20px);
-            border-right: 1px solid rgba(188, 19, 254, 0.3);
-            display: flex;
-            flex-direction: column;
-            padding: 20px;
-        }
-
-        .contact {
-            padding: 15px;
-            margin-bottom: 10px;
-            border-radius: 12px;
-            background: rgba(255, 255, 255, 0.05);
-            cursor: pointer;
-            transition: all 0.3s;
-            border: 1px solid transparent;
-        }
-
-        .contact:hover {
-            transform: translateX(10px);
-            border-color: #bc13fe;
-            background: rgba(188, 19, 254, 0.1);
-        }
-
-        main {
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-        }
-
+        
         .chat-messages {
             flex-grow: 1;
-            padding: 40px;
             overflow-y: auto;
             display: flex;
             flex-direction: column;
@@ -184,12 +69,12 @@
     <div class="shape square"></div>
     <div class="shape small-circle"></div>
 
-    <nav>
+    <!--<nav>
         <h2 style="color: #bc13fe;">Kontakte</h2>
         <div class="contact">👤 Max Mustermann</div>
         <div class="contact">👤 Julia Admin</div>
         <div class="contact">👤 Tech Support</div>
-    </nav>
+    </nav>-->
 
     <main>
         <div class="chat-messages" id="chat">

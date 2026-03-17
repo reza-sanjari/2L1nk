@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CipherChat - Purple Edition</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet"  href="/css/mainsite.css">
+    <script src="/js/mainsite.js"></script>
+
+</head>
+<body>
+
+    <div class="shape circle"></div>
+    <div class="shape triangle"></div>
+    <div class="shape square"></div>
+
+    <header class="top-bar">
+        <div class="top-bar-actions">
+            <i class="fas fa-search nav-icon" title="Global Search"></i>
+            <i class="fas fa-bell nav-icon" title="Notifications"></i>
+            <i class="fas fa-cog nav-icon" title="Settings"></i>
+            <div class="avatar-group">
+                <div style="text-align: right; line-height: 1;">
+                    <div style="font-size: 0.85rem; font-weight: bold;" id="username"></div>
+                    <div style="font-size: 0.6rem; opacity: 0.5; color: #4ade80;">ONLINE</div>
+                </div>
+                <div class="avatar" id="avatar"><div id="usernameshort"></div></div>
+            </div>
+        </div>
+    </header>
+
+
+    <dialog id="newChatModal" style="background: #1a0525; color: white; border: 1px solid #bc13fe; border-radius: 15px; padding: 25px; width: 320px; box-shadow: 0 0 30px rgba(188, 19, 254, 0.3);">
+        <h3 style="margin-top: 0; color: #bc13fe;">Neuer Chat erstellen</h3>
+        <input type="text" id="groupNameInput" placeholder="Gruppenname..." style="width: 90%; margin-bottom: 20px; padding: 12px; background: #000; border: 1px solid #4b0082; color: white; border-radius: 8px;">
+        <div style="display: flex; gap: 10px;">
+            <button onclick="document.getElementById('newChatModal').close()" style="flex: 1; padding: 10px; background: transparent; border: 1px solid #4b0082; color: white; border-radius: 8px; cursor: pointer;">Abbrechen</button>
+            <button onclick="submitNewChat()" style="flex: 1; padding: 10px; background: #bc13fe; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">Erstellen</button>
+        </div>
+    </dialog>
+    <div class="app-container">
+        <nav>
+            <div class="brand">
+                <div class="brand-icon"><i class="fas fa-shield-alt"></i></div>
+                <div>
+                    <div style="font-weight: bold; font-size: 1.2rem; color: #bc13fe;">2L1nk</div>
+                    <div style="font-size: 0.6rem; opacity: 0.5; letter-spacing: 2px;" onclick="sendMessage();">ENCRYPTED</div>
+                </div>
+            </div>
+
+            <div class="search-box">
+                <i class="fas fa-search" style="opacity: 0.4;"></i>
+                <input type="text" placeholder="Suchen..." id="searchbar" oninput="searchfunction(event)">
+            </div>
+
+            <div class="chat-list-header">
+                <span>CHATS</span>
+                <i class="fas fa-plus"></i>
+            </div>
+
+            <div id="chat-list-container" class="empty-state">
+                <i class="fas fa-users" style="font-size: 2rem; margin-bottom: 10px;"></i>
+                <p>Keine aktiven Chats </p>
+            </div>
+
+            <button class="btn-action" onclick="document.getElementById('newChatModal').showModal()">Neuer Chat</button>
+            <button class="btn-action btn-voice" onclick="connectLocalChat()"><i class="fas fa-voice"></i> &nbsp;  Anrufen</button>
+
+            <div style="display: flex; justify-content: space-around; margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); opacity: 0.6;">
+                <i class="fas fa-question-circle"></i>
+                <i class="fas fa-sign-out-alt" onclick="logout()"></i>
+            </div>
+        </nav>
+        <div class="maininfo">
+
+            <div class="welcome-icon">
+                <i class="fas fa-shield-alt"></i>
+            </div>
+            <h1 style="font-size: 2.5rem; margin: 0;">Willkommen bei <span style="color: #bc13fe;">2L1nk</span></h1>
+
+
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <i class="fas fa-lock" style="color: #4ade80;"></i>
+                    <span style="font-size: 0.7rem; font-weight: bold; opacity: 0.6;">AES-256</span>
+                </div>
+                <div class="feature-card">
+                    <i class="fas fa-comment" style="color: #bc13fe;"></i>
+                    <span style="font-size: 0.7rem; font-weight: bold; opacity: 0.6;">CHAT</span>
+                </div>
+                <div class="feature-card">
+                    <i class="fas fa-voice" style="color: #a855f7;"></i>
+                    <span style="font-size: 0.7rem; font-weight: bold; opacity: 0.6;">Voice</span>
+                </div>
+            </div>
+
+            <div class="status-bar">
+                <span>> Sichere Verbindung : </span>
+                <div class="cursor"></div>
+            </div>
+        </div>
+        <main id="main">
+        </main>
+
+    </div>
+</body>
+</html>
