@@ -3,9 +3,10 @@ package app
 import (
 	"2L1nk/internal/api/handlers"
 	"2L1nk/internal/config"
+	"2L1nk/internal/db"
 	"2L1nk/internal/gate"
 	"2L1nk/internal/hub"
-	"2L1nk/internal/infrastructure/db"
+	infradb "2L1nk/internal/infrastructure/db"
 	"2L1nk/internal/logger"
 	"2L1nk/internal/server"
 	"2L1nk/internal/service"
@@ -31,12 +32,32 @@ func New(cfg *config.Config) *App {
 		panic(err)
 	}
 
+	// Database
+	logg.Info("initializing database", zap.String("path", cfg.DBPath))
+	database, err := db.Open(cfg.DBPath)
+	if err != nil {
+		logg.Fatal("failed to open database", zap.Error(err))
+	}
+
+	tables, err := db.VerifyTables(database)
+	if err != nil {
+		logg.Fatal("failed to verify database tables", zap.Error(err))
+	}
+	for _, name := range db.ExpectedTables() {
+		if tables[name] {
+			logg.Info("db table ok", zap.String("table", name))
+		} else {
+			logg.Fatal("db table missing after migration", zap.String("table", name))
+		}
+	}
+	logg.Info("database ready", zap.String("path", cfg.DBPath))
+
 	// Session Store
 	sessionStore := session.NewStore()
 
 	// Infrastructure
-	healthRepo := db.NewHealthRepository()
-	RoomRepo := db.NewRoomRepository()
+	healthRepo := infradb.NewHealthRepository(database)
+	RoomRepo := infradb.NewRoomRepository(database)
 
 	// Gate
 	g, err := gate.New(0)
