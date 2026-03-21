@@ -27,8 +27,7 @@ func RunMigrations(database *sql.DB) error {
 
 	statements := []string{
 		`CREATE TABLE IF NOT EXISTS users (
-			id          TEXT    PRIMARY KEY,
-			fingerprint TEXT    UNIQUE NOT NULL,
+			fingerprint TEXT    PRIMARY KEY,
 			public_key  TEXT    NOT NULL,
 			username    TEXT,
 			mode        INTEGER NOT NULL DEFAULT 0,

@@ -44,6 +44,7 @@ func New(cfg *config.Config) *App {
 	// Infrastructure
 	healthRepo := infradb.NewHealthRepository(database)
 	RoomRepo := infradb.NewRoomRepository(database)
+	userRepo := infradb.NewUserRepository(database)
 
 	// Gate
 	g, err := gate.New(0)
@@ -55,7 +56,7 @@ func New(cfg *config.Config) *App {
 
 	// Services
 	healthSvc := service.NewHealthService(healthRepo, logg)
-	gateSvc := service.NewGateService(g, sessionStore, logg)
+	gateSvc := service.NewGateService(g, sessionStore, userRepo, logg)
 	RoomSvc := service.NewRoomService(RoomRepo, logg)
 
 	// Service Container
