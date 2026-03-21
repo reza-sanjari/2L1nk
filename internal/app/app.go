@@ -33,24 +33,10 @@ func New(cfg *config.Config) *App {
 	}
 
 	// Database
-	logg.Info("initializing database", zap.String("path", cfg.DBPath))
-	database, err := db.Open(cfg.DBPath)
+	database, err := db.Setup(cfg.DBPath, logg)
 	if err != nil {
-		logg.Fatal("failed to open database", zap.Error(err))
+		logg.Fatal("failed to initialize database", zap.Error(err))
 	}
-
-	tables, err := db.VerifyTables(database)
-	if err != nil {
-		logg.Fatal("failed to verify database tables", zap.Error(err))
-	}
-	for _, name := range db.ExpectedTables() {
-		if tables[name] {
-			logg.Info("db table ok", zap.String("table", name))
-		} else {
-			logg.Fatal("db table missing after migration", zap.String("table", name))
-		}
-	}
-	logg.Info("database ready", zap.String("path", cfg.DBPath))
 
 	// Session Store
 	sessionStore := session.NewStore()
