@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"2L1nk/internal/models"
 	"2L1nk/internal/session"
 	"net/http"
 
@@ -9,7 +10,25 @@ import (
 
 func (h *Handler) UserInfo(c echo.Context) error {
 	user := c.Get("user").(*session.User)
-	return c.JSON(http.StatusCreated, map[string]any{
+
+	if user.Mode == models.UserModePersistent {
+		record, err := h.services.Gate.GetUserByFingerprint(user.PublicKeyFingerprint)
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": "internal server error",
+			})
+		}
+		if record != nil {
+			return c.JSON(http.StatusOK, map[string]any{
+				"username":          record.Username,
+				"publicFingerPrint": record.Fingerprint,
+				"mode":              record.Mode,
+				"createdAt":         record.CreatedAt,
+			})
+		}
+	}
+
+	return c.JSON(http.StatusOK, map[string]any{
 		"username":          user.Username,
 		"publicFingerPrint": user.PublicKeyFingerprint,
 		"mode":              user.Mode,
