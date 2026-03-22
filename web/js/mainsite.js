@@ -1,178 +1,122 @@
 
+let socket;
+let roomList = [];
+let gefilterteListe = [];
+let currentRoomId = null;
+const messageCache = {}; // { [room_id]: [{sender_fp, ciphertext, own}] }
+const BASE_URL = 'http://localhost:8080'; // Basis-URL für API-Requests
 // ============================================================
-// CRYPTO MODULE
-// Key Pair Model: Ed25519 (Signing/Identity) + X25519 (ECDH)
-//
-// Ein Ed25519-Schlüsselpaar dient als Identität.
-// Zusätzlich wird ein X25519-Schlüsselpaar für ECDH generiert
-// (Verschlüsselung von Room-Keys an Mitglieder).
-// Nachrichten werden mit AES-256-GCM symmetrisch verschlüsselt.
+// CRYPTO MODULE — via tweetnacl
+// Ed25519 (Signing) + X25519/box (ECDH) + secretbox (AES-äquivalent)
 // ============================================================
-
 const AppCrypto = (() => {
-    const subtle = crypto.subtle;
 
     function bufToB64(buf) {
         return btoa(String.fromCharCode(...new Uint8Array(buf)));
     }
 
     function b64ToBuf(b64) {
-        return Uint8Array.from(atob(b64), c => c.charCodeAt(0)).buffer;
+        return Uint8Array.from(atob(b64), c => c.charCodeAt(0));
     }
 
-    function strToBuf(str) {
+    function strToBytes(str) {
         return new TextEncoder().encode(str);
     }
 
-    function bufToStr(buf) {
-        return new TextDecoder().decode(buf);
-    }
-
-    async function exportPublicKeyRaw(key) {
-        return bufToB64(await subtle.exportKey('raw', key));
-    }
-
-    async function exportKeyJWK(key) {
-        return JSON.stringify(await subtle.exportKey('jwk', key));
+    function bytesToStr(bytes) {
+        return new TextDecoder().decode(bytes);
     }
 
     // --- Identität generieren & speichern ---
 
-    async function generateIdentity() {
-        // Ed25519: Signing / Authentifizierung
-        const signingKP = await subtle.generateKey(
-            { name: 'Ed25519' }, true, ['sign', 'verify']
-        );
-        // X25519: ECDH / Room-Key Verschlüsselung
-        const dhKP = await subtle.generateKey(
-            { name: 'X25519' }, true, ['deriveKey', 'deriveBits']
-        );
+    function generateIdentity() {
+        const signingKP = nacl.sign.keyPair();   // Ed25519
+        const dhKP      = nacl.box.keyPair();    // X25519
 
-        sessionStorage.setItem('ed25519_private', await exportKeyJWK(signingKP.privateKey));
-        sessionStorage.setItem('ed25519_public',  await exportPublicKeyRaw(signingKP.publicKey));
-        sessionStorage.setItem('x25519_private',  await exportKeyJWK(dhKP.privateKey));
-        sessionStorage.setItem('x25519_public',   await exportPublicKeyRaw(dhKP.publicKey));
+        sessionStorage.setItem('ed25519_secret', bufToB64(signingKP.secretKey));
+        sessionStorage.setItem('ed25519_public', bufToB64(signingKP.publicKey));
+        sessionStorage.setItem('x25519_secret',  bufToB64(dhKP.secretKey));
+        sessionStorage.setItem('x25519_public',  bufToB64(dhKP.publicKey));
 
         return {
-            signingPublicKey: sessionStorage.getItem('ed25519_public'),
-            dhPublicKey:      sessionStorage.getItem('x25519_public')
+            signingPublicKey: bufToB64(signingKP.publicKey),
+            dhPublicKey:      bufToB64(dhKP.publicKey)
         };
     }
 
-    async function loadIdentity() {
-        const edPrivRaw = sessionStorage.getItem('ed25519_private');
-        const xPrivRaw  = sessionStorage.getItem('x25519_private');
-        if (!edPrivRaw || !xPrivRaw) return null;
-
-        const signingPrivate = await subtle.importKey(
-            'jwk', JSON.parse(edPrivRaw), { name: 'Ed25519' }, false, ['sign']
-        );
-        const dhPrivate = await subtle.importKey(
-            'jwk', JSON.parse(xPrivRaw), { name: 'X25519' }, false, ['deriveKey', 'deriveBits']
-        );
-        return { signingPrivate, dhPrivate };
+    function loadIdentity() {
+        const edSec = sessionStorage.getItem('ed25519_secret');
+        const xSec  = sessionStorage.getItem('x25519_secret');
+        if (!edSec || !xSec) return null;
+        return {
+            signingSecretKey: b64ToBuf(edSec),
+            dhSecretKey:      b64ToBuf(xSec)
+        };
     }
 
     // --- Ed25519: Signieren & Verifizieren ---
 
-    async function sign(data) {
-        const id = await loadIdentity();
+    function sign(data) {
+        const id = loadIdentity();
         if (!id) throw new Error('Keine Identität geladen');
-        const sig = await subtle.sign('Ed25519', id.signingPrivate, strToBuf(data));
+        const sig = nacl.sign.detached(strToBytes(data), id.signingSecretKey);
         return bufToB64(sig);
     }
 
-    async function verify(data, signatureB64, signerPublicKeyB64) {
-        const pubKey = await subtle.importKey(
-            'raw', b64ToBuf(signerPublicKeyB64), { name: 'Ed25519' }, false, ['verify']
+    function verify(data, signatureB64, publicKeyB64) {
+        return nacl.sign.detached.verify(
+            strToBytes(data),
+            b64ToBuf(signatureB64),
+            b64ToBuf(publicKeyB64)
         );
-        return await subtle.verify('Ed25519', pubKey, b64ToBuf(signatureB64), strToBuf(data));
     }
 
-    // --- X25519 ECDH + AES-GCM: Room-Key Verschlüsselung ---
+    // --- X25519 box: Room-Key Verschlüsselung ---
 
     // Verschlüsselt einen Room-Key für einen Empfänger.
-    // Gibt { ephemeralPub, iv, ciphertext } (alles Base64) zurück.
-    async function encryptRoomKey(roomKeyBuf, recipientDHPublicB64) {
-        const ephemeral = await subtle.generateKey(
-            { name: 'X25519' }, true, ['deriveKey']
-        );
-        const ephemeralPubB64 = await exportPublicKeyRaw(ephemeral.publicKey);
-
-        const recipientPub = await subtle.importKey(
-            'raw', b64ToBuf(recipientDHPublicB64), { name: 'X25519' }, false, []
-        );
-        const sharedKey = await subtle.deriveKey(
-            { name: 'X25519', public: recipientPub },
-            ephemeral.privateKey,
-            { name: 'AES-GCM', length: 256 },
-            false,
-            ['encrypt']
-        );
-
-        const iv = crypto.getRandomValues(new Uint8Array(12));
-        const ciphertext = await subtle.encrypt(
-            { name: 'AES-GCM', iv },
-            sharedKey,
-            roomKeyBuf
-        );
-
+    // Gibt { ephemeralPub, nonce, ciphertext } (alles Base64) zurück.
+    function encryptRoomKey(roomKey, recipientDHPublicB64) {
+        const ephemeral = nacl.box.keyPair();
+        const nonce     = nacl.randomBytes(nacl.box.nonceLength);
+        const key       = roomKey instanceof Uint8Array ? roomKey : new Uint8Array(roomKey);
+        const encrypted = nacl.box(key, nonce, b64ToBuf(recipientDHPublicB64), ephemeral.secretKey);
         return {
-            ephemeralPub: ephemeralPubB64,
-            iv:           bufToB64(iv),
-            ciphertext:   bufToB64(ciphertext)
+            ephemeralPub: bufToB64(ephemeral.publicKey),
+            nonce:        bufToB64(nonce),
+            ciphertext:   bufToB64(encrypted)
         };
     }
 
     // Entschlüsselt einen Room-Key mit dem eigenen X25519-Private-Key.
-    async function decryptRoomKey({ ephemeralPub, iv, ciphertext }) {
-        const id = await loadIdentity();
+    function decryptRoomKey({ ephemeralPub, nonce, ciphertext }) {
+        const id = loadIdentity();
         if (!id) throw new Error('Keine Identität geladen');
-
-        const senderPub = await subtle.importKey(
-            'raw', b64ToBuf(ephemeralPub), { name: 'X25519' }, false, []
+        const decrypted = nacl.box.open(
+            b64ToBuf(ciphertext), b64ToBuf(nonce),
+            b64ToBuf(ephemeralPub), id.dhSecretKey
         );
-        const sharedKey = await subtle.deriveKey(
-            { name: 'X25519', public: senderPub },
-            id.dhPrivate,
-            { name: 'AES-GCM', length: 256 },
-            false,
-            ['decrypt']
-        );
-
-        return await subtle.decrypt(
-            { name: 'AES-GCM', iv: b64ToBuf(iv) },
-            sharedKey,
-            b64ToBuf(ciphertext)
-        );
+        if (!decrypted) throw new Error('Entschlüsselung fehlgeschlagen');
+        return decrypted;
     }
 
-    // --- AES-GCM: Nachrichten verschlüsseln & entschlüsseln ---
+    // --- secretbox: Nachrichten verschlüsseln & entschlüsseln ---
 
-    async function encryptMessage(plaintext, roomKeyBuf) {
-        const roomKey = await subtle.importKey(
-            'raw', roomKeyBuf, { name: 'AES-GCM' }, false, ['encrypt']
-        );
-        const iv = crypto.getRandomValues(new Uint8Array(12));
-        const ciphertext = await subtle.encrypt(
-            { name: 'AES-GCM', iv }, roomKey, strToBuf(plaintext)
-        );
-        return { iv: bufToB64(iv), ciphertext: bufToB64(ciphertext) };
+    function encryptMessage(plaintext, roomKey) {
+        const nonce = nacl.randomBytes(nacl.secretbox.nonceLength);
+        const key   = roomKey instanceof Uint8Array ? roomKey : new Uint8Array(roomKey);
+        const encrypted = nacl.secretbox(strToBytes(plaintext), nonce, key);
+        return { nonce: bufToB64(nonce), ciphertext: bufToB64(encrypted) };
     }
 
-    async function decryptMessage({ iv, ciphertext }, roomKeyBuf) {
-        const roomKey = await subtle.importKey(
-            'raw', roomKeyBuf, { name: 'AES-GCM' }, false, ['decrypt']
-        );
-        const plainBuf = await subtle.decrypt(
-            { name: 'AES-GCM', iv: b64ToBuf(iv) }, roomKey, b64ToBuf(ciphertext)
-        );
-        return bufToStr(plainBuf);
+    function decryptMessage({ nonce, ciphertext }, roomKey) {
+        const key = roomKey instanceof Uint8Array ? roomKey : new Uint8Array(roomKey);
+        const decrypted = nacl.secretbox.open(b64ToBuf(ciphertext), b64ToBuf(nonce), key);
+        if (!decrypted) throw new Error('Entschlüsselung fehlgeschlagen');
+        return bytesToStr(decrypted);
     }
 
-    // Generiert einen zufälligen AES-256 Room-Key.
     function generateRoomKey() {
-        return crypto.getRandomValues(new Uint8Array(32)).buffer;
+        return nacl.randomBytes(32);
     }
 
     return {
@@ -189,213 +133,497 @@ const AppCrypto = (() => {
         b64ToBuf
     };
 })();
+if (!AppCrypto.loadIdentity()) AppCrypto.generateIdentity();
+function connectLocalChat() {
+    socket = new WebSocket('ws://localhost:8080/api/ws');
 
-    let socket;
-    let roomList = [];
-    let gefilterteListe = [];
-    connectLocalChat();
-    function connectLocalChat() {
-        socket = new WebSocket('ws://localhost:8080/api/ws');
-        socket.onopen = () => {
-            const authPayload = {
-                "type": "auth",
-                "payload": {
-                    "Chat-Session-ID": sessionStorage.getItem('sessionId'),
-                    "Chat-Timestamp": Math.floor(Date.now() / 1000), // Aktueller Unix-Timestamp
-                    "Chat-Signature": "test"
-                }
-            };
-
-            socket.send(JSON.stringify(authPayload));
-        };
-    }
-    async function fetchRooms() {
-        try {
-            const response = await fetch('http://localhost:8080/api/test/rooms', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP-Fehler: ${response.status}`);
+    socket.onopen = () => {
+        const authPayload = {
+            "type": "auth",
+            "payload": {
+                "Chat-Session-ID": sessionStorage.getItem('sessionId'),
+                "Chat-Timestamp": Math.floor(Date.now() / 1000),
+                "Chat-Signature": "test"
             }
+        };
+        socket.send(JSON.stringify(authPayload));
+    };
 
-            roomList = await response.json();
-            renderFunc(roomList);
+    socket.onmessage = (event) => {
+        const envelope = JSON.parse(event.data);
 
-        } catch (error) {
-            console.error("Fehler beim Abrufen der API-Daten:", error);
+        if (envelope.type === "message") {
+            const payload = envelope.payload;
+            const myFP   = sessionStorage.getItem('my_fingerprint');
+            const isMine = envelope.sender_fp === myFP;
+            if (isMine) return; // eigene bereits lokal angezeigt
+
+            // in Cache speichern
+            const roomId = payload.room_id;
+            if (!messageCache[roomId]) messageCache[roomId] = [];
+            messageCache[roomId].push({ sender_fp: envelope.sender_fp, ciphertext: payload.ciphertext, own: false });
+
+            // nur anzeigen wenn dieser Raum gerade offen ist
+            if (roomId !== currentRoomId) return;
+            const chatEl = document.getElementById('chat');
+            if (!chatEl) return;
+            const div = document.createElement('div');
+            div.className = 'bubble received';
+            div.innerText = payload.ciphertext;
+            chatEl.appendChild(div);
+            chatEl.scrollTop = chatEl.scrollHeight;
         }
-    }
-    function searchfunction(event) {
-        const searchTerm = event.target.value.toLowerCase();
+    };
 
-        const gefilterteListe = roomList.filter(room => {
-            return room.RoomID.toLowerCase().includes(searchTerm) ||
-                room.Host.toLowerCase().includes(searchTerm);
+    socket.onerror = (err) => console.error("WebSocket Fehler:", err);
+    socket.onclose = ()  => console.warn("WebSocket geschlossen");
+}
+async function fetchRooms() {
+
+    console.log("Daten erfolgreich fetch:");
+    const path = '/api/users/me/rooms';
+    const timestamp = Math.floor(Date.now() / 1000);
+
+    const emptyBodyHash = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+    const canonical = `GET\n${path}\n${timestamp}\n${emptyBodyHash}`;
+    const signature = AppCrypto.sign(canonical);
+
+    try {
+        const response = await fetch(`http://localhost:8080${path}`, {
+            method: 'GET',
+            headers: {
+                'Chat-Session-ID': sessionStorage.getItem('sessionId'),
+                'Chat-Timestamp':  timestamp,
+                'Chat-Signature':  signature
+            }
         });
-        renderFunc(gefilterteListe);
-        console.log("Daten erfolgreich geladen:", gefilterteListe);
+
+        if (!response.ok) {
+            throw new Error(`HTTP-Fehler: ${response.status}`);
+        }
+
+        roomList = (await response.json()).rooms ?? [];
+        console.log("Räume geladen:", roomList);
+        renderFunc(roomList);
+
+    } catch (error) {
+
+        console.error("Fehler beim Abrufen der Räume:", error);
+
     }
-    function clickroom(room) {
-        const maininfo = document.querySelector('.maininfo');
-        maininfo.style.display = 'none';
-        const main = document.getElementById('main');
-        main.style.display = 'flex';
-        main.innerHTML = `
+
+}
+function searchfunction(event) {
+    const searchTerm = event.target.value.toLowerCase();
+
+    const gefilterteListe = roomList.filter(room => {
+        return room.room_id.toLowerCase().includes(searchTerm) ||
+            room.name.toLowerCase().includes(searchTerm);
+    });
+    renderFunc(gefilterteListe);
+    console.log("Daten erfolgreich geladen:", gefilterteListe);
+}
+function clickroom(room) {
+    currentRoomId = room.room_id;
+
+    const maininfo = document.querySelector('.maininfo');
+    maininfo.style.display = 'none';
+    const main = document.getElementById('main');
+    main.style.display = 'flex';
+    main.innerHTML = `
                 <div class="chat-messages" id="chat">
                 </div>
 
                 <div class="chat-input">
                     <input type="text" id="schreibnachricht" placeholder="Nachricht schreiben...">
-                    <button onclick="sendMessage('${room.RoomID}')">Senden</button>
+                    <button onclick="sendMessage('${room.room_id}')">Senden</button>
                 </div>
 
             `;
-        loadChat(room);
-    }
-    function loadChat(room) {
-        //console.log("Lade Chat für Raum:", room.RoomID);
-        const loadchatList = [
-            { sender: 'received', text: 'Willkommen im Chat!' },
-            { sender: 'sent', text: 'Danke! Freue mich hier zu sein.' },
-            { sender: 'received', text: 'Wie findest du die App bisher?' },
-            { sender: 'sent', text: 'Sieht super aus, besonders das Design!' }
-        ];
-        loadchatList.forEach(message => {
-            const msg = document.createElement('div');
-            msg.className = `bubble ${message.sender}`;
-            msg.innerText = message.text;
-            document.getElementById('chat').appendChild(msg);
+    loadChat(room);
+}
+async function loadChat(room) {
+    const chatEl = document.getElementById('chat');
+    const myFP   = sessionStorage.getItem('my_fingerprint');
+
+    const path      = `/api/rooms/${room.room_id}/messages`;
+    const timestamp = Math.floor(Date.now() / 1000);
+    const canonical = `GET\n${path}\n${timestamp}\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`;
+    const signature = AppCrypto.sign(canonical);
+
+    try {
+        const response = await fetch(`${BASE_URL}${path}?limit=50&offset=0`, {
+            method: 'GET',
+            headers: {
+                'Chat-Session-ID': sessionStorage.getItem('sessionId'),
+                'Chat-Timestamp':  timestamp,
+                'Chat-Signature':  signature
+            }
         });
+
+        if (!response.ok) throw new Error(`HTTP-Fehler: ${response.status}`);
+
+        const data     = await response.json();
+        // API gibt newest-first zurück → umkehren für chronologische Anzeige
+        const messages = (data.messages ?? []).reverse();
+
+        // DB-Nachrichten anzeigen
+        const dbIds = new Set();
+        messages.forEach(msg => {
+            dbIds.add(msg.id);
+            const div = document.createElement('div');
+            div.className = `bubble ${msg.sender_fp === myFP ? 'sent' : 'received'}`;
+            div.innerText = msg.ciphertext;
+            chatEl.appendChild(div);
+        });
+
+        // Cache-Nachrichten anhängen die noch nicht in der DB sind (live, noch nicht persistiert)
+        const cached = messageCache[room.room_id] ?? [];
+        cached.forEach(m => {
+            if (m.id && dbIds.has(m.id)) return; // Duplikat überspringen
+            const div = document.createElement('div');
+            div.className = `bubble ${m.own ? 'sent' : 'received'}`;
+            div.innerText = m.ciphertext;
+            chatEl.appendChild(div);
+        });
+
+        chatEl.scrollTop = chatEl.scrollHeight;
+
+    } catch (err) {
+        console.error("Fehler beim Laden der Nachrichten:", err);
     }
-    function renderFunc(RenderList) {
+}
+function renderFunc(RenderList) {
+    const container = document.getElementById('chat-list-container');
+    if (!container) return;
 
-        const container = document.getElementById('chat-list-container');
-        const emptyState = document.getElementById('empty-state');
+    if (RenderList && RenderList.length > 0) {
+        container.innerHTML = "";
+        const myFP = sessionStorage.getItem('my_fingerprint');
 
-        // Prüfen, ob Container existiert
-        if (!container) return;
+        RenderList.forEach(room => {
+            const isHost = room.host?.fingerprint === myFP;
+            const div = document.createElement('div');
+            div.className = 'chat-item';
 
-        if (RenderList && RenderList.length > 0) {
-            // Räume gefunden
-            if (emptyState) emptyState.style.display = 'none';
-            container.innerHTML = "";
+            div.innerHTML = `
+                <div class="chat-item-row">
+                    <div style="flex:1;cursor:pointer;" class="room-info">
+                        <div style="font-weight:bold;">👤${room.name}</div>
+                    </div>
+                    ${isHost ? `<span class="room-menu-btn" title="Mitglieder verwalten">llll</span>` : ''}
+                </div>`;
 
-            RenderList.forEach(room => {
-                const div = document.createElement('div');
-                div.className = 'chat-item';
-                div.innerHTML = `
-                        <div style="font-weight: bold; cursor: pointer; padding: 10px; border-bottom: 1px solid #4b0082;">
-                            👤${room.RoomID}
-                            <div style="font-size: 0.7rem; opacity: 0.6;">Host: ${room.Host}</div>
-                        </div>
-                    `;
-                div.onclick = () => clickroom(room);
-                container.appendChild(div);
-            });
-        } else {
-            // Falls Liste leer ist
-            if (emptyState) emptyState.style.display = 'flex';
-            container.innerHTML = '<i class="fas fa-users" style="font-size: 2rem; margin-bottom: 10px;"></i><p>Keine aktiven Chats</p>';
+            div.querySelector('.room-info').onclick = () => clickroom(room);
+
+            if (isHost) {
+                div.querySelector('.room-menu-btn').onclick = (e) => {
+                    e.stopPropagation();
+                    openRoomMenu(room);
+                };
+            }
+
+            container.appendChild(div);
+        });
+    } else {
+        container.innerHTML = '<i class="fas fa-users" style="font-size: 2rem; margin-bottom: 10px;"></i><p>Keine aktiven Chats</p>';
+    }
+}
+
+// ---- Member Modal ----
+
+let activeMemberModal = null;
+
+function closeMemberModal() {
+    if (activeMemberModal) { activeMemberModal.remove(); activeMemberModal = null; }
+}
+
+async function openRoomMenu(room) {
+    closeMemberModal();
+
+    // Overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'member-modal-overlay';
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeMemberModal(); });
+
+    // Modal
+    const modal = document.createElement('div');
+    modal.className = 'member-modal';
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'member-modal-header';
+    const title = document.createElement('h3');
+    title.textContent = 'MITGLIEDER VERWALTEN';
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'member-modal-close';
+    closeBtn.textContent = '✕';
+    closeBtn.onclick = closeMemberModal;
+    header.appendChild(title);
+    header.appendChild(closeBtn);
+
+    // Body
+    const body = document.createElement('div');
+    body.className = 'member-modal-body';
+
+    // --- linke Spalte: aktuelle Mitglieder ---
+    const leftCol = document.createElement('div');
+    leftCol.className = 'member-col';
+    const leftTitle = document.createElement('div');
+    leftTitle.className = 'member-col-title';
+    leftTitle.textContent = 'Mitglieder';
+    const leftList = document.createElement('div');
+    leftList.className = 'member-col-list';
+    leftCol.appendChild(leftTitle);
+    leftCol.appendChild(leftList);
+
+    // --- rechte Spalte: hinzufügbare User ---
+    const rightCol = document.createElement('div');
+    rightCol.className = 'member-col';
+    const rightTitle = document.createElement('div');
+    rightTitle.className = 'member-col-title';
+    rightTitle.textContent = 'Hinzufügen';
+    const rightList = document.createElement('div');
+    rightList.className = 'member-col-list';
+    rightCol.appendChild(rightTitle);
+    rightCol.appendChild(rightList);
+
+    body.appendChild(leftCol);
+    body.appendChild(rightCol);
+    modal.appendChild(header);
+    modal.appendChild(body);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+    activeMemberModal = overlay;
+
+    function makeRow(username, btnClass, btnText, onClick) {
+        const row = document.createElement('div');
+        row.className = 'member-row';
+        const name = document.createElement('span');
+        name.textContent = username;
+        const btn = document.createElement('button');
+        btn.className = btnClass;
+        btn.textContent = btnText;
+        btn.onclick = onClick;
+        row.appendChild(name);
+        row.appendChild(btn);
+        return row;
+    }
+
+    // Placeholder während Laden
+    leftList.innerHTML  = '<div class="member-col-empty">Lädt...</div>';
+    rightList.innerHTML = '<div class="member-col-empty">Lädt...</div>';
+
+    const myFP    = sessionStorage.getItem('my_fingerprint');
+    const allResp = await authFetch('GET', '/api/users').catch(() => null);
+    const allUsers = allResp?.ok ? (await allResp.json()) : [];
+    const onlineUsers = Array.isArray(allUsers) ? allUsers : [];
+
+    const memberFPs  = new Set((room.users ?? []).map(u => u.fingerprint));
+    const removable  = (room.users ?? []).filter(u => u.fingerprint !== myFP);
+    const addable    = onlineUsers.filter(u => !memberFPs.has(u.fingerprint) && u.fingerprint !== myFP);
+
+    // Mitglieder-Liste befüllen
+    leftList.innerHTML = '';
+    if (removable.length === 0) {
+        leftList.innerHTML = '<div class="member-col-empty">Keine weiteren Mitglieder</div>';
+    } else {
+        removable.forEach(u => leftList.appendChild(
+            makeRow(u.username, 'rem-btn', '– Entfernen', () => removeMember(room.room_id, u.fingerprint))
+        ));
+    }
+
+    // Hinzufügen-Liste befüllen
+    rightList.innerHTML = '';
+    if (addable.length === 0) {
+        rightList.innerHTML = '<div class="member-col-empty">Keine online User verfügbar</div>';
+    } else {
+        addable.forEach(u => rightList.appendChild(
+            makeRow(u.username, 'add-btn', '+ Hinzufügen', () => addMember(room.room_id, u.fingerprint))
+        ));
+    }
+}
+
+async function authFetch(method, path, body = null) {
+    const bodyString = body ? JSON.stringify(body) : null;
+    const timestamp  = Math.floor(Date.now() / 1000);
+    const bodyHash   = bodyString
+        ? await hashBody(bodyString)
+        : 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+    const canonical = `${method}\n${path}\n${timestamp}\n${bodyHash}`;
+    const signature = AppCrypto.sign(canonical);
+
+    const opts = {
+        method,
+        headers: {
+            'Chat-Session-ID': sessionStorage.getItem('sessionId'),
+            'Chat-Timestamp':  timestamp,
+            'Chat-Signature':  signature,
         }
+    };
+    if (bodyString) {
+        opts.body = bodyString;
+        opts.headers['Content-Type'] = 'application/json';
     }
-    function sendMessage(roomID) {
-        const senderFP = "";
-        const ciphertext = document.getElementById('schreibnachricht').value;
-        document.getElementById('schreibnachricht').value = "";
-        if (socket && socket.readyState === WebSocket.OPEN) {
-            const messagePayload = {
-                "type": "message",
-                "payload": {
-                    "room_id": roomID,
-                    "epoch": 0, // Falls das dynamisch ist, hier anpassen
-                    "ciphertext": ciphertext
-                }
-            };
-            socket.send(JSON.stringify(messagePayload));
-            send(ciphertext);
-        } else {
-            console.error("Socket ist nicht bereit. Verbindung prüfen!");
+    return fetch(`${BASE_URL}${path}`, opts);
+}
+
+async function addMember(roomId, fingerprint) {
+    const res = await authFetch('POST', `/api/rooms/${roomId}/users`, { users: [fingerprint] });
+    if (res.ok) { await fetchRooms(); const room = roomList.find(r => r.room_id === roomId); if (room) openRoomMenu(room); }
+    else alert('Fehler beim Hinzufügen');
+}
+
+async function removeMember(roomId, fingerprint) {
+    const res = await authFetch('DELETE', `/api/rooms/${roomId}/users`, { user_fp: fingerprint });
+    if (res.ok) { await fetchRooms(); const room = roomList.find(r => r.room_id === roomId); if (room) openRoomMenu(room); }
+    else alert('Fehler beim Entfernen');
+}
+function sendMessage(roomID) {
+    const senderFP = "";
+    const ciphertext = document.getElementById('schreibnachricht').value;
+    document.getElementById('schreibnachricht').value = "";
+    if (socket && socket.readyState === WebSocket.OPEN) {
+        const messagePayload = {
+            "type": "message",
+            "payload": {
+                "room_id": roomID,
+                "epoch": 0, // Falls das dynamisch ist, hier anpassen
+                "ciphertext": ciphertext
+            }
+        };
+        socket.send(JSON.stringify(messagePayload));
+        send(ciphertext);
+    } else {
+        console.error("Socket ist nicht bereit. Verbindung prüfen!");
+    }
+}
+
+function send(ciphertext) {
+    if (ciphertext === "") return;
+
+    // in Cache speichern
+    if (currentRoomId) {
+        if (!messageCache[currentRoomId]) messageCache[currentRoomId] = [];
+        messageCache[currentRoomId].push({ ciphertext, own: true });
+    }
+
+    const chatEl = document.getElementById('chat');
+    const msg = document.createElement('div');
+    msg.className = 'bubble sent';
+    msg.innerText = ciphertext;
+    chatEl.appendChild(msg);
+    chatEl.scrollTop = chatEl.scrollHeight;
+}
+async function whoAmI() {
+    const username = sessionStorage.getItem('username');
+
+    // Sicherheit: Falls niemand eingeloggt ist, direkt zurückwerfen
+    if (!username) {
+        window.location.href = "index.html";
+        return null;
+    }
+
+    const usernamefield = document.getElementById('username');
+    usernamefield.textContent = username;
+    const usernameshortfield = document.getElementById('usernameshort');
+    usernameshortfield.textContent = username.substring(0, 2).toUpperCase();
+
+    // Server-Fingerprint holen und speichern (SHA-256 des Public Keys)
+    try {
+        const res = await authFetch('GET', '/api/users/me');
+        if (res.ok) {
+            const data = await res.json();
+            if (data.publicFingerPrint) {
+                sessionStorage.setItem('my_fingerprint', data.publicFingerPrint);
+            }
         }
+    } catch (e) {
+        console.warn('whoAmI: Fingerprint konnte nicht geladen werden', e);
     }
 
-    function send(ciphertext) {
-        if (ciphertext !== "") {
-            const msg = document.createElement('div');
-            msg.className = 'bubble sent';
-            msg.innerText = ciphertext;
-            document.getElementById('chat').appendChild(msg);
-            document.getElementById('chat').scrollTop = document.getElementById('chat').scrollHeight;
+    return username;
+}
+async function submitNewChat() {
+    const inputField = document.getElementById('groupNameInput');
+    const groupName = inputField.value.trim();
+
+    if (!groupName) {
+        alert("⚠️ Bitte gib einen Gruppennamen ein!");
+        return;
+    }
+
+    // Ruft deine API-Funktion auf
+    await newChat(groupName);
+
+    // Aufräumen
+    inputField.value = "";
+    document.getElementById('newChatModal').close();
+}
+async function hashBody(bodyString) {
+    const msgBuffer = new TextEncoder().encode(bodyString);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    // Wandelt den Buffer in einen Hex-String um
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+async function newChat(groupName) {
+    const sessionId = sessionStorage.getItem('sessionId');
+    // Zeitstempel einmal festlegen und als String speichern
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const path = '/api/rooms';
+
+    // WICHTIG: Sicherstellen, dass die Keys im JSON exakt so heißen, wie das Go-Struct sie erwartet (z.B. "GroupName" statt "groupName"?)
+    const bodyObj = { groupName: groupName };
+    const bodyString = JSON.stringify(bodyObj);
+
+    try {
+        // 1. Body Hash erzeugen
+        const bodyHash = await hashBody(bodyString);
+
+        // 2. Canonical String bauen
+        // PRÜFE: Erwartet dein Go-Server hier wirklich POST (großgeschrieben)?
+        const canonical = `POST\n${path}\n${timestamp}\n${bodyHash}`;
+
+        // 3. Signatur erzeugen
+        const signature = AppCrypto.sign(canonical);
+
+        console.log("Sende Request mit Canonical:", canonical); // Zum Debuggen mit Go-Log vergleichen
+
+        const response = await fetch(`${BASE_URL}${path}`, {
+            method: 'POST',
+            headers: {
+                'Chat-Session-ID': sessionId,
+                'Chat-Timestamp': timestamp, // Hier wird der String gesendet
+                'Chat-Signature': signature,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: bodyString
+        });
+
+        if (!response.ok) {
+            // Versuche die Fehlermeldung vom Server zu lesen
+            const errorText = await response.text();
+            console.error("Server Antwort (Error):", errorText);
+            throw new Error(`HTTP ${response.status}: ${errorText}`);
         }
-    }
-    function whoAmI() {
-        const username = sessionStorage.getItem('username');
-        const usernamefield = document.getElementById('username');
-        usernamefield.textContent = username;
-        const usernameshortfield = document.getElementById('usernameshort');
-        usernameshortfield.textContent = username.substring(0, 2).toUpperCase();
 
-        // Sicherheit: Falls niemand eingeloggt ist, direkt zurückwerfen
-        if (!username) {
-            window.location.href = "index.html";
-            return null;
-        }
-        return username;
-    }
-    async function submitNewChat() {
-        const inputField = document.getElementById('groupNameInput');
-        const groupName = inputField.value.trim();
-
-        if (!groupName) {
-            alert("⚠️ Bitte gib einen Gruppennamen ein!");
-            return;
-        }
-
-        // Ruft deine API-Funktion auf
-        await newChat(groupName);
-
-        // Aufräumen
-        inputField.value = "";
-        document.getElementById('newChatModal').close();
-    }
-    async function newChat(groupName) {
-        // 1. SessionID aus dem sessionStorage abrufen
-        const sessionId = sessionStorage.getItem('sessionId');
-
-        // 2. Zeitstempel und Platzhalter für die Signatur
-        const timestamp = Math.floor(Date.now() / 1000).toString();
-        const signature = "DEINE_SIGNATUR_LOGIK"; // Hier muss deine HMAC-Signatur hin
-
-        try {
-            const response = await fetch('http://localhost:8080/api/rooms', {
-                method: 'POST',
-                headers: {
-                    'Chat-Session-ID': sessionId, // Hier wird die ID dynamisch eingesetzt
-                    'Chat-Signature': signature,
-                    'Chat-Timestamp': timestamp,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    groupName: groupName
-                })
-            });
-
-            const data = await response.json();
-
-            // UI-Feedback
-            alert("✅ Gruppe '" + groupName + "' wurde erstellt!");
-
-        } catch (err) {
-            console.error("Fehler beim Request:", err);
-            alert("❌ Fehler: " + err.message);
-        }
-    }
-    function logout() {
-        sessionStorage.removeItem('username');
-        window.location.href = "Login";
-    }
-    window.addEventListener('DOMContentLoaded', () => {
-        whoAmI();
+        const data = await response.json();
+        alert("✅ Gruppe '" + groupName + "' wurde erstellt!");
         fetchRooms();
-    });
+
+    } catch (err) {
+        console.error("Fehler beim Request:", err);
+        alert("❌ Fehler: " + err.message);
+    }
+}
+function logout() {
+    sessionStorage.removeItem('username');
+    window.location.href = "Login";
+}
+window.addEventListener('DOMContentLoaded', async () => {
+    await whoAmI();
+    connectLocalChat();
+    fetchRooms();
+});

@@ -120,6 +120,18 @@ func (h *Hub) handleJoinRoom(req RoomMembersChangeRequest) {
 	}
 }
 
-func (h *Hub) handleLeaveRoom(req RoomMembersChangeRequest) {}
+func (h *Hub) handleLeaveRoom(req RoomMembersChangeRequest) {
+	room := h.getRoom(req.RoomID)
+	if room == nil {
+		h.logg.Debug("leave room failed: room not found", zap.String("roomID", req.RoomID))
+		return
+	}
+	if room.Host.Fingerprint != req.OwnerFP {
+		h.logg.Debug("leave room failed: not host", zap.String("ownerFP", req.OwnerFP))
+		return
+	}
+	delete(room.Users, req.UserFP)
+	h.logg.Debug("user removed from room", zap.String("userFP", req.UserFP), zap.String("roomID", req.RoomID))
+}
 
 func (h *Hub) handleBroadcast(req BroadcastRequest) {}
