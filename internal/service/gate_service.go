@@ -72,7 +72,6 @@ func (s *GateService) Authorize(req GateRequest) (*GateResult, error) {
 				Fingerprint: fp,
 				PublicKey:   base64.StdEncoding.EncodeToString(req.PublicKey),
 				Username:    req.Username,
-				Mode:        int(req.Mode),
 				CreatedAt:   time.Now().Unix(),
 			}); err != nil {
 				return nil, err
