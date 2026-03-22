@@ -28,7 +28,11 @@ func (h *Hub) handleInboundMessage(msg WSMessageEnvelope) {
 			h.logg.Debug("message not sent", zap.String("error", "user not in room"), zap.String("fingerprint", msg.Sender.Username))
 			return
 		}
-		data, err := json.Marshal(msg)
+		data, err := json.Marshal(outboundEnvelope{
+			SenderFP: msg.Sender.Fingerprint,
+			Type:     msg.Type,
+			Payload:  msg.Payload,
+		})
 		if err != nil {
 			h.logg.Error("failed to marshal message", zap.Error(err))
 			return
@@ -84,6 +88,12 @@ func (h *Hub) handleUnregisterRoom(roomID string) {}
 
 func (h *Hub) handleRegisterUser(user *User) {
 	h.Users[user.Fingerprint] = user
+	// Update pointer in all rooms this user is a member of (reconnect after page reload)
+	for _, room := range h.Rooms {
+		if _, ok := room.Users[user.Fingerprint]; ok {
+			room.Users[user.Fingerprint] = user
+		}
+	}
 	h.logg.Info("user connected", zap.String("username", user.Username), zap.String("fingerprint", user.Fingerprint))
 }
 
