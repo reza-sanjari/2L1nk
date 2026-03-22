@@ -13,10 +13,11 @@ import (
 )
 
 type gateAuthorizeRequest struct {
-	GateToken string            `json:"gateToken"`
-	PublicKey ed25519.PublicKey `json:"publicKey"`
-	Username  string            `json:"username"`
-	Mode      models.UserMode   `json:"mode"`
+	GateToken       string            `json:"gateToken"`
+	PublicKey       ed25519.PublicKey `json:"publicKey"`
+	X25519PublicKey []byte            `json:"x25519PublicKey"`
+	Username        string            `json:"username"`
+	Mode            models.UserMode   `json:"mode"`
 }
 
 func (h *Handler) GateAuthorize(c echo.Context) error {
@@ -30,9 +31,14 @@ func (h *Handler) GateAuthorize(c echo.Context) error {
 
 	h.logg.Debug("session issue request", zap.String("Username", req.Username))
 
-	if req.GateToken == "" || req.PublicKey == nil || req.Username == "" {
+	if req.GateToken == "" || req.PublicKey == nil || req.Username == "" || len(req.X25519PublicKey) == 0 {
 		return c.JSON(http.StatusBadRequest, map[string]string{
-			"error": "gateToken, publicKey, and username are required",
+			"error": "gateToken, publicKey, x25519PublicKey, and username are required",
+		})
+	}
+	if len(req.X25519PublicKey) != 32 {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "x25519PublicKey must be 32 bytes",
 		})
 	}
 
@@ -43,10 +49,11 @@ func (h *Handler) GateAuthorize(c echo.Context) error {
 	}
 
 	result, err := h.services.Gate.Authorize(service.GateRequest{
-		GateToken: req.GateToken,
-		PublicKey: req.PublicKey,
-		Username:  req.Username,
-		Mode:      req.Mode,
+		GateToken:       req.GateToken,
+		PublicKey:       req.PublicKey,
+		X25519PublicKey: req.X25519PublicKey,
+		Username:        req.Username,
+		Mode:            req.Mode,
 	})
 
 	if err != nil {

@@ -153,3 +153,102 @@ func (r *RoomRepository) AddMember(roomID, memberFP string, joinedAt int64) erro
 	}
 	return nil
 }
+
+// UpdateEpochAndKeyCreator sets the current epoch and key creator for a room.
+func (r *RoomRepository) UpdateEpochAndKeyCreator(roomID string, epoch int64, keyCreatorFP string) error {
+	var fp interface{}
+	if keyCreatorFP != "" {
+		fp = keyCreatorFP
+	}
+	_, err := r.db.Exec(
+		`UPDATE rooms SET current_epoch = ?, key_creator_fp = ? WHERE id = ?`,
+		epoch, fp, roomID,
+	)
+	if err != nil {
+		return fmt.Errorf("update epoch and key creator: %w", err)
+	}
+	return nil
+}
+
+// KeySlotRecord represents a stored encrypted epoch key for one recipient.
+type KeySlotRecord struct {
+	RoomID       string
+	Epoch        int64
+	RecipientFP  string
+	EncryptedKey []byte
+	CreatedAt    int64
+}
+
+// StoreKeySlots inserts or replaces encrypted key slots for an epoch.
+func (r *RoomRepository) StoreKeySlots(slots []KeySlotRecord) error {
+	for _, s := range slots {
+		_, err := r.db.Exec(
+			`INSERT OR REPLACE INTO room_key_slots (room_id, epoch, recipient_fp, encrypted_key, created_at)
+			 SELECT ?, ?, fingerprint, ?, ?
+			 FROM users WHERE fingerprint = ?`,
+			s.RoomID, s.Epoch, s.EncryptedKey, s.CreatedAt, s.RecipientFP,
+		)
+		if err != nil {
+			return fmt.Errorf("store key slot for %s: %w", s.RecipientFP, err)
+		}
+	}
+	return nil
+}
+
+// GetKeySlotsByRecipient returns all stored key slots for a user across all rooms.
+// Used to re-deliver pending epoch keys when a persistent user reconnects.
+func (r *RoomRepository) GetKeySlotsByRecipient(recipientFP string) ([]KeySlotRecord, error) {
+	rows, err := r.db.Query(
+		`SELECT room_id, epoch, encrypted_key, created_at
+		 FROM room_key_slots
+		 WHERE recipient_fp = ?
+		 ORDER BY room_id, epoch`,
+		recipientFP,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get key slots: %w", err)
+	}
+	defer rows.Close()
+
+	var slots []KeySlotRecord
+	for rows.Next() {
+		s := KeySlotRecord{RecipientFP: recipientFP}
+		if err := rows.Scan(&s.RoomID, &s.Epoch, &s.EncryptedKey, &s.CreatedAt); err != nil {
+			return nil, err
+		}
+		slots = append(slots, s)
+	}
+	return slots, rows.Err()
+}
+
+// MemberKeyInfo holds a member fingerprint and their X25519 public key.
+type MemberKeyInfo struct {
+	Fingerprint     string
+	X25519PublicKey string
+}
+
+// GetMembersWithPublicKeys returns the fingerprint and X25519 public key for all
+// persistent members of a room.
+func (r *RoomRepository) GetMembersWithPublicKeys(roomID string) ([]MemberKeyInfo, error) {
+	rows, err := r.db.Query(
+		`SELECT u.fingerprint, u.x25519_public_key
+		 FROM room_members rm
+		 JOIN users u ON rm.member_fp = u.fingerprint
+		 WHERE rm.room_id = ?`,
+		roomID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get members with public keys: %w", err)
+	}
+	defer rows.Close()
+
+	var members []MemberKeyInfo
+	for rows.Next() {
+		var m MemberKeyInfo
+		if err := rows.Scan(&m.Fingerprint, &m.X25519PublicKey); err != nil {
+			return nil, err
+		}
+		members = append(members, m)
+	}
+	return members, rows.Err()
+}

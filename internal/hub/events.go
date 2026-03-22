@@ -5,13 +5,14 @@ import "2L1nk/internal/models"
 type HubEventType string
 
 const (
-	HubEventRoomCreated     HubEventType = "room_created"
-	HubEventMemberJoined    HubEventType = "member_joined"
-	HubEventMessageCreated  HubEventType = "message_created"
-	HubEventRoomOffline     HubEventType = "room_offline"
-	HubEventMemberRemoved   HubEventType = "member_removed"
-	HubEventRoomDeleted     HubEventType = "room_deleted"
-	HubEventHostTransferred HubEventType = "host_transferred"
+	HubEventRoomCreated        HubEventType = "room_created"
+	HubEventMemberJoined       HubEventType = "member_joined"
+	HubEventMessageCreated     HubEventType = "message_created"
+	HubEventRoomOffline        HubEventType = "room_offline"
+	HubEventMemberRemoved      HubEventType = "member_removed"
+	HubEventRoomDeleted        HubEventType = "room_deleted"
+	HubEventHostTransferred    HubEventType = "host_transferred"
+	HubEventKeyRotationTriggered HubEventType = "key_rotation_triggered"
 )
 
 type HubEvent struct {
@@ -61,4 +62,10 @@ type RoomDeletedPayload struct {
 type HostTransferredPayload struct {
 	RoomID    string
 	NewHostFP string
+}
+
+type KeyRotationTriggeredPayload struct {
+	RoomID       string
+	Epoch        int64
+	KeyCreatorFP string
 }

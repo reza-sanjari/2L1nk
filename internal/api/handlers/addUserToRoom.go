@@ -35,16 +35,20 @@ func (h *Handler) AddUsersToRoom(c echo.Context) error {
 
 	// Activate room in hub if it is currently offline
 	if h.hub.GetRoom(roomID) == nil {
-		members, err := h.services.Room.GetRoomMembers(roomID)
+		memberKeys, err := h.services.Room.GetMembersWithPublicKeys(roomID)
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		}
+		hubMembers := make([]hub.MemberKeyInfo, len(memberKeys))
+		for i, m := range memberKeys {
+			hubMembers[i] = hub.MemberKeyInfo{FP: m.Fingerprint, X25519PublicKey: m.X25519PublicKey}
+		}
 		h.hub.RestoreRoom <- hub.RestoreRoomRequest{
-			RoomID:    roomID,
-			RoomName:  roomRecord.Name,
-			HostFP:    roomRecord.KeyCreatorFP,
-			Epoch:     roomRecord.CurrentEpoch,
-			MemberFPs: members,
+			RoomID:   roomID,
+			RoomName: roomRecord.Name,
+			HostFP:   roomRecord.KeyCreatorFP,
+			Epoch:    roomRecord.CurrentEpoch,
+			Members:  hubMembers,
 		}
 	}
 

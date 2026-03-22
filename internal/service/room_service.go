@@ -13,9 +13,13 @@ type RoomRepository interface {
 	GetRoomsByMember(fp string) ([]*infradb.RoomRecord, error)
 	AddMember(roomID, memberFP string, joinedAt int64) error
 	GetMembersOfRoom(roomID string) ([]string, error)
+	GetMembersWithPublicKeys(roomID string) ([]infradb.MemberKeyInfo, error)
 	RemoveMember(roomID, memberFP string) error
 	Delete(roomID string) error
 	UpdateHost(roomID, newHostFP string) error
+	UpdateEpochAndKeyCreator(roomID string, epoch int64, keyCreatorFP string) error
+	StoreKeySlots(slots []infradb.KeySlotRecord) error
+	GetKeySlotsByRecipient(recipientFP string) ([]infradb.KeySlotRecord, error)
 }
 
 type RoomService struct {
@@ -82,4 +86,20 @@ func (s *RoomService) DeleteRoom(roomID string) error {
 
 func (s *RoomService) UpdateHost(roomID, newHostFP string) error {
 	return s.repo.UpdateHost(roomID, newHostFP)
+}
+
+func (s *RoomService) UpdateEpochAndKeyCreator(roomID string, epoch int64, keyCreatorFP string) error {
+	return s.repo.UpdateEpochAndKeyCreator(roomID, epoch, keyCreatorFP)
+}
+
+func (s *RoomService) StoreKeySlots(slots []infradb.KeySlotRecord) error {
+	return s.repo.StoreKeySlots(slots)
+}
+
+func (s *RoomService) GetKeySlotsByRecipient(fp string) ([]infradb.KeySlotRecord, error) {
+	return s.repo.GetKeySlotsByRecipient(fp)
+}
+
+func (s *RoomService) GetMembersWithPublicKeys(roomID string) ([]infradb.MemberKeyInfo, error) {
+	return s.repo.GetMembersWithPublicKeys(roomID)
 }
