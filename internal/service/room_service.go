@@ -12,6 +12,10 @@ type RoomRepository interface {
 	GetByID(roomID string) (*infradb.RoomRecord, error)
 	GetRoomsByMember(fp string) ([]*infradb.RoomRecord, error)
 	AddMember(roomID, memberFP string, joinedAt int64) error
+	GetMembersOfRoom(roomID string) ([]string, error)
+	RemoveMember(roomID, memberFP string) error
+	Delete(roomID string) error
+	UpdateHost(roomID, newHostFP string) error
 }
 
 type RoomService struct {
@@ -58,4 +62,24 @@ func (s *RoomService) AddMember(p hub.MemberJoinedPayload) error {
 // GetUserRooms returns all rooms a persistent user belongs to from the DB.
 func (s *RoomService) GetUserRooms(fp string) ([]*infradb.RoomRecord, error) {
 	return s.repo.GetRoomsByMember(fp)
+}
+
+func (s *RoomService) GetRoomByID(roomID string) (*infradb.RoomRecord, error) {
+	return s.repo.GetByID(roomID)
+}
+
+func (s *RoomService) GetRoomMembers(roomID string) ([]string, error) {
+	return s.repo.GetMembersOfRoom(roomID)
+}
+
+func (s *RoomService) RemoveMember(roomID, memberFP string) error {
+	return s.repo.RemoveMember(roomID, memberFP)
+}
+
+func (s *RoomService) DeleteRoom(roomID string) error {
+	return s.repo.Delete(roomID)
+}
+
+func (s *RoomService) UpdateHost(roomID, newHostFP string) error {
+	return s.repo.UpdateHost(roomID, newHostFP)
 }

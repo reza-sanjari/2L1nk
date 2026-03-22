@@ -21,11 +21,38 @@ func (h *Handler) AddUsersToRoom(c echo.Context) error {
 
 	user := c.Get("user").(*session.User)
 
+	// Verify caller is the host (DB check)
+	roomRecord, err := h.services.Room.GetRoomByID(roomID)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+	}
+	if roomRecord == nil {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "room not found"})
+	}
+	if roomRecord.KeyCreatorFP != user.PublicKeyFingerprint {
+		return c.JSON(http.StatusForbidden, map[string]string{"error": "only the host can add members"})
+	}
+
+	// Activate room in hub if it is currently offline
+	if h.hub.GetRoom(roomID) == nil {
+		members, err := h.services.Room.GetRoomMembers(roomID)
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		}
+		h.hub.RestoreRoom <- hub.RestoreRoomRequest{
+			RoomID:    roomID,
+			RoomName:  roomRecord.Name,
+			HostFP:    roomRecord.KeyCreatorFP,
+			Epoch:     roomRecord.CurrentEpoch,
+			MemberFPs: members,
+		}
+	}
+
+	// Add the new members
 	for _, fp := range req.Users {
 		h.hub.JoinRoom <- hub.RoomMembersChangeRequest{
-			OwnerFP: user.PublicKeyFingerprint,
-			RoomID:  roomID,
-			UserFP:  fp,
+			RoomID: roomID,
+			UserFP: fp,
 		}
 	}
 
