@@ -22,7 +22,7 @@ func (h *Handler) UserInfo(c echo.Context) error {
 			return c.JSON(http.StatusOK, map[string]any{
 				"username":          record.Username,
 				"publicFingerPrint": record.Fingerprint,
-				"mode":              record.Mode,
+				"mode":              user.Mode,
 				"createdAt":         record.CreatedAt,
 			})
 		}

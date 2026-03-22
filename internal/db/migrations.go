@@ -30,7 +30,6 @@ func RunMigrations(database *sql.DB) error {
 			fingerprint TEXT    PRIMARY KEY,
 			public_key  TEXT    NOT NULL,
 			username    TEXT,
-			mode        INTEGER NOT NULL DEFAULT 0,
 			created_at  INTEGER NOT NULL
 		)`,
 
@@ -101,9 +100,12 @@ func RunMigrations(database *sql.DB) error {
 		return err
 	}
 
-	// Column additions for existing databases.
+	// Column additions/removals for existing databases.
 	// ALTER TABLE cannot run inside the CREATE TABLE transaction.
-	return addColumnIfNotExists(database, "rooms", "name", "TEXT")
+	if err := addColumnIfNotExists(database, "rooms", "name", "TEXT"); err != nil {
+		return err
+	}
+	return dropColumnIfExists(database, "users", "mode")
 }
 
 // addColumnIfNotExists adds a column to a table only if it doesn't already exist.
@@ -122,6 +124,26 @@ func addColumnIfNotExists(database *sql.DB, table, column, definition string) er
 		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN %s %s`, table, column, definition),
 	); err != nil {
 		return fmt.Errorf("add column %s.%s: %w", table, column, err)
+	}
+	return nil
+}
+
+// dropColumnIfExists removes a column from a table only if it exists.
+func dropColumnIfExists(database *sql.DB, table, column string) error {
+	var count int
+	if err := database.QueryRow(
+		`SELECT COUNT(*) FROM pragma_table_info(?) WHERE name = ?`,
+		table, column,
+	).Scan(&count); err != nil {
+		return fmt.Errorf("check column %s.%s: %w", table, column, err)
+	}
+	if count == 0 {
+		return nil // column doesn't exist, nothing to do
+	}
+	if _, err := database.Exec(
+		fmt.Sprintf(`ALTER TABLE %s DROP COLUMN %s`, table, column),
+	); err != nil {
+		return fmt.Errorf("drop column %s.%s: %w", table, column, err)
 	}
 	return nil
 }
