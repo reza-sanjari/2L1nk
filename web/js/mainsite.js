@@ -1,4 +1,195 @@
 
+// ============================================================
+// CRYPTO MODULE
+// Key Pair Model: Ed25519 (Signing/Identity) + X25519 (ECDH)
+//
+// Ein Ed25519-Schlüsselpaar dient als Identität.
+// Zusätzlich wird ein X25519-Schlüsselpaar für ECDH generiert
+// (Verschlüsselung von Room-Keys an Mitglieder).
+// Nachrichten werden mit AES-256-GCM symmetrisch verschlüsselt.
+// ============================================================
+
+const AppCrypto = (() => {
+    const subtle = crypto.subtle;
+
+    function bufToB64(buf) {
+        return btoa(String.fromCharCode(...new Uint8Array(buf)));
+    }
+
+    function b64ToBuf(b64) {
+        return Uint8Array.from(atob(b64), c => c.charCodeAt(0)).buffer;
+    }
+
+    function strToBuf(str) {
+        return new TextEncoder().encode(str);
+    }
+
+    function bufToStr(buf) {
+        return new TextDecoder().decode(buf);
+    }
+
+    async function exportPublicKeyRaw(key) {
+        return bufToB64(await subtle.exportKey('raw', key));
+    }
+
+    async function exportKeyJWK(key) {
+        return JSON.stringify(await subtle.exportKey('jwk', key));
+    }
+
+    // --- Identität generieren & speichern ---
+
+    async function generateIdentity() {
+        // Ed25519: Signing / Authentifizierung
+        const signingKP = await subtle.generateKey(
+            { name: 'Ed25519' }, true, ['sign', 'verify']
+        );
+        // X25519: ECDH / Room-Key Verschlüsselung
+        const dhKP = await subtle.generateKey(
+            { name: 'X25519' }, true, ['deriveKey', 'deriveBits']
+        );
+
+        sessionStorage.setItem('ed25519_private', await exportKeyJWK(signingKP.privateKey));
+        sessionStorage.setItem('ed25519_public',  await exportPublicKeyRaw(signingKP.publicKey));
+        sessionStorage.setItem('x25519_private',  await exportKeyJWK(dhKP.privateKey));
+        sessionStorage.setItem('x25519_public',   await exportPublicKeyRaw(dhKP.publicKey));
+
+        return {
+            signingPublicKey: sessionStorage.getItem('ed25519_public'),
+            dhPublicKey:      sessionStorage.getItem('x25519_public')
+        };
+    }
+
+    async function loadIdentity() {
+        const edPrivRaw = sessionStorage.getItem('ed25519_private');
+        const xPrivRaw  = sessionStorage.getItem('x25519_private');
+        if (!edPrivRaw || !xPrivRaw) return null;
+
+        const signingPrivate = await subtle.importKey(
+            'jwk', JSON.parse(edPrivRaw), { name: 'Ed25519' }, false, ['sign']
+        );
+        const dhPrivate = await subtle.importKey(
+            'jwk', JSON.parse(xPrivRaw), { name: 'X25519' }, false, ['deriveKey', 'deriveBits']
+        );
+        return { signingPrivate, dhPrivate };
+    }
+
+    // --- Ed25519: Signieren & Verifizieren ---
+
+    async function sign(data) {
+        const id = await loadIdentity();
+        if (!id) throw new Error('Keine Identität geladen');
+        const sig = await subtle.sign('Ed25519', id.signingPrivate, strToBuf(data));
+        return bufToB64(sig);
+    }
+
+    async function verify(data, signatureB64, signerPublicKeyB64) {
+        const pubKey = await subtle.importKey(
+            'raw', b64ToBuf(signerPublicKeyB64), { name: 'Ed25519' }, false, ['verify']
+        );
+        return await subtle.verify('Ed25519', pubKey, b64ToBuf(signatureB64), strToBuf(data));
+    }
+
+    // --- X25519 ECDH + AES-GCM: Room-Key Verschlüsselung ---
+
+    // Verschlüsselt einen Room-Key für einen Empfänger.
+    // Gibt { ephemeralPub, iv, ciphertext } (alles Base64) zurück.
+    async function encryptRoomKey(roomKeyBuf, recipientDHPublicB64) {
+        const ephemeral = await subtle.generateKey(
+            { name: 'X25519' }, true, ['deriveKey']
+        );
+        const ephemeralPubB64 = await exportPublicKeyRaw(ephemeral.publicKey);
+
+        const recipientPub = await subtle.importKey(
+            'raw', b64ToBuf(recipientDHPublicB64), { name: 'X25519' }, false, []
+        );
+        const sharedKey = await subtle.deriveKey(
+            { name: 'X25519', public: recipientPub },
+            ephemeral.privateKey,
+            { name: 'AES-GCM', length: 256 },
+            false,
+            ['encrypt']
+        );
+
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const ciphertext = await subtle.encrypt(
+            { name: 'AES-GCM', iv },
+            sharedKey,
+            roomKeyBuf
+        );
+
+        return {
+            ephemeralPub: ephemeralPubB64,
+            iv:           bufToB64(iv),
+            ciphertext:   bufToB64(ciphertext)
+        };
+    }
+
+    // Entschlüsselt einen Room-Key mit dem eigenen X25519-Private-Key.
+    async function decryptRoomKey({ ephemeralPub, iv, ciphertext }) {
+        const id = await loadIdentity();
+        if (!id) throw new Error('Keine Identität geladen');
+
+        const senderPub = await subtle.importKey(
+            'raw', b64ToBuf(ephemeralPub), { name: 'X25519' }, false, []
+        );
+        const sharedKey = await subtle.deriveKey(
+            { name: 'X25519', public: senderPub },
+            id.dhPrivate,
+            { name: 'AES-GCM', length: 256 },
+            false,
+            ['decrypt']
+        );
+
+        return await subtle.decrypt(
+            { name: 'AES-GCM', iv: b64ToBuf(iv) },
+            sharedKey,
+            b64ToBuf(ciphertext)
+        );
+    }
+
+    // --- AES-GCM: Nachrichten verschlüsseln & entschlüsseln ---
+
+    async function encryptMessage(plaintext, roomKeyBuf) {
+        const roomKey = await subtle.importKey(
+            'raw', roomKeyBuf, { name: 'AES-GCM' }, false, ['encrypt']
+        );
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const ciphertext = await subtle.encrypt(
+            { name: 'AES-GCM', iv }, roomKey, strToBuf(plaintext)
+        );
+        return { iv: bufToB64(iv), ciphertext: bufToB64(ciphertext) };
+    }
+
+    async function decryptMessage({ iv, ciphertext }, roomKeyBuf) {
+        const roomKey = await subtle.importKey(
+            'raw', roomKeyBuf, { name: 'AES-GCM' }, false, ['decrypt']
+        );
+        const plainBuf = await subtle.decrypt(
+            { name: 'AES-GCM', iv: b64ToBuf(iv) }, roomKey, b64ToBuf(ciphertext)
+        );
+        return bufToStr(plainBuf);
+    }
+
+    // Generiert einen zufälligen AES-256 Room-Key.
+    function generateRoomKey() {
+        return crypto.getRandomValues(new Uint8Array(32)).buffer;
+    }
+
+    return {
+        generateIdentity,
+        loadIdentity,
+        sign,
+        verify,
+        encryptRoomKey,
+        decryptRoomKey,
+        encryptMessage,
+        decryptMessage,
+        generateRoomKey,
+        bufToB64,
+        b64ToBuf
+    };
+})();
+
     let socket;
     let roomList = [];
     let gefilterteListe = [];
