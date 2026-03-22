@@ -24,8 +24,9 @@ type Hub struct {
 	AddToRoom         chan AddToRoomRequest
 	RestoreRoom       chan RestoreRoomRequest
 	RemoveFromRoom    chan RemoveFromRoomRequest
-	LoadRoomAndDeliver chan LoadRoomAndDeliverRequest
-	SendErrorToUser   chan SendErrorRequest
+	LoadRoomAndDeliver  chan LoadRoomAndDeliverRequest
+	SendErrorToUser     chan SendErrorRequest
+	EpochKeysSubmitted  chan EpochKeysSubmittedRequest
 }
 
 type RoomMembersChangeRequest struct {
@@ -40,13 +41,15 @@ type CreateRoomRequest struct {
 }
 
 type Room struct {
-	Name     string
-	RoomID   string
-	Host     *User            // live WS connection; nil when host is offline
-	HostFP   string           // always set
-	HostName string           // always set when known
-	Users    map[string]*User // only active WS connections
-	Epoch    int64
+	Name             string
+	RoomID           string
+	Host             *User            // live WS connection; nil when host is offline
+	HostFP           string           // always set
+	HostName         string           // always set when known
+	Users            map[string]*User // only active WS connections
+	Epoch            int64
+	MemberPublicKeys map[string]string // fingerprint → base64 X25519 public key (all known members)
+	PendingRotation  *PendingRotation  // non-nil while waiting for key creator to submit keys
 }
 
 func New(s *session.Store, logg *logger.Logger) *Hub {
@@ -69,6 +72,7 @@ func New(s *session.Store, logg *logger.Logger) *Hub {
 		RemoveFromRoom:     make(chan RemoveFromRoomRequest),
 		LoadRoomAndDeliver: make(chan LoadRoomAndDeliverRequest),
 		SendErrorToUser:    make(chan SendErrorRequest),
+		EpochKeysSubmitted: make(chan EpochKeysSubmittedRequest),
 	}
 }
 
@@ -114,6 +118,9 @@ func (h *Hub) Run() {
 
 		case req := <-h.SendErrorToUser:
 			h.handleSendErrorToUser(req)
+
+		case req := <-h.EpochKeysSubmitted:
+			h.handleEpochKeysSubmitted(req)
 		}
 	}
 }

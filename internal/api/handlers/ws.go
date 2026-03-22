@@ -3,6 +3,7 @@ package handlers
 import (
 	"2L1nk/internal/hub"
 	"2L1nk/internal/models"
+	"encoding/base64"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -79,7 +80,8 @@ func (h *Handler) Ws(c echo.Context) error {
 
 	// TODO: validate timestamp + signature here
 
-	newUser := hub.NewUser(activeUser.PublicKeyFingerprint, activeUser.Username, ws, activeUser.Mode, h.logg)
+	x25519Key := base64.StdEncoding.EncodeToString(activeUser.X25519PublicKey)
+	newUser := hub.NewUser(activeUser.PublicKeyFingerprint, activeUser.Username, x25519Key, ws, activeUser.Mode, h.logg)
 
 	h.hub.RegisterUser <- newUser
 
@@ -100,6 +102,30 @@ func (h *Handler) Ws(c echo.Context) error {
 			h.logg.Debug("write pump closed", zap.Error(err))
 		}
 	}()
+
+	// Push any stored epoch key slots so the user can decrypt messages after reconnecting.
+	if activeUser.Mode == models.UserModePersistent {
+		if slots, err := h.services.Room.GetKeySlotsByRecipient(activeUser.PublicKeyFingerprint); err == nil {
+			for _, slot := range slots {
+				slotPayload, err := json.Marshal(hub.RoomKeySlotPayload{
+					RoomID:       slot.RoomID,
+					Epoch:        slot.Epoch,
+					EncryptedKey: base64.StdEncoding.EncodeToString(slot.EncryptedKey),
+				})
+				if err != nil {
+					continue
+				}
+				envelope, err := json.Marshal(hub.WSMessageEnvelope{
+					Type:    models.KeySlot,
+					Payload: json.RawMessage(slotPayload),
+				})
+				if err != nil {
+					continue
+				}
+				newUser.OutGoingMessages <- envelope
+			}
+		}
+	}
 
 	// reader blocks until disconnect
 	if err := newUser.ReadPump(h.hub.InboundMessages); err != nil {

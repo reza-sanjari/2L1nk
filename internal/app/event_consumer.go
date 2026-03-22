@@ -48,7 +48,7 @@ func startEventConsumer(
 					mainHub.SendErrorToUser <- hub.SendErrorRequest{UserFP: payload.SenderFP, Message: "room not found"}
 					continue
 				}
-				members, err := roomSvc.GetRoomMembers(payload.RoomID)
+				memberKeys, err := roomSvc.GetMembersWithPublicKeys(payload.RoomID)
 				if err != nil {
 					logg.Error("event consumer: failed to get room members", zap.Error(err))
 					mainHub.SendErrorToUser <- hub.SendErrorRequest{UserFP: payload.SenderFP, Message: "internal error"}
@@ -56,10 +56,11 @@ func startEventConsumer(
 				}
 				// Verify sender is a member of the room
 				isMember := false
-				for _, fp := range members {
-					if fp == payload.SenderFP {
+				hubMembers := make([]hub.MemberKeyInfo, len(memberKeys))
+				for i, m := range memberKeys {
+					hubMembers[i] = hub.MemberKeyInfo{FP: m.Fingerprint, X25519PublicKey: m.X25519PublicKey}
+					if m.Fingerprint == payload.SenderFP {
 						isMember = true
-						break
 					}
 				}
 				if !isMember {
@@ -67,12 +68,12 @@ func startEventConsumer(
 					continue
 				}
 				mainHub.LoadRoomAndDeliver <- hub.LoadRoomAndDeliverRequest{
-					RoomID:    room.ID,
-					RoomName:  room.Name,
-					HostFP:    room.KeyCreatorFP,
-					Epoch:     room.CurrentEpoch,
-					MemberFPs: members,
-					Message:   payload.Message,
+					RoomID:   room.ID,
+					RoomName: room.Name,
+					HostFP:   room.KeyCreatorFP,
+					Epoch:    room.CurrentEpoch,
+					Members:  hubMembers,
+					Message:  payload.Message,
 				}
 
 			case hub.HubEventMemberRemoved:
@@ -94,6 +95,12 @@ func startEventConsumer(
 				payload := event.Payload.(hub.HostTransferredPayload)
 				if err := roomSvc.UpdateHost(payload.RoomID, payload.NewHostFP); err != nil {
 					logg.Error("event consumer: failed to update host", zap.Error(err))
+				}
+
+			case hub.HubEventKeyRotationTriggered:
+				payload := event.Payload.(hub.KeyRotationTriggeredPayload)
+				if err := roomSvc.UpdateEpochAndKeyCreator(payload.RoomID, payload.Epoch, payload.KeyCreatorFP); err != nil {
+					logg.Error("event consumer: failed to update epoch and key creator", zap.Error(err))
 				}
 			}
 		}
