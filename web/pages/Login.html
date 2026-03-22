@@ -6,6 +6,7 @@
     <title>2L1nk - Gateway & Team</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="../css/login.css">
+    <script src="https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl-fast.min.js"></script>
 </head>
 <body>
 
@@ -28,7 +29,7 @@
                 <div class="glass-card">
                     <h3><i class="fas fa-door-open"></i> Gateway</h3>
                     <p>Schnellzugriff auf öffentliche Räume.</p>
-                    <input type="text" id="gateway" value="6acaba8e3262d998108b45f7c514cf3a136a26bd30c0e682aa416cc3b17cfb40" placeholder="Gateway Code eingeben...">
+                    <input type="text" id="gateway" value="da43a0f52650f59fae07c82fcfb0ee2a0733d7ed4ca06ce6bf8af7fe0a46a77c" placeholder="Gateway Code eingeben...">
                     <input type="text" id="loginname" placeholder="Username">
                     <button class="btn btn-primary" onclick="connectToGateway()">Beitreten</button>
                 </div>
@@ -95,52 +96,56 @@
 </body>
 </html>
 <script>
+function b64(bytes) {
+    return btoa(String.fromCharCode(...bytes));
+}
+
 async function connectToGateway() {
-    // 1. Hole die Werte direkt korrekt ab
-    const gateKey = document.getElementById('gateway').value.trim();
+    const gateKey   = document.getElementById('gateway').value.trim();
     const loginName = document.getElementById('loginname').value.trim();
 
-    // Validierung
-    if (!gateKey) {
-        alert("⚠️ Bitte gib einen Gateway-Code ein!");
-        return;
-    }
-    if (!loginName) {
-        alert("⚠️ Bitte gib einen Login-Namen ein!");
-        return;
-    }
+    if (!gateKey)   { alert("⚠️ Bitte gib einen Gateway-Code ein!"); return; }
+    if (!loginName) { alert("⚠️ Bitte gib einen Login-Namen ein!");  return; }
 
-    // 2. Daten vorbereiten
-    const timestamp = Math.floor(Date.now() / 1000).toString();
-    const signature = "DEINE_SIGNATUR"; // Hier muss später deine Signatur-Logik rein
+    // 1. Key Pair generieren und in sessionStorage speichern
+    const signingKP = nacl.sign.keyPair();
+    const dhKP      = nacl.box.keyPair();
+    const publicKeyB64 = b64(signingKP.publicKey);
 
-    const options = {
-        method: 'POST',
-        headers: {
-            'Chat-Timestamp': timestamp,
-            'Chat-Signature': signature,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            gateToken: gateKey,
-            publicKey: 'anO9M+q/3WNuSUnxpak/GtLt0suBAGVakihtV3HoiDY=',
-            username: loginName,
-            mode: 0
-        })
-    };
+    sessionStorage.setItem('ed25519_secret', b64(signingKP.secretKey));
+    sessionStorage.setItem('ed25519_public', publicKeyB64);
+    sessionStorage.setItem('x25519_secret',  b64(dhKP.secretKey));
+    sessionStorage.setItem('x25519_public',  b64(dhKP.publicKey));
 
-    // 3. Den Request absenden
+    // 2. Body & Canonical String bauen
+    const timestamp  = Math.floor(Date.now() / 1000).toString();
+    const body       = JSON.stringify({ gateToken: gateKey, publicKey: publicKeyB64, username: loginName, mode: 0 });
+    const hashBuf    = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(body));
+    const bodyHash   = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    const canonical  = `POST\n/api/auth/gate\n${timestamp}\n${bodyHash}`;
+
+    // 3. Signieren
+    const sig       = nacl.sign.detached(new TextEncoder().encode(canonical), signingKP.secretKey);
+    const signature = b64(sig);
+
     try {
-        const response = await fetch('http://localhost:8080/api/auth/gate', options);
+        const response = await fetch('http://localhost:8080/api/auth/gate', {
+            method: 'POST',
+            headers: {
+                'Chat-Timestamp': timestamp,
+                'Chat-Signature': signature,
+                'Content-Type':   'application/json'
+            },
+            body
+        });
 
         if (!response.ok) {
-            // Hilfreich: Fehlertext vom Server anzeigen, falls vorhanden
             const errorData = await response.text();
             throw new Error(`Server antwortete mit ${response.status}: ${errorData}`);
         }
-        // Auf der index.html nach dem erfolgreichen Login:
-        sessionStorage.setItem('username', loginName);
-        sessionStorage.setItem('gatewayKey', gateKey);
+
+        sessionStorage.setItem('username',    loginName);
+        sessionStorage.setItem('gatewayKey',  gateKey);
         const data = await response.json();
         sessionStorage.setItem('sessionId', data.sessionId);
         window.location.href = "Mainsite";

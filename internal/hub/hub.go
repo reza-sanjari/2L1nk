@@ -88,6 +88,9 @@ func (h *Hub) Run() {
 
 		case req := <-h.JoinRoom:
 			h.handleJoinRoom(req)
+
+		case req := <-h.LeaveRoom:
+			h.handleLeaveRoom(req)
 		}
 	}
 }
