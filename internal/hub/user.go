@@ -25,7 +25,11 @@ func (u *User) ReadPump(inbound chan<- WSMessageEnvelope) error {
 		u.logg.Debug("read pump called for user", zap.String("username", u.Username), zap.String("fingerprint", u.Fingerprint))
 		_, message, err := u.Websocket.ReadMessage()
 		if err != nil {
-			u.logg.Error("websocket closed, failed to read message", zap.Error(err))
+			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+				u.logg.Debug("websocket closed gracefully", zap.String("username", u.Username), zap.String("fingerprint", u.Fingerprint))
+				return nil
+			}
+			u.logg.Warn("websocket closed unexpectedly", zap.Error(err))
 			return err
 		}
 
