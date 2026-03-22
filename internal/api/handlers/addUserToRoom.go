@@ -21,17 +21,28 @@ func (h *Handler) AddUsersToRoom(c echo.Context) error {
 
 	user := c.Get("user").(*session.User)
 
-	for u := range req.Users {
+	for _, fp := range req.Users {
 		h.hub.JoinRoom <- hub.RoomMembersChangeRequest{
 			OwnerFP: user.PublicKeyFingerprint,
 			RoomID:  roomID,
-			UserFP:  req.Users[u],
+			UserFP:  fp,
 		}
 	}
 
-	return c.JSON(http.StatusCreated, map[string]any{
-		"room":  roomID,
-		"users": req.Users,
-		"user":  user.Username,
-	})
+	live := h.hub.GetRoom(roomID)
+	if live == nil {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "room not found"})
+	}
+
+	host := live.Host
+	res := roomResponse{
+		RoomID: live.RoomID,
+		Name:   live.Name,
+		Epoch:  live.Epoch,
+		Online: true,
+		Host:   &host,
+		Users:  live.Users,
+	}
+
+	return c.JSON(http.StatusCreated, map[string]any{"room": res})
 }

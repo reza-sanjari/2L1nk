@@ -9,6 +9,15 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+type roomResponse struct {
+	RoomID string               `json:"room_id"`
+	Name   string               `json:"name"`
+	Epoch  int64                `json:"epoch"`
+	Online bool                 `json:"online"`
+	Host   *hub.RoomMemberInfo  `json:"host,omitempty"`
+	Users  []hub.RoomMemberInfo `json:"users,omitempty"`
+}
+
 func (h *Handler) GetUserRooms(c echo.Context) error {
 	user := c.Get("user").(*session.User)
 
@@ -27,15 +36,6 @@ func (h *Handler) GetUserRooms(c echo.Context) error {
 	hubMap := make(map[string]hub.UserRoomInfo, len(hubRooms))
 	for _, r := range hubRooms {
 		hubMap[r.RoomID] = r
-	}
-
-	type roomResponse struct {
-		RoomID string               `json:"room_id"`
-		Name   string               `json:"name"`
-		Epoch  int64                `json:"epoch"`
-		Online bool                 `json:"online"`
-		Host   *hub.RoomMemberInfo  `json:"host,omitempty"`
-		Users  []hub.RoomMemberInfo `json:"users,omitempty"`
 	}
 
 	rooms := make([]roomResponse, 0, len(dbRooms))
