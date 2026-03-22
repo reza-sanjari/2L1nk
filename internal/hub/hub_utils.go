@@ -55,6 +55,18 @@ func (h *Hub) GetUsers() []UserStatus {
 	return users
 }
 
+// roomHostInfo builds a RoomMemberInfo for the host, safe when Host is nil.
+func roomHostInfo(room *Room) RoomMemberInfo {
+	info := RoomMemberInfo{
+		Fingerprint: room.HostFP,
+		Username:    room.HostName,
+	}
+	if room.Host != nil {
+		info.Mode = room.Host.Mode
+	}
+	return info
+}
+
 func (h *Hub) GetRoom(roomID string) *UserRoomInfo {
 	room, ok := h.Rooms[roomID]
 	if !ok {
@@ -70,18 +82,13 @@ func (h *Hub) GetRoom(roomID string) *UserRoomInfo {
 		})
 	}
 
-	info := &UserRoomInfo{
+	return &UserRoomInfo{
 		RoomID: room.RoomID,
 		Name:   room.Name,
-		Host: RoomMemberInfo{
-			Username:    room.Host.Username,
-			Fingerprint: room.Host.Fingerprint,
-			Mode:        room.Host.Mode,
-		},
-		Users: users,
-		Epoch: room.Epoch,
+		Host:   roomHostInfo(room),
+		Users:  users,
+		Epoch:  room.Epoch,
 	}
-	return info
 }
 
 func (h *Hub) GetUserRooms(userFingerprint string) []UserRoomInfo {
@@ -104,13 +111,9 @@ func (h *Hub) GetUserRooms(userFingerprint string) []UserRoomInfo {
 		rooms = append(rooms, UserRoomInfo{
 			RoomID: room.RoomID,
 			Name:   room.Name,
-			Host: RoomMemberInfo{
-				Username:    room.Host.Username,
-				Fingerprint: room.Host.Fingerprint,
-				Mode:        room.Host.Mode,
-			},
-			Users: users,
-			Epoch: room.Epoch,
+			Host:   roomHostInfo(room),
+			Users:  users,
+			Epoch:  room.Epoch,
 		})
 	}
 

@@ -22,3 +22,35 @@ type MessagePayload struct {
 	Epoch      uint64 `json:"epoch"`
 	Ciphertext string `json:"ciphertext"`
 }
+
+type AddToRoomRequest struct {
+	RoomID string
+	User   *User
+}
+
+type RestoreRoomRequest struct {
+	RoomID    string
+	RoomName  string
+	HostFP    string
+	Epoch     int64
+	MemberFPs []string // hub adds those currently in h.Users
+}
+
+type RemoveFromRoomRequest struct {
+	RoomID   string
+	MemberFP string
+}
+
+type LoadRoomAndDeliverRequest struct {
+	RoomID    string
+	RoomName  string
+	HostFP    string
+	Epoch     int64
+	MemberFPs []string
+	Message   WSMessageEnvelope
+}
+
+type SendErrorRequest struct {
+	UserFP  string
+	Message string
+}

@@ -35,6 +35,15 @@ func (r *MessageRepository) Save(msg *MessageRecord) error {
 	return nil
 }
 
+// DeleteByRoom removes all messages for a room.
+func (r *MessageRepository) DeleteByRoom(roomID string) error {
+	_, err := r.db.Exec(`DELETE FROM messages WHERE room_id = ?`, roomID)
+	if err != nil {
+		return fmt.Errorf("delete messages by room: %w", err)
+	}
+	return nil
+}
+
 // GetByRoom returns messages for a room ordered by creation time, newest first.
 func (r *MessageRepository) GetByRoom(roomID string, limit, offset int) ([]*MessageRecord, error) {
 	rows, err := r.db.Query(

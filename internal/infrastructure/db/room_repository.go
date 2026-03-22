@@ -82,6 +82,63 @@ func (r *RoomRepository) GetRoomsByMember(fp string) ([]*RoomRecord, error) {
 	return rooms, rows.Err()
 }
 
+// GetMembersOfRoom returns the fingerprints of all members of a room.
+func (r *RoomRepository) GetMembersOfRoom(roomID string) ([]string, error) {
+	rows, err := r.db.Query(
+		`SELECT member_fp FROM room_members WHERE room_id = ?`,
+		roomID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get members of room: %w", err)
+	}
+	defer rows.Close()
+
+	var fps []string
+	for rows.Next() {
+		var fp string
+		if err := rows.Scan(&fp); err != nil {
+			return nil, err
+		}
+		fps = append(fps, fp)
+	}
+	return fps, rows.Err()
+}
+
+// RemoveMember removes a member from room_members.
+func (r *RoomRepository) RemoveMember(roomID, memberFP string) error {
+	_, err := r.db.Exec(
+		`DELETE FROM room_members WHERE room_id = ? AND member_fp = ?`,
+		roomID, memberFP,
+	)
+	if err != nil {
+		return fmt.Errorf("remove room member: %w", err)
+	}
+	return nil
+}
+
+// Delete removes a room and all its members from the DB.
+func (r *RoomRepository) Delete(roomID string) error {
+	if _, err := r.db.Exec(`DELETE FROM room_members WHERE room_id = ?`, roomID); err != nil {
+		return fmt.Errorf("delete room members: %w", err)
+	}
+	if _, err := r.db.Exec(`DELETE FROM rooms WHERE id = ?`, roomID); err != nil {
+		return fmt.Errorf("delete room: %w", err)
+	}
+	return nil
+}
+
+// UpdateHost sets a new key_creator_fp for the room.
+func (r *RoomRepository) UpdateHost(roomID, newHostFP string) error {
+	_, err := r.db.Exec(
+		`UPDATE rooms SET key_creator_fp = ? WHERE id = ?`,
+		newHostFP, roomID,
+	)
+	if err != nil {
+		return fmt.Errorf("update room host: %w", err)
+	}
+	return nil
+}
+
 // AddMember conditionally inserts the member into room_members.
 // Silently skips if memberFP is not in the users table (ephemeral user)
 // or if the membership already exists.

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"2L1nk/internal/hub"
+	"2L1nk/internal/models"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -81,6 +82,17 @@ func (h *Handler) Ws(c echo.Context) error {
 	newUser := hub.NewUser(activeUser.PublicKeyFingerprint, activeUser.Username, ws, activeUser.Mode, h.logg)
 
 	h.hub.RegisterUser <- newUser
+
+	// Case 1: slot this user into any hub rooms they're already a DB member of
+	if activeUser.Mode == models.UserModePersistent {
+		if dbRooms, err := h.services.Room.GetUserRooms(activeUser.PublicKeyFingerprint); err == nil {
+			for _, room := range dbRooms {
+				if h.hub.GetRoom(room.ID) != nil {
+					h.hub.AddToRoom <- hub.AddToRoomRequest{RoomID: room.ID, User: newUser}
+				}
+			}
+		}
+	}
 
 	// start writer
 	go func() {
