@@ -3,7 +3,7 @@ let socket;
 let roomList = [];
 let gefilterteListe = [];
 let currentRoomId = null;
-const messageCache = {}; // { [room_id]: [{sender_fp, ciphertext, own}] }
+const pendingSent = new Set(); // eigene gesendete Nachrichten (roomId:ciphertext) — verhindert Echo-Duplikate
 const BASE_URL = 'http://localhost:8080'; // Basis-URL für API-Requests
 // ============================================================
 // CRYPTO MODULE — via tweetnacl
@@ -154,17 +154,17 @@ function connectLocalChat() {
 
         if (envelope.type === "message") {
             const payload = envelope.payload;
-            const myFP   = sessionStorage.getItem('my_fingerprint');
-            const isMine = envelope.sender_fp === myFP;
-            if (isMine) return; // eigene bereits lokal angezeigt
 
-            // in Cache speichern
-            const roomId = payload.room_id;
-            if (!messageCache[roomId]) messageCache[roomId] = [];
-            messageCache[roomId].push({ sender_fp: envelope.sender_fp, ciphertext: payload.ciphertext, own: false });
+            // eigene Echo-Nachricht ignorieren
+            const myFP    = sessionStorage.getItem('my_fingerprint');
+            const sentKey = `${payload.room_id}:${payload.ciphertext}`;
+            if (envelope.sender_fp === myFP || pendingSent.has(sentKey)) {
+                pendingSent.delete(sentKey);
+                return;
+            }
 
             // nur anzeigen wenn dieser Raum gerade offen ist
-            if (roomId !== currentRoomId) return;
+            if (payload.room_id !== currentRoomId) return;
             const chatEl = document.getElementById('chat');
             if (!chatEl) return;
             const div = document.createElement('div');
@@ -240,55 +240,30 @@ function clickroom(room) {
                 </div>
 
             `;
+    document.getElementById('schreibnachricht').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') sendMessage(room.room_id);
+    });
     loadChat(room);
 }
 async function loadChat(room) {
     const chatEl = document.getElementById('chat');
     const myFP   = sessionStorage.getItem('my_fingerprint');
 
-    const path      = `/api/rooms/${room.room_id}/messages`;
-    const timestamp = Math.floor(Date.now() / 1000);
-    const canonical = `GET\n${path}\n${timestamp}\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`;
-    const signature = AppCrypto.sign(canonical);
-
     try {
-        const response = await fetch(`${BASE_URL}${path}?limit=50&offset=0`, {
-            method: 'GET',
-            headers: {
-                'Chat-Session-ID': sessionStorage.getItem('sessionId'),
-                'Chat-Timestamp':  timestamp,
-                'Chat-Signature':  signature
-            }
-        });
-
+        const response = await authFetch('GET', `/api/rooms/${room.room_id}/messages`);
         if (!response.ok) throw new Error(`HTTP-Fehler: ${response.status}`);
 
         const data     = await response.json();
-        // API gibt newest-first zurück → umkehren für chronologische Anzeige
         const messages = (data.messages ?? []).reverse();
 
-        // DB-Nachrichten anzeigen
-        const dbIds = new Set();
         messages.forEach(msg => {
-            dbIds.add(msg.id);
             const div = document.createElement('div');
             div.className = `bubble ${msg.sender_fp === myFP ? 'sent' : 'received'}`;
             div.innerText = msg.ciphertext;
             chatEl.appendChild(div);
         });
 
-        // Cache-Nachrichten anhängen die noch nicht in der DB sind (live, noch nicht persistiert)
-        const cached = messageCache[room.room_id] ?? [];
-        cached.forEach(m => {
-            if (m.id && dbIds.has(m.id)) return; // Duplikat überspringen
-            const div = document.createElement('div');
-            div.className = `bubble ${m.own ? 'sent' : 'received'}`;
-            div.innerText = m.ciphertext;
-            chatEl.appendChild(div);
-        });
-
         chatEl.scrollTop = chatEl.scrollHeight;
-
     } catch (err) {
         console.error("Fehler beim Laden der Nachrichten:", err);
     }
@@ -480,15 +455,15 @@ async function removeMember(roomId, fingerprint) {
     else alert('Fehler beim Entfernen');
 }
 function sendMessage(roomID) {
-    const senderFP = "";
     const ciphertext = document.getElementById('schreibnachricht').value;
     document.getElementById('schreibnachricht').value = "";
     if (socket && socket.readyState === WebSocket.OPEN) {
+        pendingSent.add(`${roomID}:${ciphertext}`);
         const messagePayload = {
             "type": "message",
             "payload": {
                 "room_id": roomID,
-                "epoch": 0, // Falls das dynamisch ist, hier anpassen
+                "epoch": 0,
                 "ciphertext": ciphertext
             }
         };
@@ -501,13 +476,6 @@ function sendMessage(roomID) {
 
 function send(ciphertext) {
     if (ciphertext === "") return;
-
-    // in Cache speichern
-    if (currentRoomId) {
-        if (!messageCache[currentRoomId]) messageCache[currentRoomId] = [];
-        messageCache[currentRoomId].push({ ciphertext, own: true });
-    }
-
     const chatEl = document.getElementById('chat');
     const msg = document.createElement('div');
     msg.className = 'bubble sent';
@@ -516,22 +484,23 @@ function send(ciphertext) {
     chatEl.scrollTop = chatEl.scrollHeight;
 }
 async function whoAmI() {
-    const username = sessionStorage.getItem('username');
+    const username  = sessionStorage.getItem('username');
+    const sessionId = sessionStorage.getItem('sessionId');
 
-    // Sicherheit: Falls niemand eingeloggt ist, direkt zurückwerfen
-    if (!username) {
-        window.location.href = "index.html";
+    if (!username || !sessionId) {
+        window.location.href = 'Login';
         return null;
     }
 
-    const usernamefield = document.getElementById('username');
-    usernamefield.textContent = username;
-    const usernameshortfield = document.getElementById('usernameshort');
-    usernameshortfield.textContent = username.substring(0, 2).toUpperCase();
-
-    // Server-Fingerprint holen und speichern (SHA-256 des Public Keys)
+    // Server-Session prüfen und Fingerprint laden
     try {
         const res = await authFetch('GET', '/api/users/me');
+        if (res.status === 401 || res.status === 403) {
+            // Session abgelaufen oder ungültig → neu einloggen
+            sessionStorage.clear();
+            window.location.href = 'Login';
+            return null;
+        }
         if (res.ok) {
             const data = await res.json();
             if (data.publicFingerPrint) {
@@ -539,8 +508,13 @@ async function whoAmI() {
             }
         }
     } catch (e) {
-        console.warn('whoAmI: Fingerprint konnte nicht geladen werden', e);
+        console.warn('whoAmI: Server nicht erreichbar', e);
     }
+
+    const usernamefield = document.getElementById('username');
+    usernamefield.textContent = username;
+    const usernameshortfield = document.getElementById('usernameshort');
+    usernameshortfield.textContent = username.substring(0, 2).toUpperCase();
 
     return username;
 }
@@ -619,8 +593,8 @@ async function newChat(groupName) {
     }
 }
 function logout() {
-    sessionStorage.removeItem('username');
-    window.location.href = "Login";
+    sessionStorage.clear();
+    window.location.href = 'Login';
 }
 window.addEventListener('DOMContentLoaded', async () => {
     await whoAmI();
