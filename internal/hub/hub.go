@@ -3,6 +3,8 @@ package hub
 import (
 	"2L1nk/internal/logger"
 	"2L1nk/internal/session"
+
+	"go.uber.org/zap"
 )
 
 type Hub struct {
@@ -10,6 +12,7 @@ type Hub struct {
 	s               *session.Store
 	Rooms           map[string]*Room
 	Users           map[string]*User
+	Events          chan HubEvent
 	Broadcast       chan BroadcastRequest
 	InboundMessages chan WSMessageEnvelope
 	RegisterRoom    chan CreateRoomRequest
@@ -46,6 +49,7 @@ func New(s *session.Store, logg *logger.Logger) *Hub {
 		s:               s,
 		Rooms:           make(map[string]*Room),
 		Users:           make(map[string]*User),
+		Events:          make(chan HubEvent, 256),
 		Broadcast:       make(chan BroadcastRequest),
 		InboundMessages: make(chan WSMessageEnvelope),
 		RegisterRoom:    make(chan CreateRoomRequest),
@@ -53,7 +57,18 @@ func New(s *session.Store, logg *logger.Logger) *Hub {
 		RegisterUser:    make(chan *User),
 		UnregisterUser:  make(chan *User),
 		JoinRoom:        make(chan RoomMembersChangeRequest),
-		LeaveRoom:       make(chan RoomMembersChangeRequest)}
+		LeaveRoom:       make(chan RoomMembersChangeRequest),
+	}
+}
+
+// emit sends a HubEvent non-blocking. Drops the event if the channel is full
+// so the hub's main loop is never stalled by a slow consumer.
+func (h *Hub) emit(event HubEvent) {
+	select {
+	case h.Events <- event:
+	default:
+		h.logg.Warn("hub event channel full, dropping event", zap.String("type", string(event.Type)))
+	}
 }
 
 func (h *Hub) Run() {

@@ -3,9 +3,10 @@ package app
 import (
 	"2L1nk/internal/api/handlers"
 	"2L1nk/internal/config"
+	"2L1nk/internal/db"
 	"2L1nk/internal/gate"
 	"2L1nk/internal/hub"
-	"2L1nk/internal/infrastructure/db"
+	infradb "2L1nk/internal/infrastructure/db"
 	"2L1nk/internal/logger"
 	"2L1nk/internal/server"
 	"2L1nk/internal/service"
@@ -31,12 +32,20 @@ func New(cfg *config.Config) *App {
 		panic(err)
 	}
 
+	// Database
+	database, err := db.Setup(cfg.DBPath, logg)
+	if err != nil {
+		logg.Fatal("failed to initialize database", zap.Error(err))
+	}
+
 	// Session Store
 	sessionStore := session.NewStore()
 
 	// Infrastructure
-	healthRepo := db.NewHealthRepository()
-	RoomRepo := db.NewRoomRepository()
+	healthRepo := infradb.NewHealthRepository(database)
+	roomRepo := infradb.NewRoomRepository(database)
+	msgRepo := infradb.NewMessageRepository(database)
+	userRepo := infradb.NewUserRepository(database)
 
 	// Gate
 	g, err := gate.New(0)
@@ -48,15 +57,19 @@ func New(cfg *config.Config) *App {
 
 	// Services
 	healthSvc := service.NewHealthService(healthRepo, logg)
-	gateSvc := service.NewGateService(g, sessionStore, logg)
-	RoomSvc := service.NewRoomService(RoomRepo, logg)
+	gateSvc := service.NewGateService(g, sessionStore, userRepo, logg)
+	roomSvc := service.NewRoomService(roomRepo, logg)
+	msgSvc := service.NewMessageService(msgRepo, roomRepo, logg)
 
 	// Service Container
-	services := service.NewContainer(healthSvc, gateSvc, RoomSvc)
+	services := service.NewContainer(healthSvc, gateSvc, roomSvc, msgSvc)
 
 	// Hub
 	mainHub := hub.New(sessionStore, logg)
 	go mainHub.Run()
+
+	// Event consumer: wires hub events to services for DB persistence
+	startEventConsumer(mainHub.Events, roomSvc, msgSvc, logg)
 
 	// Handler
 	handler := handlers.NewHandler(services, mainHub, sessionStore, logg)
