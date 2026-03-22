@@ -3,6 +3,7 @@ package hub
 import (
 	"2L1nk/internal/models"
 	"encoding/json"
+	"time"
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -33,6 +34,18 @@ func (h *Hub) handleInboundMessage(msg WSMessageEnvelope) {
 			return
 		}
 		h.sendMessageToRoom(targetRoom, data)
+
+		h.emit(HubEvent{
+			Type: HubEventMessageCreated,
+			Payload: MessageCreatedPayload{
+				ID:         uuid.NewString(),
+				RoomID:     payload.RoomID,
+				SenderFP:   msg.Sender.Fingerprint,
+				Epoch:      int64(payload.Epoch),
+				Ciphertext: payload.Ciphertext,
+				CreatedAt:  time.Now().Unix(),
+			},
+		})
 	}
 }
 
@@ -55,22 +68,37 @@ func (h *Hub) handleRegisterRoom(req CreateRoomRequest) {
 	req.ResponseChan <- roomID
 	h.logg.Debug("room created", zap.String("roomID", roomID), zap.String("host", req.Host.Username))
 
+	h.emit(HubEvent{
+		Type: HubEventRoomCreated,
+		Payload: RoomCreatedPayload{
+			RoomID:      roomID,
+			Name:        req.GroupName,
+			CreatorFP:   roomHost.Fingerprint,
+			CreatorMode: roomHost.Mode,
+			CreatedAt:   time.Now().Unix(),
+		},
+	})
 }
+
 func (h *Hub) handleUnregisterRoom(roomID string) {}
 
 func (h *Hub) handleRegisterUser(user *User) {
 	h.Users[user.Fingerprint] = user
 	h.logg.Info("user connected", zap.String("username", user.Username), zap.String("fingerprint", user.Fingerprint))
 }
+
 func (h *Hub) handleUnregisterUser(user *User) {
 	delete(h.Users, user.Fingerprint)
 	h.logg.Info("user disconnected", zap.String("username", user.Username), zap.String("fingerprint", user.Fingerprint))
-
 }
 
 func (h *Hub) handleJoinRoom(req RoomMembersChangeRequest) {
 	ownerUser := h.getUser(req.OwnerFP)
 	room := h.getRoom(req.RoomID)
+	if ownerUser == nil || room == nil {
+		h.logg.Debug("join room failed: owner or room not found", zap.String("ownerFP", req.OwnerFP), zap.String("roomID", req.RoomID))
+		return
+	}
 	if h.isUserInRoom(ownerUser, room) {
 		newUser := h.getUser(req.UserFP)
 		if newUser == nil {
@@ -78,9 +106,20 @@ func (h *Hub) handleJoinRoom(req RoomMembersChangeRequest) {
 		} else {
 			room.Users[newUser.Fingerprint] = newUser
 			h.logg.Debug("user joined", zap.String("fingerprint", req.UserFP))
+
+			h.emit(HubEvent{
+				Type: HubEventMemberJoined,
+				Payload: MemberJoinedPayload{
+					RoomID:     req.RoomID,
+					MemberFP:   newUser.Fingerprint,
+					MemberMode: newUser.Mode,
+					JoinedAt:   time.Now().Unix(),
+				},
+			})
 		}
 	}
 }
+
 func (h *Hub) handleLeaveRoom(req RoomMembersChangeRequest) {}
 
 func (h *Hub) handleBroadcast(req BroadcastRequest) {}

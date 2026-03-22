@@ -91,7 +91,7 @@ func (h *Handler) Ws(c echo.Context) error {
 
 	// reader blocks until disconnect
 	if err := newUser.ReadPump(h.hub.InboundMessages); err != nil {
-		h.logg.Debug("read pump closed", zap.Error(err))
+		h.logg.Debug("read pump closed unexpectedly", zap.Error(err))
 	}
 
 	// cleanup

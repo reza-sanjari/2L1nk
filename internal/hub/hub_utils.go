@@ -55,6 +55,35 @@ func (h *Hub) GetUsers() []UserStatus {
 	return users
 }
 
+func (h *Hub) GetRoom(roomID string) *UserRoomInfo {
+	room, ok := h.Rooms[roomID]
+	if !ok {
+		return nil
+	}
+
+	var users []RoomMemberInfo
+	for _, user := range room.Users {
+		users = append(users, RoomMemberInfo{
+			Username:    user.Username,
+			Fingerprint: user.Fingerprint,
+			Mode:        user.Mode,
+		})
+	}
+
+	info := &UserRoomInfo{
+		RoomID: room.RoomID,
+		Name:   room.Name,
+		Host: RoomMemberInfo{
+			Username:    room.Host.Username,
+			Fingerprint: room.Host.Fingerprint,
+			Mode:        room.Host.Mode,
+		},
+		Users: users,
+		Epoch: room.Epoch,
+	}
+	return info
+}
+
 func (h *Hub) GetUserRooms(userFingerprint string) []UserRoomInfo {
 	var rooms []UserRoomInfo
 
