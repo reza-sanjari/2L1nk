@@ -43,7 +43,8 @@ func New(cfg *config.Config) *App {
 
 	// Infrastructure
 	healthRepo := infradb.NewHealthRepository(database)
-	RoomRepo := infradb.NewRoomRepository(database)
+	roomRepo := infradb.NewRoomRepository(database)
+	msgRepo := infradb.NewMessageRepository(database)
 	userRepo := infradb.NewUserRepository(database)
 
 	// Gate
@@ -57,14 +58,18 @@ func New(cfg *config.Config) *App {
 	// Services
 	healthSvc := service.NewHealthService(healthRepo, logg)
 	gateSvc := service.NewGateService(g, sessionStore, userRepo, logg)
-	RoomSvc := service.NewRoomService(RoomRepo, logg)
+	roomSvc := service.NewRoomService(roomRepo, logg)
+	msgSvc := service.NewMessageService(msgRepo, roomRepo, logg)
 
 	// Service Container
-	services := service.NewContainer(healthSvc, gateSvc, RoomSvc)
+	services := service.NewContainer(healthSvc, gateSvc, roomSvc, msgSvc)
 
 	// Hub
 	mainHub := hub.New(sessionStore, logg)
 	go mainHub.Run()
+
+	// Event consumer: wires hub events to services for DB persistence
+	startEventConsumer(mainHub.Events, roomSvc, msgSvc, logg)
 
 	// Handler
 	handler := handlers.NewHandler(services, mainHub, sessionStore, logg)

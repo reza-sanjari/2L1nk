@@ -36,6 +36,7 @@ func RunMigrations(database *sql.DB) error {
 
 		`CREATE TABLE IF NOT EXISTS rooms (
 			id              TEXT    PRIMARY KEY,
+			name            TEXT,
 			current_epoch   INTEGER NOT NULL DEFAULT 0,
 			key_creator_fp  TEXT    REFERENCES users(fingerprint),
 			created_at      INTEGER NOT NULL
@@ -96,7 +97,33 @@ func RunMigrations(database *sql.DB) error {
 		}
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	// Column additions for existing databases.
+	// ALTER TABLE cannot run inside the CREATE TABLE transaction.
+	return addColumnIfNotExists(database, "rooms", "name", "TEXT")
+}
+
+// addColumnIfNotExists adds a column to a table only if it doesn't already exist.
+func addColumnIfNotExists(database *sql.DB, table, column, definition string) error {
+	var count int
+	if err := database.QueryRow(
+		`SELECT COUNT(*) FROM pragma_table_info(?) WHERE name = ?`,
+		table, column,
+	).Scan(&count); err != nil {
+		return fmt.Errorf("check column %s.%s: %w", table, column, err)
+	}
+	if count > 0 {
+		return nil // column already exists
+	}
+	if _, err := database.Exec(
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN %s %s`, table, column, definition),
+	); err != nil {
+		return fmt.Errorf("add column %s.%s: %w", table, column, err)
+	}
+	return nil
 }
 
 // VerifyTables queries sqlite_master and returns the set of tables that exist.
