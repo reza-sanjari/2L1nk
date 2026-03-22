@@ -116,7 +116,7 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"gateToken\": \"{{gatekey}}\",\n  \"publicKey\": \"anO9M+q/3WNuSUnxpak/GtLt0suBAGVakihtV3HoiDY=\",\n  \"username\": \"{{$randomUserName}}\",\n  \"mode\": 1\n}",
+                  "raw": "{\n  \"gateToken\": \"{{gatekey}}\",\n  \"publicKey\": \"anO9M+q/3WNuSUnxpak/GtLt0suBAG{{$randomAlphaNumeric}}akihtV3HoiDY=\",\n  \"username\": \"{{$randomUserName}}\",\n  \"mode\": 1\n}",
                   "options": {
                     "raw": {
                       "headerFamily": "json",
