@@ -4,7 +4,7 @@ let roomList = [];
 let gefilterteListe = [];
 let currentRoomId = null;
 const pendingSent = new Set(); // eigene gesendete Nachrichten (roomId:ciphertext) — verhindert Echo-Duplikate
-const BASE_URL = 'http://localhost:8080'; // Basis-URL für API-Requests
+
 // ============================================================
 // CRYPTO MODULE — via tweetnacl
 // Ed25519 (Signing) + X25519/box (ECDH) + secretbox (AES-äquivalent)
@@ -135,7 +135,8 @@ const AppCrypto = (() => {
 })();
 if (!AppCrypto.loadIdentity()) AppCrypto.generateIdentity();
 function connectLocalChat() {
-    socket = new WebSocket('ws://localhost:8080/api/ws');
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    socket = new WebSocket(`${wsProtocol}//${window.location.host}/api/ws`);
 
     socket.onopen = () => {
         const authPayload = {
@@ -181,15 +182,15 @@ function connectLocalChat() {
 async function fetchRooms() {
 
     console.log("Daten erfolgreich fetch:");
-    const path = '/api/users/me/rooms';
     const timestamp = Math.floor(Date.now() / 1000);
+    const path = '/api/users/me/rooms';
 
     const emptyBodyHash = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
     const canonical = `GET\n${path}\n${timestamp}\n${emptyBodyHash}`;
     const signature = AppCrypto.sign(canonical);
 
     try {
-        const response = await fetch(`http://localhost:8080${path}`, {
+        const response = await fetch(`/api/users/me/rooms`, {
             method: 'GET',
             headers: {
                 'Chat-Session-ID': sessionStorage.getItem('sessionId'),
@@ -417,6 +418,7 @@ async function openRoomMenu(room) {
             makeRow(u.username, 'add-btn', '+ Hinzufügen', () => addMember(room.room_id, u.fingerprint))
         ));
     }
+    fetchRooms(); // aktualisiert die roomList mit den neuesten User-Infos (z.B. falls jemand gerade online gekommen ist)
 }
 
 async function authFetch(method, path, body = null) {
@@ -440,7 +442,7 @@ async function authFetch(method, path, body = null) {
         opts.body = bodyString;
         opts.headers['Content-Type'] = 'application/json';
     }
-    return fetch(`${BASE_URL}${path}`, opts);
+    return fetch(`${path}`, opts);
 }
 
 async function addMember(roomId, fingerprint) {
@@ -564,7 +566,7 @@ async function newChat(groupName) {
 
         console.log("Sende Request mit Canonical:", canonical); // Zum Debuggen mit Go-Log vergleichen
 
-        const response = await fetch(`${BASE_URL}${path}`, {
+        const response = await fetch(`${path}`, {
             method: 'POST',
             headers: {
                 'Chat-Session-ID': sessionId,
@@ -584,7 +586,6 @@ async function newChat(groupName) {
         }
 
         const data = await response.json();
-        alert("✅ Gruppe '" + groupName + "' wurde erstellt!");
         fetchRooms();
 
     } catch (err) {
