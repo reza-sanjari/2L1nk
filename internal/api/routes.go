@@ -35,7 +35,7 @@ func RegisterRoutes(e *echo.Echo, h *handlers.Handler, store *session.Store) {
 	protected := api.Group("", AuthMiddleware(store))
 
 	protected.POST("/rooms", h.NewRoom)
-	protected.POST("/rooms/:room_id/users", h.AddUsersToRoom)
+	protected.POST("/rooms/:room_id/users/:user_fp", h.AddUsersToRoom)
 	protected.DELETE("/rooms/:room_id/users/:user_fp", h.RemoveUserFromRoom)
 	protected.POST("/rooms/:room_id/epoch-keys", h.SubmitEpochKeys)
 	protected.GET("/rooms/:room_id/messages", h.GetRoomMessages)

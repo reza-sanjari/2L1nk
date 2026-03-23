@@ -8,17 +8,9 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-type AddUsersToRoomRequest struct {
-	Users []string `json:"users"`
-}
-
 func (h *Handler) AddUsersToRoom(c echo.Context) error {
 	roomID := c.Param("room_id")
-	var req AddUsersToRoomRequest
-	if err := c.Bind(&req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
-	}
-
+	memberFP := c.Param("user_fp")
 	user := c.Get("user").(*session.User)
 
 	// Verify caller is the host (DB check)
@@ -52,12 +44,10 @@ func (h *Handler) AddUsersToRoom(c echo.Context) error {
 		}
 	}
 
-	// Add the new members
-	for _, fp := range req.Users {
-		h.hub.JoinRoom <- hub.RoomMembersChangeRequest{
-			RoomID: roomID,
-			UserFP: fp,
-		}
+	// Add the new member
+	h.hub.JoinRoom <- hub.RoomMembersChangeRequest{
+		RoomID: roomID,
+		UserFP: memberFP,
 	}
 
 	live := h.hub.GetRoom(roomID)
