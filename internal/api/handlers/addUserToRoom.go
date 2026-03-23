@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
+	"go.uber.org/zap"
 )
 
 func (h *Handler) AddUsersToRoom(c echo.Context) error {
@@ -16,22 +17,29 @@ func (h *Handler) AddUsersToRoom(c echo.Context) error {
 	memberFP := c.Param("user_fp")
 	caller := c.Get("user").(*session.User)
 
+	h.logg.Debug("add user to room request", zap.String("roomID", roomID), zap.String("memberFP", memberFP), zap.String("callerFP", caller.PublicKeyFingerprint))
+
 	// Validate caller is the host.
 	roomRecord, err := h.services.Room.GetRoomByID(roomID)
 	if err != nil {
+		h.logg.Error("add user to room: failed to fetch room", zap.String("roomID", roomID), zap.Error(err))
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 	}
 	if roomRecord == nil {
+		h.logg.Debug("add user to room: room not found", zap.String("roomID", roomID))
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "room not found"})
 	}
 	if roomRecord.HostFP != caller.PublicKeyFingerprint {
+		h.logg.Warn("add user to room: forbidden, caller is not the host", zap.String("roomID", roomID), zap.String("callerFP", caller.PublicKeyFingerprint), zap.String("hostFP", roomRecord.HostFP))
 		return c.JSON(http.StatusForbidden, map[string]string{"error": "only the host can add members"})
 	}
 
 	// DB first: add member to room_members.
 	if err := h.services.Room.AddMemberDirect(roomID, memberFP, time.Now().Unix()); err != nil {
+		h.logg.Error("add user to room: failed to add member to DB", zap.String("roomID", roomID), zap.String("memberFP", memberFP), zap.Error(err))
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 	}
+	h.logg.Debug("add user to room: member added to DB", zap.String("roomID", roomID), zap.String("memberFP", memberFP))
 
 	// Determine the new key creator.
 	newKeyCreatorFP := selectKeyCreatorAfterChange(roomID, roomRecord.KeyCreatorFP, "", h.services.Room, h.hub)
@@ -41,8 +49,10 @@ func (h *Handler) AddUsersToRoom(c echo.Context) error {
 
 	newEpoch := roomRecord.CurrentEpoch + 1
 	if err := h.services.Room.UpdateEpochAndKeyCreator(roomID, newEpoch, newKeyCreatorFP); err != nil {
+		h.logg.Error("add user to room: failed to update epoch and key creator", zap.String("roomID", roomID), zap.Error(err))
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 	}
+	h.logg.Debug("add user to room: epoch updated", zap.String("roomID", roomID), zap.Int64("newEpoch", newEpoch), zap.String("keyCreatorFP", newKeyCreatorFP))
 
 	// Find the new member's X25519 key and mode for hub sync.
 	var memberX25519Key string
@@ -67,8 +77,11 @@ func (h *Handler) AddUsersToRoom(c echo.Context) error {
 		NewKeyCreatorFP: newKeyCreatorFP,
 	}
 
+	h.logg.Info("user added to room", zap.String("roomID", roomID), zap.String("memberFP", memberFP), zap.Int64("newEpoch", newEpoch))
+
 	updatedRoom, err := h.services.Room.GetRoomByID(roomID)
 	if err != nil || updatedRoom == nil {
+		h.logg.Error("add user to room: failed to fetch updated room", zap.String("roomID", roomID), zap.Error(err))
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 	}
 	return c.JSON(http.StatusCreated, map[string]any{"room": buildRoomResponse(updatedRoom, h.hub.GetRoom(roomID))})
