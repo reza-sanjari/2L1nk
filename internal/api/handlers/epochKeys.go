@@ -38,25 +38,33 @@ func (h *Handler) SubmitEpochKeys(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "keys must not be empty"})
 	}
 
+	h.logg.Debug("submit epoch keys request", zap.String("roomID", roomID), zap.String("callerFP", caller.PublicKeyFingerprint), zap.Int64("epoch", req.Epoch), zap.Int("keyCount", len(req.Keys)))
+
 	// Validate against DB state.
 	room, err := h.services.Room.GetRoomByID(roomID)
 	if err != nil {
+		h.logg.Error("submit epoch keys: failed to fetch room", zap.String("roomID", roomID), zap.Error(err))
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 	}
 	if room == nil {
+		h.logg.Debug("submit epoch keys: room not found", zap.String("roomID", roomID))
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "room not found"})
 	}
 	if room.KeyCreatorFP != caller.PublicKeyFingerprint {
+		h.logg.Warn("submit epoch keys: forbidden, caller is not the key creator", zap.String("roomID", roomID), zap.String("callerFP", caller.PublicKeyFingerprint), zap.String("keyCreatorFP", room.KeyCreatorFP))
 		return c.JSON(http.StatusForbidden, map[string]string{"error": "caller is not the key creator for this epoch"})
 	}
 	if room.CurrentEpoch != req.Epoch {
+		h.logg.Debug("submit epoch keys: epoch mismatch", zap.String("roomID", roomID), zap.Int64("requestedEpoch", req.Epoch), zap.Int64("currentEpoch", room.CurrentEpoch))
 		return c.JSON(http.StatusConflict, map[string]string{"error": "epoch mismatch"})
 	}
 	already, err := h.services.Room.HasKeySlots(roomID, req.Epoch)
 	if err != nil {
+		h.logg.Error("submit epoch keys: failed to check existing slots", zap.String("roomID", roomID), zap.Error(err))
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 	}
 	if already {
+		h.logg.Debug("submit epoch keys: slots already submitted", zap.String("roomID", roomID), zap.Int64("epoch", req.Epoch))
 		return c.JSON(http.StatusConflict, map[string]string{"error": "epoch keys already submitted"})
 	}
 
@@ -85,9 +93,10 @@ func (h *Handler) SubmitEpochKeys(c echo.Context) error {
 
 	// StoreKeySlots silently skips ephemeral recipients (not in users table).
 	if err := h.services.Room.StoreKeySlots(slots); err != nil {
-		h.logg.Error("failed to store epoch key slots", zap.Error(err))
+		h.logg.Error("submit epoch keys: failed to store key slots", zap.String("roomID", roomID), zap.Int64("epoch", req.Epoch), zap.Error(err))
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 	}
+	h.logg.Debug("submit epoch keys: slots stored in DB", zap.String("roomID", roomID), zap.Int64("epoch", req.Epoch), zap.Int("count", len(slots)))
 
 	// Signal the hub to deliver keys to online members and clear PendingRotation.
 	h.hub.EpochKeysSubmitted <- hub.EpochKeysSubmittedRequest{
@@ -96,5 +105,6 @@ func (h *Handler) SubmitEpochKeys(c echo.Context) error {
 		Keys:   hubKeys,
 	}
 
+	h.logg.Info("epoch keys submitted", zap.String("roomID", roomID), zap.Int64("epoch", req.Epoch), zap.String("callerFP", caller.PublicKeyFingerprint), zap.Int("keyCount", len(slots)))
 	return c.JSON(http.StatusOK, map[string]any{"epoch": req.Epoch})
 }

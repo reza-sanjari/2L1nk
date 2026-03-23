@@ -72,7 +72,7 @@ func (h *Handler) Ws(c echo.Context) error {
 	// 5. validate auth
 	activeUser, ok := h.session.Get(auth.SessionID)
 	if !ok {
-		h.logg.Debug("websocket closed, user is not authenticated", zap.String("username", activeUser.Username), zap.String("sessionId", activeUser.SessionID))
+		h.logg.Warn("websocket closed: session not found", zap.String("sessionId", auth.SessionID))
 		return nil
 	}
 

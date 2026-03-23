@@ -102,7 +102,7 @@ func (h *Hub) handleRegisterRoom(req CreateRoomRequest) {
 	h.Rooms[roomID] = room
 
 	req.ResponseChan <- roomID
-	h.logg.Debug("room created", zap.String("roomID", roomID), zap.String("host", req.Host.Username))
+	h.logg.Info("room created", zap.String("roomID", roomID), zap.String("host", req.Host.Username), zap.String("name", req.GroupName), zap.Int("activeRooms", len(h.Rooms)))
 
 	h.emit(HubEvent{
 		Type: HubEventRoomCreated,
@@ -124,7 +124,7 @@ func (h *Hub) handleUnregisterRoom(roomID string) {}
 
 func (h *Hub) handleRegisterUser(user *User) {
 	h.Users[user.Fingerprint] = user
-	h.logg.Info("user connected", zap.String("username", user.Username), zap.String("fingerprint", user.Fingerprint))
+	h.logg.Info("user connected", zap.String("username", user.Username), zap.String("fingerprint", user.Fingerprint), zap.Int("activeUsers", len(h.Users)))
 }
 
 // handleUnregisterUser removes the user from h.Users and from any hub rooms they were in.
@@ -143,6 +143,7 @@ func (h *Hub) handleUnregisterUser(user *User) {
 
 		if len(room.Users) == 0 {
 			delete(h.Rooms, room.RoomID)
+			h.logg.Info("room went offline (last user disconnected)", zap.String("roomID", room.RoomID), zap.String("roomName", room.Name), zap.Int("activeRooms", len(h.Rooms)))
 			continue
 		}
 
@@ -159,7 +160,7 @@ func (h *Hub) handleUnregisterUser(user *User) {
 			}
 		}
 	}
-	h.logg.Info("user disconnected", zap.String("username", user.Username), zap.String("fingerprint", user.Fingerprint))
+	h.logg.Info("user disconnected", zap.String("username", user.Username), zap.String("fingerprint", user.Fingerprint), zap.Int("activeUsers", len(h.Users)))
 }
 
 // handleJoinRoom syncs hub state after a DB-first member add.
@@ -181,11 +182,17 @@ func (h *Hub) handleJoinRoom(req RoomMembersChangeRequest) {
 	if newUser := h.getUser(req.UserFP); newUser != nil {
 		room.Users[newUser.Fingerprint] = newUser
 		room.MemberPublicKeys[newUser.Fingerprint] = newUser.X25519PublicKey // prefer live key
-		h.logg.Debug("user joined room in hub", zap.String("fingerprint", req.UserFP))
+		h.logg.Debug("member joined room (online)", zap.String("roomID", req.RoomID), zap.String("memberFP", req.UserFP), zap.Int("onlineCount", len(room.Users)))
+	} else {
+		h.logg.Debug("member added to room (offline)", zap.String("roomID", req.RoomID), zap.String("memberFP", req.UserFP))
 	}
 
+	prevCreator := room.KeyCreatorFP
 	room.Epoch = req.NewEpoch
 	room.KeyCreatorFP = req.NewKeyCreatorFP
+	if prevCreator != req.NewKeyCreatorFP {
+		h.logg.Debug("key creator changed on member join", zap.String("roomID", req.RoomID), zap.String("from", prevCreator), zap.String("to", req.NewKeyCreatorFP), zap.Int64("epoch", req.NewEpoch))
+	}
 
 	// Broadcast rotation WS; DB already updated so no event emission.
 	h.broadcastRotation(room, false)
@@ -234,7 +241,7 @@ func (h *Hub) handleRestoreRoom(req RestoreRoomRequest) {
 			MemberModes:      make(map[string]models.UserMode),
 		}
 		h.Rooms[req.RoomID] = room
-		h.logg.Debug("room activated into hub", zap.String("roomID", req.RoomID))
+		h.logg.Info("room restored into hub", zap.String("roomID", req.RoomID), zap.String("roomName", req.RoomName), zap.Int("activeRooms", len(h.Rooms)))
 	}
 	for _, m := range req.Members {
 		room.MemberPublicKeys[m.FP] = m.X25519PublicKey
@@ -244,6 +251,7 @@ func (h *Hub) handleRestoreRoom(req RestoreRoomRequest) {
 			room.MemberPublicKeys[u.Fingerprint] = u.X25519PublicKey // prefer live key
 		}
 	}
+	h.logg.Debug("room restored: member slots populated", zap.String("roomID", req.RoomID), zap.Int("totalMembers", len(req.Members)), zap.Int("onlineMembers", len(room.Users)), zap.Bool("hasPendingRotation", req.HasPendingRotation))
 
 	if req.HasPendingRotation && h.getUser(req.KeyCreatorFP) != nil {
 		// Key creator is now online — broadcast rotation so they can submit the epoch key.
@@ -341,15 +349,18 @@ func (h *Hub) handleRemoveFromRoom(req RemoveFromRoomRequest) {
 
 	if req.Deleted {
 		delete(h.Rooms, req.RoomID)
+		h.logg.Info("room removed from hub (deleted)", zap.String("roomID", req.RoomID), zap.Int("activeRooms", len(h.Rooms)))
 		return
 	}
 
 	delete(room.Users, req.MemberFP)
 	delete(room.MemberPublicKeys, req.MemberFP)
 	delete(room.MemberModes, req.MemberFP)
+	h.logg.Debug("member removed from room in hub", zap.String("roomID", req.RoomID), zap.String("memberFP", req.MemberFP), zap.Int("onlineCount", len(room.Users)))
 
 	// Update host if it changed.
 	if req.NewHostFP != "" && req.NewHostFP != room.HostFP {
+		h.logg.Debug("host transferred in hub", zap.String("roomID", req.RoomID), zap.String("from", room.HostFP), zap.String("to", req.NewHostFP))
 		room.HostFP = req.NewHostFP
 		if u := h.getUser(req.NewHostFP); u != nil {
 			room.Host = u
@@ -360,11 +371,16 @@ func (h *Hub) handleRemoveFromRoom(req RemoveFromRoomRequest) {
 		}
 	}
 
+	prevCreator := room.KeyCreatorFP
 	room.Epoch = req.NewEpoch
 	room.KeyCreatorFP = req.NewKeyCreatorFP
+	if prevCreator != req.NewKeyCreatorFP {
+		h.logg.Debug("key creator changed on member remove", zap.String("roomID", req.RoomID), zap.String("from", prevCreator), zap.String("to", req.NewKeyCreatorFP), zap.Int64("epoch", req.NewEpoch))
+	}
 
 	if len(room.Users) == 0 {
 		delete(h.Rooms, req.RoomID)
+		h.logg.Info("room went offline (no online members after remove)", zap.String("roomID", req.RoomID), zap.Int("activeRooms", len(h.Rooms)))
 		return
 	}
 
@@ -493,10 +509,13 @@ func (h *Hub) sendRotationToUser(u *User, room *Room) {
 func (h *Hub) handleEpochKeysSubmitted(req EpochKeysSubmittedRequest) {
 	room := h.getRoom(req.RoomID)
 	if room == nil {
+		h.logg.Debug("epoch keys submitted but room not in hub, skipping delivery", zap.String("roomID", req.RoomID), zap.Int64("epoch", req.Epoch))
 		return
 	}
 	room.PendingRotation = nil
+	h.logg.Debug("pending rotation cleared", zap.String("roomID", req.RoomID), zap.Int64("epoch", req.Epoch))
 
+	delivered := 0
 	for _, entry := range req.Keys {
 		u := h.getUser(entry.RecipientFP)
 		if u == nil {
@@ -518,7 +537,9 @@ func (h *Hub) handleEpochKeysSubmitted(req EpochKeysSubmittedRequest) {
 			continue
 		}
 		h.sendToUser(u, envelope)
+		delivered++
 	}
+	h.logg.Debug("epoch key slots delivered to online members", zap.String("roomID", req.RoomID), zap.Int64("epoch", req.Epoch), zap.Int("delivered", delivered), zap.Int("total", len(req.Keys)))
 }
 
 // sendToUser delivers a message to a specific user's outgoing channel non-blocking.
