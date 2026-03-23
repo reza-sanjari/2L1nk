@@ -70,12 +70,18 @@ func roomHostInfo(room *Room) RoomMemberInfo {
 	return info
 }
 
-// keyCreatorFP returns the current key creator fingerprint, falling back to HostFP.
+// keyCreatorFP returns the current key creator fingerprint.
 func keyCreatorFP(room *Room) string {
 	if room.PendingRotation != nil {
 		return room.PendingRotation.KeyCreatorFP
 	}
-	return room.HostFP
+	return room.KeyCreatorFP
+}
+
+// IsUserOnline reports whether the given fingerprint has an active WS connection.
+func (h *Hub) IsUserOnline(fp string) bool {
+	_, ok := h.Users[fp]
+	return ok
 }
 
 func (h *Hub) GetRoom(roomID string) *UserRoomInfo {

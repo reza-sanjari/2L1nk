@@ -9,6 +9,7 @@ type RoomRecord struct {
 	ID           string
 	Name         string
 	CurrentEpoch int64
+	HostFP       string // empty string when NULL in DB
 	KeyCreatorFP string // empty string when NULL in DB
 	CreatedAt    int64
 }
@@ -22,13 +23,16 @@ func NewRoomRepository(db *sql.DB) *RoomRepository {
 }
 
 func (r *RoomRepository) Create(room *RoomRecord) error {
-	var keyCreatorFP interface{}
+	var hostFP, keyCreatorFP interface{}
+	if room.HostFP != "" {
+		hostFP = room.HostFP
+	}
 	if room.KeyCreatorFP != "" {
 		keyCreatorFP = room.KeyCreatorFP
 	}
 	_, err := r.db.Exec(
-		`INSERT INTO rooms (id, name, current_epoch, key_creator_fp, created_at) VALUES (?, ?, ?, ?, ?)`,
-		room.ID, room.Name, room.CurrentEpoch, keyCreatorFP, room.CreatedAt,
+		`INSERT INTO rooms (id, name, current_epoch, host_fp, key_creator_fp, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+		room.ID, room.Name, room.CurrentEpoch, hostFP, keyCreatorFP, room.CreatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("create room: %w", err)
@@ -39,18 +43,19 @@ func (r *RoomRepository) Create(room *RoomRecord) error {
 // GetByID returns the room with the given ID, or nil if not found.
 func (r *RoomRepository) GetByID(roomID string) (*RoomRecord, error) {
 	row := r.db.QueryRow(
-		`SELECT id, name, current_epoch, key_creator_fp, created_at FROM rooms WHERE id = ?`,
+		`SELECT id, name, current_epoch, host_fp, key_creator_fp, created_at FROM rooms WHERE id = ?`,
 		roomID,
 	)
 	rec := &RoomRecord{}
-	var keyCreatorFP sql.NullString
-	err := row.Scan(&rec.ID, &rec.Name, &rec.CurrentEpoch, &keyCreatorFP, &rec.CreatedAt)
+	var hostFP, keyCreatorFP sql.NullString
+	err := row.Scan(&rec.ID, &rec.Name, &rec.CurrentEpoch, &hostFP, &keyCreatorFP, &rec.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get room by id: %w", err)
 	}
+	rec.HostFP = hostFP.String
 	rec.KeyCreatorFP = keyCreatorFP.String
 	return rec, nil
 }
@@ -58,7 +63,7 @@ func (r *RoomRepository) GetByID(roomID string) (*RoomRecord, error) {
 // GetRoomsByMember returns all rooms a user is a member of.
 func (r *RoomRepository) GetRoomsByMember(fp string) ([]*RoomRecord, error) {
 	rows, err := r.db.Query(
-		`SELECT r.id, r.name, r.current_epoch, r.key_creator_fp, r.created_at
+		`SELECT r.id, r.name, r.current_epoch, r.host_fp, r.key_creator_fp, r.created_at
 		 FROM rooms r
 		 JOIN room_members rm ON r.id = rm.room_id
 		 WHERE rm.member_fp = ?`,
@@ -72,10 +77,11 @@ func (r *RoomRepository) GetRoomsByMember(fp string) ([]*RoomRecord, error) {
 	var rooms []*RoomRecord
 	for rows.Next() {
 		rec := &RoomRecord{}
-		var keyCreatorFP sql.NullString
-		if err := rows.Scan(&rec.ID, &rec.Name, &rec.CurrentEpoch, &keyCreatorFP, &rec.CreatedAt); err != nil {
+		var hostFP, keyCreatorFP sql.NullString
+		if err := rows.Scan(&rec.ID, &rec.Name, &rec.CurrentEpoch, &hostFP, &keyCreatorFP, &rec.CreatedAt); err != nil {
 			return nil, err
 		}
+		rec.HostFP = hostFP.String
 		rec.KeyCreatorFP = keyCreatorFP.String
 		rooms = append(rooms, rec)
 	}
@@ -127,16 +133,38 @@ func (r *RoomRepository) Delete(roomID string) error {
 	return nil
 }
 
-// UpdateHost sets a new key_creator_fp for the room.
-func (r *RoomRepository) UpdateHost(roomID, newHostFP string) error {
+// UpdateHostFP sets a new host_fp for the room.
+func (r *RoomRepository) UpdateHostFP(roomID, newHostFP string) error {
 	_, err := r.db.Exec(
-		`UPDATE rooms SET key_creator_fp = ? WHERE id = ?`,
+		`UPDATE rooms SET host_fp = ? WHERE id = ?`,
 		newHostFP, roomID,
 	)
 	if err != nil {
-		return fmt.Errorf("update room host: %w", err)
+		return fmt.Errorf("update room host_fp: %w", err)
 	}
 	return nil
+}
+
+// DeleteKeySlots removes all epoch key slots for a room.
+func (r *RoomRepository) DeleteKeySlots(roomID string) error {
+	_, err := r.db.Exec(`DELETE FROM room_key_slots WHERE room_id = ?`, roomID)
+	if err != nil {
+		return fmt.Errorf("delete key slots: %w", err)
+	}
+	return nil
+}
+
+// HasKeySlots reports whether any key slots exist for the given room and epoch.
+func (r *RoomRepository) HasKeySlots(roomID string, epoch int64) (bool, error) {
+	var count int
+	err := r.db.QueryRow(
+		`SELECT COUNT(*) FROM room_key_slots WHERE room_id = ? AND epoch = ? LIMIT 1`,
+		roomID, epoch,
+	).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("has key slots: %w", err)
+	}
+	return count > 0, nil
 }
 
 // AddMember conditionally inserts the member into room_members.

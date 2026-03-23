@@ -24,6 +24,8 @@ type submitEpochKeysRequest struct {
 
 // SubmitEpochKeys handles POST /rooms/:room_id/epoch-keys.
 // Called by the key creator after generating and encrypting the new room key for each member.
+// Validates against DB state (caller must be key_creator_fp, epoch must match current_epoch,
+// and no slots may already exist for this epoch).
 func (h *Handler) SubmitEpochKeys(c echo.Context) error {
 	roomID := c.Param("room_id")
 	caller := c.Get("user").(*session.User)
@@ -36,16 +38,26 @@ func (h *Handler) SubmitEpochKeys(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "keys must not be empty"})
 	}
 
-	// Validate against hub state (room must exist and caller must be the pending key creator).
-	pending := h.hub.GetPendingRotation(roomID)
-	if pending == nil {
-		return c.JSON(http.StatusConflict, map[string]string{"error": "no pending rotation for this room"})
+	// Validate against DB state.
+	room, err := h.services.Room.GetRoomByID(roomID)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 	}
-	if pending.KeyCreatorFP != caller.PublicKeyFingerprint {
+	if room == nil {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "room not found"})
+	}
+	if room.KeyCreatorFP != caller.PublicKeyFingerprint {
 		return c.JSON(http.StatusForbidden, map[string]string{"error": "caller is not the key creator for this epoch"})
 	}
-	if pending.Epoch != req.Epoch {
+	if room.CurrentEpoch != req.Epoch {
 		return c.JSON(http.StatusConflict, map[string]string{"error": "epoch mismatch"})
+	}
+	already, err := h.services.Room.HasKeySlots(roomID, req.Epoch)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+	}
+	if already {
+		return c.JSON(http.StatusConflict, map[string]string{"error": "epoch keys already submitted"})
 	}
 
 	// Decode and store key slots for persistent members.

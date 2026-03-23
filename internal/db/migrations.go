@@ -39,6 +39,7 @@ func RunMigrations(database *sql.DB) error {
 			id              TEXT    PRIMARY KEY,
 			name            TEXT,
 			current_epoch   INTEGER NOT NULL DEFAULT 0,
+			host_fp         TEXT,
 			key_creator_fp  TEXT,
 			created_at      INTEGER NOT NULL
 		)`,
@@ -113,6 +114,17 @@ func RunMigrations(database *sql.DB) error {
 	if err := addColumnIfNotExists(database, "users", "x25519_public_key", "TEXT NOT NULL DEFAULT ''"); err != nil {
 		return err
 	}
+	if err := addColumnIfNotExists(database, "rooms", "host_fp", "TEXT"); err != nil {
+		return err
+	}
+	// Seed host_fp from key_creator_fp for existing rooms that have NULL host_fp.
+	// Runs as a no-op after migrateRoomsDropKeyCreatorFK (which already seeds it),
+	// but handles the case where the FK was already removed before host_fp was added.
+	if _, err := database.Exec(
+		`UPDATE rooms SET host_fp = key_creator_fp WHERE host_fp IS NULL AND key_creator_fp IS NOT NULL`,
+	); err != nil {
+		return fmt.Errorf("seed host_fp from key_creator_fp: %w", err)
+	}
 	return migrateRoomsDropKeyCreatorFK(database)
 }
 
@@ -150,10 +162,11 @@ func migrateRoomsDropKeyCreatorFK(database *sql.DB) error {
 			id              TEXT    PRIMARY KEY,
 			name            TEXT,
 			current_epoch   INTEGER NOT NULL DEFAULT 0,
+			host_fp         TEXT,
 			key_creator_fp  TEXT,
 			created_at      INTEGER NOT NULL
 		)`,
-		`INSERT INTO rooms_new SELECT id, name, current_epoch, key_creator_fp, created_at FROM rooms`,
+		`INSERT INTO rooms_new SELECT id, name, current_epoch, key_creator_fp, key_creator_fp, created_at FROM rooms`,
 		`DROP TABLE rooms`,
 		`ALTER TABLE rooms_new RENAME TO rooms`,
 	}

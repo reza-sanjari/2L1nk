@@ -85,12 +85,34 @@ func (h *Handler) Ws(c echo.Context) error {
 
 	h.hub.RegisterUser <- newUser
 
-	// Case 1: slot this user into any hub rooms they're already a DB member of
+	// Case 1: slot this user into any hub rooms they're already a DB member of.
+	// Also restore offline rooms where this user is the pending key creator.
 	if activeUser.Mode == models.UserModePersistent {
 		if dbRooms, err := h.services.Room.GetUserRooms(activeUser.PublicKeyFingerprint); err == nil {
-			for _, room := range dbRooms {
-				if h.hub.GetRoom(room.ID) != nil {
-					h.hub.AddToRoom <- hub.AddToRoomRequest{RoomID: room.ID, User: newUser}
+			for _, dbRoom := range dbRooms {
+				if h.hub.GetRoom(dbRoom.ID) != nil {
+					h.hub.AddToRoom <- hub.AddToRoomRequest{RoomID: dbRoom.ID, User: newUser}
+				} else if dbRoom.KeyCreatorFP == activeUser.PublicKeyFingerprint {
+					// Room is offline but this user is the key creator — restore it so they
+					// can receive the rotation WS if there's a pending rotation.
+					hasPending, _ := h.services.Room.HasKeySlots(dbRoom.ID, dbRoom.CurrentEpoch)
+					memberKeys, err := h.services.Room.GetMembersWithPublicKeys(dbRoom.ID)
+					if err != nil {
+						continue
+					}
+					hubMembers := make([]hub.MemberKeyInfo, len(memberKeys))
+					for i, m := range memberKeys {
+						hubMembers[i] = hub.MemberKeyInfo{FP: m.Fingerprint, X25519PublicKey: m.X25519PublicKey}
+					}
+					h.hub.RestoreRoom <- hub.RestoreRoomRequest{
+						RoomID:             dbRoom.ID,
+						RoomName:           dbRoom.Name,
+						HostFP:             dbRoom.HostFP,
+						KeyCreatorFP:       dbRoom.KeyCreatorFP,
+						Epoch:              dbRoom.CurrentEpoch,
+						Members:            hubMembers,
+						HasPendingRotation: !hasPending,
+					}
 				}
 			}
 		}
