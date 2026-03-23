@@ -9,25 +9,23 @@ import (
 )
 
 type Hub struct {
-	logg              *logger.Logger
-	s                 *session.Store
-	Rooms             map[string]*Room
-	Users             map[string]*User
-	Events            chan HubEvent
-	Broadcast         chan BroadcastRequest
-	InboundMessages   chan WSMessageEnvelope
-	RegisterRoom      chan CreateRoomRequest
-	UnregisterRoom    chan string
-	RegisterUser      chan *User
-	UnregisterUser    chan *User
-	JoinRoom          chan RoomMembersChangeRequest
-	LeaveRoom         chan RoomMembersChangeRequest
-	AddToRoom         chan AddToRoomRequest
-	RestoreRoom       chan RestoreRoomRequest
-	RemoveFromRoom    chan RemoveFromRoomRequest
-	LoadRoomAndDeliver  chan LoadRoomAndDeliverRequest
-	SendErrorToUser     chan SendErrorRequest
-	EpochKeysSubmitted  chan EpochKeysSubmittedRequest
+	logg               *logger.Logger
+	s                  *session.Store
+	Rooms              map[string]*Room
+	Users              map[string]*User
+	Events             chan HubEvent
+	Broadcast          chan BroadcastRequest
+	InboundMessages    chan WSMessageEnvelope
+	RegisterRoom       chan CreateRoomRequest
+	RegisterUser       chan *User
+	UnregisterUser     chan *User
+	JoinRoom           chan RoomMembersChangeRequest
+	AddToRoom          chan AddToRoomRequest
+	RestoreRoom        chan RestoreRoomRequest
+	RemoveFromRoom     chan RemoveFromRoomRequest
+	LoadRoomAndDeliver chan LoadRoomAndDeliverRequest
+	SendErrorToUser    chan SendErrorRequest
+	EpochKeysSubmitted chan EpochKeysSubmittedRequest
 }
 
 type RoomMembersChangeRequest struct {
@@ -48,15 +46,15 @@ type CreateRoomRequest struct {
 type Room struct {
 	Name             string
 	RoomID           string
-	Host             *User                       // live WS connection; nil when host is offline
-	HostFP           string                      // always set
-	HostName         string                      // always set when known
-	KeyCreatorFP     string                      // fingerprint of current key creator
-	Users            map[string]*User            // only active WS connections
+	Host             *User            // live WS connection; nil when host is offline
+	HostFP           string           // always set
+	HostName         string           // always set when known
+	KeyCreatorFP     string           // fingerprint of current key creator
+	Users            map[string]*User // only active WS connections
 	Epoch            int64
-	MemberPublicKeys map[string]string           // fingerprint → base64 X25519 public key (all known members)
-	MemberModes      map[string]models.UserMode  // fingerprint → mode (all known members)
-	PendingRotation  *PendingRotation            // non-nil while waiting for key creator to submit keys
+	MemberPublicKeys map[string]string          // fingerprint → base64 X25519 public key (all known members)
+	MemberModes      map[string]models.UserMode // fingerprint → mode (all known members)
+	PendingRotation  *PendingRotation           // non-nil while waiting for key creator to submit keys
 }
 
 func New(s *session.Store, logg *logger.Logger) *Hub {
@@ -69,11 +67,9 @@ func New(s *session.Store, logg *logger.Logger) *Hub {
 		Broadcast:          make(chan BroadcastRequest),
 		InboundMessages:    make(chan WSMessageEnvelope),
 		RegisterRoom:       make(chan CreateRoomRequest),
-		UnregisterRoom:     make(chan string),
 		RegisterUser:       make(chan *User),
 		UnregisterUser:     make(chan *User),
 		JoinRoom:           make(chan RoomMembersChangeRequest),
-		LeaveRoom:          make(chan RoomMembersChangeRequest),
 		AddToRoom:          make(chan AddToRoomRequest),
 		RestoreRoom:        make(chan RestoreRoomRequest),
 		RemoveFromRoom:     make(chan RemoveFromRoomRequest),
@@ -107,6 +103,9 @@ func (h *Hub) Run() {
 
 		case msg := <-h.InboundMessages:
 			h.handleInboundMessage(msg)
+
+		case req := <-h.Broadcast:
+			h.handleBroadcast(req)
 
 		case req := <-h.JoinRoom:
 			h.handleJoinRoom(req)

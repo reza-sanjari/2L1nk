@@ -120,8 +120,6 @@ func (h *Hub) handleRegisterRoom(req CreateRoomRequest) {
 	h.broadcastRotation(room, true)
 }
 
-func (h *Hub) handleUnregisterRoom(roomID string) {}
-
 func (h *Hub) handleRegisterUser(user *User) {
 	h.Users[user.Fingerprint] = user
 	h.logg.Info("user connected", zap.String("username", user.Username), zap.String("fingerprint", user.Fingerprint), zap.Int("activeUsers", len(h.Users)))
@@ -196,6 +194,8 @@ func (h *Hub) handleJoinRoom(req RoomMembersChangeRequest) {
 
 	// Broadcast rotation WS; DB already updated so no event emission.
 	h.broadcastRotation(room, false)
+	// Notify all online members that a new member has joined.
+	h.broadcastMemberJoined(room, req.UserFP, req.UserMode)
 }
 
 // handleAddToRoom adds a live user to an existing hub room with no event and no DB change.
@@ -386,6 +386,8 @@ func (h *Hub) handleRemoveFromRoom(req RemoveFromRoomRequest) {
 
 	// Broadcast rotation WS; DB already updated so no event emission.
 	h.broadcastRotation(room, false)
+	// Notify remaining online members that a member has been removed.
+	h.broadcastMemberLeft(room, req.MemberFP)
 }
 
 // selectNextByLex picks the next host or key creator using the priority:
@@ -419,6 +421,31 @@ func (h *Hub) selectNextByLex(room *Room, excludeFP string) string {
 		}
 	}
 	return ""
+}
+
+// handleBroadcast sends an arbitrary WS envelope to all online members of a room.
+// Used by external callers (HTTP handlers, event consumer) for general-purpose room notifications.
+func (h *Hub) handleBroadcast(req BroadcastRequest) {
+	data, err := json.Marshal(req.Envelope)
+	if err != nil {
+		h.logg.Error("failed to marshal broadcast envelope", zap.Error(err))
+		return
+	}
+	h.sendMessageToRoom(req.Room, data)
+}
+
+// broadcastMemberJoined notifies all online room members that a new member has joined.
+func (h *Hub) broadcastMemberJoined(room *Room, fp string, mode models.UserMode) {
+	payload, _ := json.Marshal(MemberJoinedPayload{RoomID: room.RoomID, FP: fp, Mode: mode})
+	envelope, _ := json.Marshal(WSMessageEnvelope{Type: models.JoinRoom, Payload: json.RawMessage(payload)})
+	h.sendMessageToRoom(room, envelope)
+}
+
+// broadcastMemberLeft notifies all online room members that a member has been removed.
+func (h *Hub) broadcastMemberLeft(room *Room, fp string) {
+	payload, _ := json.Marshal(MemberLeftPayload{RoomID: room.RoomID, FP: fp})
+	envelope, _ := json.Marshal(WSMessageEnvelope{Type: models.LeaveRoom, Payload: json.RawMessage(payload)})
+	h.sendMessageToRoom(room, envelope)
 }
 
 // broadcastRotation sets PendingRotation and sends a RoomKeyRotation WS message to all
