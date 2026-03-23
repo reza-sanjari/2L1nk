@@ -24,6 +24,19 @@ type MessagePayload struct {
 	Ciphertext string `json:"ciphertext"`
 }
 
+// MemberJoinedPayload is the WS payload sent to all room members when a new member joins.
+type MemberJoinedPayload struct {
+	RoomID string          `json:"room_id"`
+	FP     string          `json:"fingerprint"`
+	Mode   models.UserMode `json:"mode"`
+}
+
+// MemberLeftPayload is the WS payload sent to all room members when a member is removed.
+type MemberLeftPayload struct {
+	RoomID string `json:"room_id"`
+	FP     string `json:"fingerprint"`
+}
+
 type AddToRoomRequest struct {
 	RoomID string
 	User   *User
