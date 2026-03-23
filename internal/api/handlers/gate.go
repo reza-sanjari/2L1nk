@@ -58,25 +58,24 @@ func (h *Handler) GateAuthorize(c echo.Context) error {
 
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidGateKey) {
+			h.logg.Warn("gate authorization failed: invalid gate token", zap.String("username", req.Username))
 			return c.JSON(http.StatusUnauthorized, map[string]string{
 				"error": "invalid gate key",
 			})
 		}
 		if errors.Is(err, service.ErrUsernameTaken) {
+			h.logg.Debug("gate authorization failed: username taken", zap.String("username", req.Username))
 			return c.JSON(http.StatusConflict, map[string]string{
 				"error": "username already in use",
 			})
 		}
+		h.logg.Error("gate authorization failed: internal error", zap.String("username", req.Username), zap.Error(err))
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "internal server error",
 		})
 	}
 
-	h.logg.Info(
-		"sessionId issued",
-		zap.String("username", req.Username),
-		zap.String("sessionId", result.SessionID),
-	)
+	h.logg.Info("user authorized", zap.String("username", req.Username), zap.String("sessionId", result.SessionID), zap.Int("mode", int(req.Mode)))
 	return c.JSON(http.StatusOK, map[string]string{
 		"sessionId": result.SessionID,
 	})
