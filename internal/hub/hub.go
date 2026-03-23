@@ -2,6 +2,7 @@ package hub
 
 import (
 	"2L1nk/internal/logger"
+	"2L1nk/internal/models"
 	"2L1nk/internal/session"
 
 	"go.uber.org/zap"
@@ -30,8 +31,12 @@ type Hub struct {
 }
 
 type RoomMembersChangeRequest struct {
-	RoomID string
-	UserFP string
+	RoomID          string
+	UserFP          string
+	UserMode        models.UserMode
+	UserX25519Key   string // X25519 public key of the joining member
+	NewEpoch        int64
+	NewKeyCreatorFP string
 }
 
 type CreateRoomRequest struct {
@@ -43,13 +48,15 @@ type CreateRoomRequest struct {
 type Room struct {
 	Name             string
 	RoomID           string
-	Host             *User            // live WS connection; nil when host is offline
-	HostFP           string           // always set
-	HostName         string           // always set when known
-	Users            map[string]*User // only active WS connections
+	Host             *User                       // live WS connection; nil when host is offline
+	HostFP           string                      // always set
+	HostName         string                      // always set when known
+	KeyCreatorFP     string                      // fingerprint of current key creator
+	Users            map[string]*User            // only active WS connections
 	Epoch            int64
-	MemberPublicKeys map[string]string // fingerprint → base64 X25519 public key (all known members)
-	PendingRotation  *PendingRotation  // non-nil while waiting for key creator to submit keys
+	MemberPublicKeys map[string]string           // fingerprint → base64 X25519 public key (all known members)
+	MemberModes      map[string]models.UserMode  // fingerprint → mode (all known members)
+	PendingRotation  *PendingRotation            // non-nil while waiting for key creator to submit keys
 }
 
 func New(s *session.Store, logg *logger.Logger) *Hub {

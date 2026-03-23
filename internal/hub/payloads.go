@@ -29,24 +29,31 @@ type AddToRoomRequest struct {
 	User   *User
 }
 
-// MemberKeyInfo carries a member's fingerprint and X25519 public key.
+// MemberKeyInfo carries a member's fingerprint, X25519 public key, and mode.
 // Used when restoring rooms and in key rotation events.
 type MemberKeyInfo struct {
 	FP              string
 	X25519PublicKey string
+	Mode            models.UserMode
 }
 
 type RestoreRoomRequest struct {
-	RoomID   string
-	RoomName string
-	HostFP   string
-	Epoch    int64
-	Members  []MemberKeyInfo // hub adds online members; all carry their X25519 key
+	RoomID             string
+	RoomName           string
+	HostFP             string
+	KeyCreatorFP       string
+	Epoch              int64
+	Members            []MemberKeyInfo // hub adds online members; all carry their X25519 key
+	HasPendingRotation bool            // true if current epoch has no key slots yet
 }
 
 type RemoveFromRoomRequest struct {
-	RoomID   string
-	MemberFP string
+	RoomID          string
+	MemberFP        string
+	Deleted         bool   // true if room was deleted from DB — hub just removes from h.Rooms
+	NewEpoch        int64
+	NewKeyCreatorFP string
+	NewHostFP       string // "" if host is unchanged
 }
 
 type LoadRoomAndDeliverRequest struct {

@@ -93,9 +93,11 @@ func (h *Hub) handleRegisterRoom(req CreateRoomRequest) {
 		Host:             roomHost,
 		HostFP:           roomHost.Fingerprint,
 		HostName:         roomHost.Username,
+		KeyCreatorFP:     roomHost.Fingerprint,
 		Users:            map[string]*User{roomHost.Fingerprint: roomHost},
 		Epoch:            0,
 		MemberPublicKeys: map[string]string{roomHost.Fingerprint: roomHost.X25519PublicKey},
+		MemberModes:      map[string]models.UserMode{roomHost.Fingerprint: roomHost.Mode},
 	}
 	h.Rooms[roomID] = room
 
@@ -114,7 +116,8 @@ func (h *Hub) handleRegisterRoom(req CreateRoomRequest) {
 	})
 
 	// Broadcast epoch 0 rotation so the host can generate and submit the initial room key.
-	h.broadcastRotation(room)
+	// emitEvent=true: the event consumer will persist epoch 0 + key creator.
+	h.broadcastRotation(room, true)
 }
 
 func (h *Hub) handleUnregisterRoom(roomID string) {}
@@ -125,9 +128,9 @@ func (h *Hub) handleRegisterUser(user *User) {
 }
 
 // handleUnregisterUser removes the user from h.Users and from any hub rooms they were in.
-// If a room becomes empty after removal it is deactivated (removed from h.Rooms) but kept in DB.
-// If the user was the pending key creator for any room, a new key creator is selected and the
-// rotation event is re-broadcast (same epoch, no increment).
+// If a room becomes empty it is removed from h.Rooms (auto-offline) but kept in DB.
+// If the user was the pending key creator, a new online key creator is selected and
+// the rotation is re-broadcast for the same epoch (event emitted for DB persistence).
 func (h *Hub) handleUnregisterUser(user *User) {
 	delete(h.Users, user.Fingerprint)
 	for _, room := range h.Rooms {
@@ -135,72 +138,86 @@ func (h *Hub) handleUnregisterUser(user *User) {
 			continue
 		}
 		delete(room.Users, user.Fingerprint)
-
-		// Re-trigger rotation if this user was the pending key creator.
-		if room.PendingRotation != nil && room.PendingRotation.KeyCreatorFP == user.Fingerprint && len(room.Users) > 0 {
-			h.logg.Debug("key creator disconnected mid-rotation, re-triggering",
-				zap.String("roomID", room.RoomID),
-				zap.Int64("epoch", room.Epoch),
-			)
-			h.broadcastRotation(room) // same epoch, new key creator selected
-		}
+		delete(room.MemberPublicKeys, user.Fingerprint)
+		delete(room.MemberModes, user.Fingerprint)
 
 		if len(room.Users) == 0 {
 			delete(h.Rooms, room.RoomID)
+			continue
+		}
+
+		// Re-assign key creator if this user was the pending key creator.
+		if room.PendingRotation != nil && room.PendingRotation.KeyCreatorFP == user.Fingerprint {
+			newCreator := h.selectNextByLex(room, user.Fingerprint)
+			if newCreator != "" {
+				room.KeyCreatorFP = newCreator
+				h.logg.Debug("key creator reassigned on disconnect",
+					zap.String("roomID", room.RoomID),
+					zap.String("newCreator", newCreator),
+				)
+				h.broadcastRotation(room, true) // same epoch, emit event for DB update
+			}
 		}
 	}
 	h.logg.Info("user disconnected", zap.String("username", user.Username), zap.String("fingerprint", user.Fingerprint))
 }
 
-// handleJoinRoom adds a user to a hub room and emits MemberJoined for DB persistence.
-// Ownership verification is done at the HTTP handler level before sending this command.
-// Triggers key rotation so the new member gets the current epoch key.
+// handleJoinRoom syncs hub state after a DB-first member add.
+// The DB has already been updated; this just updates hub state and broadcasts the rotation WS.
 func (h *Hub) handleJoinRoom(req RoomMembersChangeRequest) {
 	room := h.getRoom(req.RoomID)
 	if room == nil {
-		h.logg.Debug("join room failed: room not found in hub", zap.String("roomID", req.RoomID))
+		// Room is offline — nothing to sync. DB is already updated.
+		h.logg.Debug("join room hub sync skipped: room not in hub", zap.String("roomID", req.RoomID))
 		return
 	}
-	var memberMode models.UserMode
+
+	// Add to MemberPublicKeys and MemberModes regardless of online status.
+	if req.UserX25519Key != "" {
+		room.MemberPublicKeys[req.UserFP] = req.UserX25519Key
+	}
+	room.MemberModes[req.UserFP] = req.UserMode
+
 	if newUser := h.getUser(req.UserFP); newUser != nil {
 		room.Users[newUser.Fingerprint] = newUser
-		room.MemberPublicKeys[newUser.Fingerprint] = newUser.X25519PublicKey
-		memberMode = newUser.Mode
-		h.logg.Debug("user joined", zap.String("fingerprint", req.UserFP))
-	} else {
-		// User is offline but still gets a slot in MemberPublicKeys from a previous cache entry.
-		// The key will be included in the rotation event for offline delivery via room_key_slots.
-		h.logg.Debug("joining user is offline", zap.String("fingerprint", req.UserFP))
+		room.MemberPublicKeys[newUser.Fingerprint] = newUser.X25519PublicKey // prefer live key
+		h.logg.Debug("user joined room in hub", zap.String("fingerprint", req.UserFP))
 	}
-	h.emit(HubEvent{
-		Type: HubEventMemberJoined,
-		Payload: MemberJoinedPayload{
-			RoomID:     req.RoomID,
-			MemberFP:   req.UserFP,
-			MemberMode: memberMode,
-			JoinedAt:   time.Now().Unix(),
-		},
-	})
-	h.triggerRotation(room)
+
+	room.Epoch = req.NewEpoch
+	room.KeyCreatorFP = req.NewKeyCreatorFP
+
+	// Broadcast rotation WS; DB already updated so no event emission.
+	h.broadcastRotation(room, false)
 }
 
 // handleAddToRoom adds a live user to an existing hub room with no event and no DB change.
 // Used on WS connect (Case 1) to slot the user into rooms already active in the hub.
+// If the user is the pending key creator, re-sends the rotation WS to them.
 func (h *Hub) handleAddToRoom(req AddToRoomRequest) {
-	if room := h.getRoom(req.RoomID); room != nil {
-		room.Users[req.User.Fingerprint] = req.User
-		room.MemberPublicKeys[req.User.Fingerprint] = req.User.X25519PublicKey
-		h.logg.Debug("user added to active room on connect", zap.String("roomID", req.RoomID), zap.String("user", req.User.Fingerprint))
+	room := h.getRoom(req.RoomID)
+	if room == nil {
+		return
+	}
+	room.Users[req.User.Fingerprint] = req.User
+	room.MemberPublicKeys[req.User.Fingerprint] = req.User.X25519PublicKey
+	room.MemberModes[req.User.Fingerprint] = req.User.Mode
+	h.logg.Debug("user added to active room on connect", zap.String("roomID", req.RoomID), zap.String("user", req.User.Fingerprint))
+
+	// If this user is the pending key creator, resend the rotation WS to them.
+	if room.PendingRotation != nil && room.PendingRotation.KeyCreatorFP == req.User.Fingerprint {
+		h.sendRotationToUser(req.User, room)
 	}
 }
 
 // handleRestoreRoom creates a room entry in h.Rooms if it doesn't exist, then adds all
-// currently online members. Used when activating an offline room (Case 3 HTTP add-member).
+// currently online members. If HasPendingRotation is set and the key creator is now online,
+// broadcasts the rotation WS so they can submit the pending epoch key.
 func (h *Hub) handleRestoreRoom(req RestoreRoomRequest) {
 	room, exists := h.Rooms[req.RoomID]
 	if !exists {
 		hostPtr := h.getUser(req.HostFP)
-		hostName := req.HostFP // fallback to FP when name unavailable
+		hostName := req.HostFP
 		if hostPtr != nil {
 			hostName = hostPtr.Username
 		}
@@ -210,19 +227,28 @@ func (h *Hub) handleRestoreRoom(req RestoreRoomRequest) {
 			Host:             hostPtr,
 			HostFP:           req.HostFP,
 			HostName:         hostName,
+			KeyCreatorFP:     req.KeyCreatorFP,
 			Users:            make(map[string]*User),
 			Epoch:            req.Epoch,
 			MemberPublicKeys: make(map[string]string),
+			MemberModes:      make(map[string]models.UserMode),
 		}
 		h.Rooms[req.RoomID] = room
 		h.logg.Debug("room activated into hub", zap.String("roomID", req.RoomID))
 	}
 	for _, m := range req.Members {
 		room.MemberPublicKeys[m.FP] = m.X25519PublicKey
+		room.MemberModes[m.FP] = m.Mode
 		if u := h.getUser(m.FP); u != nil {
 			room.Users[u.Fingerprint] = u
 			room.MemberPublicKeys[u.Fingerprint] = u.X25519PublicKey // prefer live key
 		}
+	}
+
+	if req.HasPendingRotation && h.getUser(req.KeyCreatorFP) != nil {
+		// Key creator is now online — broadcast rotation so they can submit the epoch key.
+		// DB is already correct (epoch and key_creator_fp set), so no event needed.
+		h.broadcastRotation(room, false)
 	}
 }
 
@@ -242,15 +268,18 @@ func (h *Hub) handleLoadRoomAndDeliver(req LoadRoomAndDeliverRequest) {
 			Host:             hostPtr,
 			HostFP:           req.HostFP,
 			HostName:         hostName,
+			KeyCreatorFP:     req.HostFP,
 			Users:            make(map[string]*User),
 			Epoch:            req.Epoch,
 			MemberPublicKeys: make(map[string]string),
+			MemberModes:      make(map[string]models.UserMode),
 		}
 		h.Rooms[req.RoomID] = room
 		h.logg.Debug("room loaded into hub for message delivery", zap.String("roomID", req.RoomID))
 	}
 	for _, m := range req.Members {
 		room.MemberPublicKeys[m.FP] = m.X25519PublicKey
+		room.MemberModes[m.FP] = m.Mode
 		if u := h.getUser(m.FP); u != nil {
 			room.Users[u.Fingerprint] = u
 			room.MemberPublicKeys[u.Fingerprint] = u.X25519PublicKey
@@ -302,101 +331,87 @@ func (h *Hub) handleSendErrorToUser(req SendErrorRequest) {
 	}
 }
 
-// handleRemoveFromRoom removes a member from a hub room and emits the appropriate events.
-// - Always emits MemberRemoved (for DB removal).
-// - If room becomes empty and removed member was the host: also emits RoomDeleted (full DB deletion).
-// - If room becomes empty and removed member was not the host: just deactivates room (keeps in DB).
-// - If others remain and removed member was the host: transfers host randomly.
-// - Triggers key rotation so the removed member cannot decrypt future messages.
+// handleRemoveFromRoom syncs hub state after a DB-first member remove.
+// The DB has already been updated; this just updates hub state and optionally broadcasts rotation.
 func (h *Hub) handleRemoveFromRoom(req RemoveFromRoomRequest) {
 	room := h.getRoom(req.RoomID)
 	if room == nil {
 		return
 	}
 
-	wasHost := req.MemberFP == room.HostFP
-	delete(room.Users, req.MemberFP)
-	delete(room.MemberPublicKeys, req.MemberFP) // removed member must not receive the new key
+	if req.Deleted {
+		delete(h.Rooms, req.RoomID)
+		return
+	}
 
-	h.emit(HubEvent{
-		Type:    HubEventMemberRemoved,
-		Payload: MemberRemovedPayload{RoomID: req.RoomID, MemberFP: req.MemberFP},
-	})
+	delete(room.Users, req.MemberFP)
+	delete(room.MemberPublicKeys, req.MemberFP)
+	delete(room.MemberModes, req.MemberFP)
+
+	// Update host if it changed.
+	if req.NewHostFP != "" && req.NewHostFP != room.HostFP {
+		room.HostFP = req.NewHostFP
+		if u := h.getUser(req.NewHostFP); u != nil {
+			room.Host = u
+			room.HostName = u.Username
+		} else {
+			room.Host = nil
+			room.HostName = req.NewHostFP
+		}
+	}
+
+	room.Epoch = req.NewEpoch
+	room.KeyCreatorFP = req.NewKeyCreatorFP
 
 	if len(room.Users) == 0 {
 		delete(h.Rooms, req.RoomID)
-		if wasHost {
-			h.emit(HubEvent{
-				Type:    HubEventRoomDeleted,
-				Payload: RoomDeletedPayload{RoomID: req.RoomID},
-			})
-		}
 		return
 	}
 
-	if wasHost {
-		h.transferHostRandom(room)
-	}
-	h.triggerRotation(room)
+	// Broadcast rotation WS; DB already updated so no event emission.
+	h.broadcastRotation(room, false)
 }
 
-// transferHostRandom picks a random active member as the new host, updates the room, and emits HostTransferred.
-func (h *Hub) transferHostRandom(room *Room) {
-	for _, u := range room.Users {
-		room.Host = u
-		room.HostFP = u.Fingerprint
-		room.HostName = u.Username
-		h.emit(HubEvent{
-			Type:    HubEventHostTransferred,
-			Payload: HostTransferredPayload{RoomID: room.RoomID, NewHostFP: u.Fingerprint},
-		})
-		h.logg.Debug("host transferred", zap.String("roomID", room.RoomID), zap.String("newHost", u.Fingerprint))
-		return
-	}
-}
-
-// selectKeyCreator returns the fingerprint of the member who should generate the next epoch key.
-// Priority: host (if online) > lex lowest persistent online member > lex lowest ephemeral online member.
-func (h *Hub) selectKeyCreator(room *Room) string {
-	if _, ok := room.Users[room.HostFP]; ok {
-		return room.HostFP
-	}
-	var persistentFPs []string
-	for fp, u := range room.Users {
-		if u.Mode == models.UserModePersistent {
-			persistentFPs = append(persistentFPs, fp)
+// selectNextByLex picks the next host or key creator using the priority:
+// online persistent lex lowest → online ephemeral lex lowest →
+// offline persistent lex lowest → offline ephemeral lex lowest.
+// Excludes excludeFP. Uses room.Users for online status and room.MemberModes for mode info.
+func (h *Hub) selectNextByLex(room *Room, excludeFP string) string {
+	var onlinePersistent, onlineEphemeral, offlinePersistent, offlineEphemeral []string
+	for fp, mode := range room.MemberModes {
+		if fp == excludeFP {
+			continue
+		}
+		if _, online := room.Users[fp]; online {
+			if mode == models.UserModePersistent {
+				onlinePersistent = append(onlinePersistent, fp)
+			} else {
+				onlineEphemeral = append(onlineEphemeral, fp)
+			}
+		} else {
+			if mode == models.UserModePersistent {
+				offlinePersistent = append(offlinePersistent, fp)
+			} else {
+				offlineEphemeral = append(offlineEphemeral, fp)
+			}
 		}
 	}
-	if len(persistentFPs) > 0 {
-		sort.Strings(persistentFPs)
-		return persistentFPs[0]
-	}
-	var fps []string
-	for fp := range room.Users {
-		fps = append(fps, fp)
-	}
-	if len(fps) > 0 {
-		sort.Strings(fps)
-		return fps[0]
+	for _, bucket := range [][]string{onlinePersistent, onlineEphemeral, offlinePersistent, offlineEphemeral} {
+		if len(bucket) > 0 {
+			sort.Strings(bucket)
+			return bucket[0]
+		}
 	}
 	return ""
 }
 
-// triggerRotation increments the room epoch and broadcasts a key rotation event.
-func (h *Hub) triggerRotation(room *Room) {
-	room.Epoch++
-	h.broadcastRotation(room)
-}
-
-// broadcastRotation selects a key creator, sets PendingRotation, and sends RoomKeyRotationEvent
-// to all online members. Does NOT increment the epoch — call triggerRotation for that.
-// Also emits HubEventKeyRotationTriggered for DB persistence.
-func (h *Hub) broadcastRotation(room *Room) {
-	keyCreator := h.selectKeyCreator(room)
-
+// broadcastRotation sets PendingRotation and sends a RoomKeyRotation WS message to all
+// online members. Uses room.KeyCreatorFP as the key creator (caller must set it first).
+// If emitEvent is true, emits HubEventKeyRotationTriggered for DB persistence.
+func (h *Hub) broadcastRotation(room *Room, emitEvent bool) {
 	room.PendingRotation = &PendingRotation{
 		Epoch:        room.Epoch,
-		KeyCreatorFP: keyCreator,
+		KeyCreatorFP: room.KeyCreatorFP,
 		TriggeredAt:  time.Now(),
 	}
 
@@ -414,7 +429,7 @@ func (h *Hub) broadcastRotation(room *Room) {
 	payloadBytes, err := json.Marshal(RoomKeyRotationPayload{
 		RoomID:       room.RoomID,
 		Epoch:        room.Epoch,
-		KeyCreatorFP: keyCreator,
+		KeyCreatorFP: room.KeyCreatorFP,
 		Members:      members,
 	})
 	if err != nil {
@@ -431,14 +446,46 @@ func (h *Hub) broadcastRotation(room *Room) {
 	}
 	h.sendMessageToRoom(room, envelope)
 
-	h.emit(HubEvent{
-		Type: HubEventKeyRotationTriggered,
-		Payload: KeyRotationTriggeredPayload{
-			RoomID:       room.RoomID,
-			Epoch:        room.Epoch,
-			KeyCreatorFP: keyCreator,
-		},
+	if emitEvent {
+		h.emit(HubEvent{
+			Type: HubEventKeyRotationTriggered,
+			Payload: KeyRotationTriggeredPayload{
+				RoomID:       room.RoomID,
+				Epoch:        room.Epoch,
+				KeyCreatorFP: room.KeyCreatorFP,
+			},
+		})
+	}
+}
+
+// sendRotationToUser delivers a rotation WS message to one specific user.
+// Used when the key creator reconnects mid-rotation.
+func (h *Hub) sendRotationToUser(u *User, room *Room) {
+	// Refresh online member keys.
+	for fp, online := range room.Users {
+		room.MemberPublicKeys[fp] = online.X25519PublicKey
+	}
+	members := make([]MemberWithKey, 0, len(room.MemberPublicKeys))
+	for fp, key := range room.MemberPublicKeys {
+		members = append(members, MemberWithKey{Fingerprint: fp, X25519PublicKey: key})
+	}
+	payloadBytes, err := json.Marshal(RoomKeyRotationPayload{
+		RoomID:       room.RoomID,
+		Epoch:        room.Epoch,
+		KeyCreatorFP: room.KeyCreatorFP,
+		Members:      members,
 	})
+	if err != nil {
+		return
+	}
+	envelope, err := json.Marshal(WSMessageEnvelope{
+		Type:    models.KeyRotation,
+		Payload: json.RawMessage(payloadBytes),
+	})
+	if err != nil {
+		return
+	}
+	h.sendToUser(u, envelope)
 }
 
 // handleEpochKeysSubmitted is called after the key creator submits encrypted keys via HTTP.
