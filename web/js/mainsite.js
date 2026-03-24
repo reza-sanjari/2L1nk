@@ -3,6 +3,7 @@ let socket;
 let roomList = [];
 let gefilterteListe = [];
 let currentRoomId = null;
+let currentRoomEpoch = 0;
 const pendingSent = new Set(); // eigene gesendete Nachrichten (roomId:ciphertext) — verhindert Echo-Duplikate
 
 // ============================================================
@@ -153,6 +154,27 @@ function connectLocalChat() {
     socket.onmessage = (event) => {
         const envelope = JSON.parse(event.data);
 
+        if (envelope.type === "join_room" || envelope.type === "leave_room") {
+            fetchRooms();
+            return;
+        }
+
+        if (envelope.type === "room_key_rotation") {
+            const p = envelope.payload;
+            if (p && p.room_id === currentRoomId) {
+                currentRoomEpoch = p.epoch;
+            }
+            return;
+        }
+
+        if (envelope.type === "epoch_mismatch") {
+            const p = envelope.payload;
+            if (p && p.room_id === currentRoomId) {
+                currentRoomEpoch = p.current_epoch;
+            }
+            return;
+        }
+
         if (envelope.type === "message") {
             const payload = envelope.payload;
 
@@ -181,7 +203,6 @@ function connectLocalChat() {
 }
 async function fetchRooms() {
 
-    console.log("Daten erfolgreich fetch:");
     const timestamp = Math.floor(Date.now() / 1000);
     const path = '/api/users/me/rooms';
 
@@ -204,7 +225,6 @@ async function fetchRooms() {
         }
 
         roomList = (await response.json()).rooms ?? [];
-        console.log("Räume geladen:", roomList);
         renderFunc(roomList);
 
     } catch (error) {
@@ -222,10 +242,10 @@ function searchfunction(event) {
             room.name.toLowerCase().includes(searchTerm);
     });
     renderFunc(gefilterteListe);
-    console.log("Daten erfolgreich geladen:", gefilterteListe);
 }
 function clickroom(room) {
     currentRoomId = room.room_id;
+    currentRoomEpoch = room.epoch ?? 0;
 
     const maininfo = document.querySelector('.maininfo');
     maininfo.style.display = 'none';
@@ -415,10 +435,9 @@ async function openRoomMenu(room) {
         rightList.innerHTML = '<div class="member-col-empty">Keine online User verfügbar</div>';
     } else {
         addable.forEach(u => rightList.appendChild(
-            makeRow(u.username, 'add-btn', '+ Hinzufügen', () => addMember(room.room_id, u.fingerprint))
+            makeRow(u.username, 'add-btn', '+ Hinzufügen', () => addMember(room.room_id, u))
         ));
     }
-    fetchRooms(); // aktualisiert die roomList mit den neuesten User-Infos (z.B. falls jemand gerade online gekommen ist)
 }
 
 async function authFetch(method, path, body = null) {
@@ -445,16 +464,30 @@ async function authFetch(method, path, body = null) {
     return fetch(`${path}`, opts);
 }
 
-async function addMember(roomId, fingerprint) {
-    const res = await authFetch('POST', `/api/rooms/${roomId}/users`, { users: [fingerprint] });
-    if (res.ok) { await fetchRooms(); const room = roomList.find(r => r.room_id === roomId); if (room) openRoomMenu(room); }
-    else alert('Fehler beim Hinzufügen');
+async function addMember(roomId, user) {
+    const res = await authFetch('POST', `/api/rooms/${roomId}/users/${user.fingerprint}`);
+    if (res.ok) {
+        await fetchRooms();
+        const idx = roomList.findIndex(r => r.room_id === roomId);
+        if (idx >= 0 && !roomList[idx].users?.some(u => u.fingerprint === user.fingerprint)) {
+            roomList[idx] = { ...roomList[idx], users: [...(roomList[idx].users ?? []), user] };
+        }
+        const room = roomList.find(r => r.room_id === roomId);
+        if (room) openRoomMenu(room);
+    } else alert('Fehler beim Hinzufügen');
 }
 
 async function removeMember(roomId, fingerprint) {
-    const res = await authFetch('DELETE', `/api/rooms/${roomId}/users`, { user_fp: fingerprint });
-    if (res.ok) { await fetchRooms(); const room = roomList.find(r => r.room_id === roomId); if (room) openRoomMenu(room); }
-    else alert('Fehler beim Entfernen');
+    const res = await authFetch('DELETE', `/api/rooms/${roomId}/users/${fingerprint}`);
+    if (res.ok) {
+        await fetchRooms();
+        const idx = roomList.findIndex(r => r.room_id === roomId);
+        if (idx >= 0) {
+            roomList[idx] = { ...roomList[idx], users: (roomList[idx].users ?? []).filter(u => u.fingerprint !== fingerprint) };
+        }
+        const room = roomList.find(r => r.room_id === roomId);
+        if (room) openRoomMenu(room);
+    } else alert('Fehler beim Entfernen');
 }
 function sendMessage(roomID) {
     const ciphertext = document.getElementById('schreibnachricht').value;
@@ -465,7 +498,7 @@ function sendMessage(roomID) {
             "type": "message",
             "payload": {
                 "room_id": roomID,
-                "epoch": 0,
+                "epoch": currentRoomEpoch,
                 "ciphertext": ciphertext
             }
         };
@@ -564,7 +597,7 @@ async function newChat(groupName) {
         // 3. Signatur erzeugen
         const signature = AppCrypto.sign(canonical);
 
-        console.log("Sende Request mit Canonical:", canonical); // Zum Debuggen mit Go-Log vergleichen
+       
 
         const response = await fetch(`${path}`, {
             method: 'POST',
