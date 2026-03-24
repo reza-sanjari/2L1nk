@@ -16,7 +16,8 @@ const (
 	LeaveRoom     WSEventType = "leave_room"
 	Signal        WSEventType = "signal"
 	Error         WSEventType = "error"
-	KeyRotation   WSEventType = "room_key_rotation"
-	KeySlot       WSEventType = "room_key_slot"
-	EpochMismatch WSEventType = "epoch_mismatch"
+	KeyRotation       WSEventType = "room_key_rotation"
+	KeyRotationUpdate WSEventType = "room_key_rotation_update"
+	KeySlot           WSEventType = "room_key_slot"
+	EpochMismatch     WSEventType = "epoch_mismatch"
 )

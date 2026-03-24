@@ -17,6 +17,8 @@ func (h *Hub) handleInboundMessage(msg WSMessageEnvelope) {
 		h.handleMessageEnvelope(msg)
 	case models.Auth:
 		h.handleReAuth(msg)
+	case models.KeyRotationUpdate:
+		h.handleKeyRotationUpdate(msg)
 	default:
 		h.logg.Debug("ignoring unhandled inbound envelope type",
 			zap.String("type", string(msg.Type)),
@@ -509,7 +511,11 @@ func (h *Hub) broadcastRotation(room *Room, emitEvent bool) {
 		h.logg.Error("failed to marshal rotation envelope", zap.Error(err))
 		return
 	}
-	h.sendMessageToRoom(room, envelope)
+	// Only the key creator needs the rotation signal.
+	creator := h.getUser(room.KeyCreatorFP)
+	if creator != nil {
+		h.sendToUser(creator, envelope)
+	}
 
 	if emitEvent {
 		h.emit(HubEvent{
@@ -598,4 +604,82 @@ func (h *Hub) sendToUser(u *User, data []byte) {
 	default:
 		h.logg.Warn("outgoing channel full, dropping message to user", zap.String("userFP", u.Fingerprint))
 	}
+}
+
+// handleKeyRotationUpdate processes a room_key_rotation_update WS message from the key creator.
+// Validates the sender is the current key creator, decodes the encrypted keys, delivers them to
+// online members immediately, and emits an event for DB persistence.
+func (h *Hub) handleKeyRotationUpdate(msg WSMessageEnvelope) {
+	var raw struct {
+		RoomID string `json:"room_id"`
+		Epoch  int64  `json:"epoch"`
+		Keys   []struct {
+			RecipientFP  string `json:"recipient_fp"`
+			EncryptedKey string `json:"encrypted_key"`
+		} `json:"keys"`
+	}
+	if err := json.Unmarshal(msg.Payload, &raw); err != nil {
+		h.logg.Debug("handleKeyRotationUpdate: failed to unmarshal payload", zap.Error(err))
+		return
+	}
+
+	room := h.getRoom(raw.RoomID)
+	if room == nil {
+		h.logg.Debug("handleKeyRotationUpdate: room not in hub", zap.String("roomID", raw.RoomID))
+		return
+	}
+
+	if room.PendingRotation == nil {
+		h.logg.Debug("handleKeyRotationUpdate: no pending rotation", zap.String("roomID", raw.RoomID))
+		return
+	}
+	if room.PendingRotation.KeyCreatorFP != msg.Sender.Fingerprint {
+		h.logg.Warn("handleKeyRotationUpdate: sender is not the key creator",
+			zap.String("roomID", raw.RoomID),
+			zap.String("senderFP", msg.Sender.Fingerprint),
+			zap.String("keyCreatorFP", room.PendingRotation.KeyCreatorFP),
+		)
+		return
+	}
+	if room.PendingRotation.Epoch != raw.Epoch {
+		h.logg.Debug("handleKeyRotationUpdate: epoch mismatch",
+			zap.String("roomID", raw.RoomID),
+			zap.Int64("pendingEpoch", room.PendingRotation.Epoch),
+			zap.Int64("receivedEpoch", raw.Epoch),
+		)
+		return
+	}
+
+	entries := make([]KeySlotEntry, 0, len(raw.Keys))
+	for _, k := range raw.Keys {
+		decoded, err := base64.StdEncoding.DecodeString(k.EncryptedKey)
+		if err != nil {
+			h.logg.Debug("handleKeyRotationUpdate: failed to decode key for recipient", zap.String("recipientFP", k.RecipientFP), zap.Error(err))
+			continue
+		}
+		entries = append(entries, KeySlotEntry{RecipientFP: k.RecipientFP, EncryptedKey: decoded})
+	}
+
+	// Deliver to online members and clear PendingRotation.
+	h.handleEpochKeysSubmitted(EpochKeysSubmittedRequest{
+		RoomID: raw.RoomID,
+		Epoch:  raw.Epoch,
+		Keys:   entries,
+	})
+
+	// Persist key slots via event consumer.
+	h.emit(HubEvent{
+		Type: HubEventEpochKeysSubmitted,
+		Payload: EpochKeysSubmittedPayload{
+			RoomID: raw.RoomID,
+			Epoch:  raw.Epoch,
+			Keys:   entries,
+		},
+	})
+
+	h.logg.Info("key rotation update processed",
+		zap.String("roomID", raw.RoomID),
+		zap.Int64("epoch", raw.Epoch),
+		zap.Int("keyCount", len(entries)),
+	)
 }
