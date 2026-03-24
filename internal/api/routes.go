@@ -39,6 +39,7 @@ func RegisterRoutes(e *echo.Echo, h *handlers.Handler, store *session.Store) {
 	protected.DELETE("/rooms/:room_id/users/:user_fp", h.RemoveUserFromRoom)
 	protected.POST("/rooms/:room_id/epoch-keys", h.SubmitEpochKeys)
 	protected.GET("/rooms/:room_id/messages", h.GetRoomMessages)
+	protected.GET("/rooms/:room_id/key-slots", h.GetRoomKeySlots)
 	protected.GET("/users/me", h.UserInfo)
 	protected.GET("/users", h.GetAllUsers)
 	protected.GET("/users/me/rooms", h.GetUserRooms)

@@ -22,6 +22,7 @@ type RoomRepository interface {
 	UpdateEpochAndKeyCreator(roomID string, epoch int64, keyCreatorFP string) error
 	StoreKeySlots(slots []infradb.KeySlotRecord) error
 	GetKeySlotsByRecipient(recipientFP string) ([]infradb.KeySlotRecord, error)
+	GetKeySlotsByRoomAndRecipient(roomID, recipientFP string, limit, offset int) ([]infradb.KeySlotRecord, error)
 	DeleteKeySlots(roomID string) error
 	HasKeySlots(roomID string, epoch int64) (bool, error)
 }
@@ -102,6 +103,10 @@ func (s *RoomService) StoreKeySlots(slots []infradb.KeySlotRecord) error {
 
 func (s *RoomService) GetKeySlotsByRecipient(fp string) ([]infradb.KeySlotRecord, error) {
 	return s.repo.GetKeySlotsByRecipient(fp)
+}
+
+func (s *RoomService) GetKeySlotsByRoom(roomID, recipientFP string, limit, offset int) ([]infradb.KeySlotRecord, error) {
+	return s.repo.GetKeySlotsByRoomAndRecipient(roomID, recipientFP, limit, offset)
 }
 
 func (s *RoomService) GetMembersWithPublicKeys(roomID string) ([]infradb.MemberKeyInfo, error) {

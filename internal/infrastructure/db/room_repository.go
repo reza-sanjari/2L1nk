@@ -249,6 +249,33 @@ func (r *RoomRepository) GetKeySlotsByRecipient(recipientFP string) ([]KeySlotRe
 	return slots, rows.Err()
 }
 
+// GetKeySlotsByRoomAndRecipient returns stored key slots for a specific room and user,
+// ordered by epoch descending, with limit/offset pagination.
+func (r *RoomRepository) GetKeySlotsByRoomAndRecipient(roomID, recipientFP string, limit, offset int) ([]KeySlotRecord, error) {
+	rows, err := r.db.Query(
+		`SELECT room_id, epoch, encrypted_key, created_at
+		 FROM room_key_slots
+		 WHERE room_id = ? AND recipient_fp = ?
+		 ORDER BY epoch DESC
+		 LIMIT ? OFFSET ?`,
+		roomID, recipientFP, limit, offset,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get key slots by room: %w", err)
+	}
+	defer rows.Close()
+
+	var slots []KeySlotRecord
+	for rows.Next() {
+		s := KeySlotRecord{RoomID: roomID, RecipientFP: recipientFP}
+		if err := rows.Scan(&s.RoomID, &s.Epoch, &s.EncryptedKey, &s.CreatedAt); err != nil {
+			return nil, err
+		}
+		slots = append(slots, s)
+	}
+	return slots, rows.Err()
+}
+
 // MemberKeyInfo holds a member fingerprint and their X25519 public key.
 type MemberKeyInfo struct {
 	Fingerprint     string
