@@ -45,18 +45,39 @@ func (h *Handler) GetUserRooms(c echo.Context) error {
 
 	rooms := make([]roomResponse, 0, len(dbRooms))
 	for _, dbRoom := range dbRooms {
+		members, err := h.services.Room.GetRoomMembersWithDetails(dbRoom.ID)
+		if err != nil {
+			h.logg.Error("get user rooms: failed to fetch members", zap.String("roomID", dbRoom.ID), zap.Error(err))
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		}
+
+		userList := make([]hub.RoomMemberInfo, 0, len(members))
+		for _, m := range members {
+			userList = append(userList, hub.RoomMemberInfo{
+				Fingerprint:     m.Fingerprint,
+				Username:        m.Username,
+				X25519PublicKey: m.X25519PublicKey,
+				Mode:            models.UserModePersistent,
+			})
+		}
+
 		r := roomResponse{
 			RoomID: dbRoom.ID,
 			Name:   dbRoom.Name,
 			Epoch:  dbRoom.CurrentEpoch,
 			Online: false,
+			Users:  userList,
 		}
 		if live, ok := hubMap[dbRoom.ID]; ok {
 			r.Epoch = live.Epoch
 			r.Online = true
 			host := live.Host
 			r.Host = &host
-			r.Users = live.Users
+			for _, u := range live.Users {
+				if u.Mode == models.UserModeEphemeral {
+					r.Users = append(r.Users, u)
+				}
+			}
 		}
 		rooms = append(rooms, r)
 	}

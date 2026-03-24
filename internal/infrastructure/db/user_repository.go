@@ -50,6 +50,27 @@ func (r *UserRepository) Create(u *UserRecord) error {
 	return nil
 }
 
+// GetAllUsers returns all persistent users.
+func (r *UserRepository) GetAllUsers() ([]UserRecord, error) {
+	rows, err := r.db.Query(
+		`SELECT fingerprint, public_key, x25519_public_key, username, created_at FROM users`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get all users: %w", err)
+	}
+	defer rows.Close()
+
+	var users []UserRecord
+	for rows.Next() {
+		var u UserRecord
+		if err := rows.Scan(&u.Fingerprint, &u.PublicKey, &u.X25519PublicKey, &u.Username, &u.CreatedAt); err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	return users, rows.Err()
+}
+
 // UpdateUsername overwrites the stored username for the given fingerprint.
 func (r *UserRepository) UpdateUsername(fingerprint, username string) error {
 	_, err := r.db.Exec(
