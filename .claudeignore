@@ -1,0 +1,24 @@
+# Compiled binaries
+bin/
+
+# Runtime database (binary, not useful as context)
+2L1nk.db
+*.db-shm
+*.db-wal
+
+# Node modules
+node_modules/
+
+# Go test artifacts
+*.out
+coverage.html
+
+# Go dependency checksums (not useful for code context)
+go.sum
+
+# Postman files (not relevant for code tasks)
+tests/postman/
+
+# OS files
+.DS_Store
+Thumbs.db
