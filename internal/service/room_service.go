@@ -15,6 +15,7 @@ type RoomRepository interface {
 	AddMember(roomID, memberFP string, joinedAt int64) error
 	GetMembersOfRoom(roomID string) ([]string, error)
 	GetMembersWithPublicKeys(roomID string) ([]infradb.MemberKeyInfo, error)
+	GetRoomMembersWithDetails(roomID string) ([]infradb.MemberDetailInfo, error)
 	RemoveMember(roomID, memberFP string) error
 	Delete(roomID string) error
 	UpdateHostFP(roomID, newHostFP string) error
@@ -105,6 +106,10 @@ func (s *RoomService) GetKeySlotsByRecipient(fp string) ([]infradb.KeySlotRecord
 
 func (s *RoomService) GetMembersWithPublicKeys(roomID string) ([]infradb.MemberKeyInfo, error) {
 	return s.repo.GetMembersWithPublicKeys(roomID)
+}
+
+func (s *RoomService) GetRoomMembersWithDetails(roomID string) ([]infradb.MemberDetailInfo, error) {
+	return s.repo.GetRoomMembersWithDetails(roomID)
 }
 
 func (s *RoomService) DeleteKeySlotsByRoom(roomID string) error {

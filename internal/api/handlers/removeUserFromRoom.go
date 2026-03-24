@@ -4,6 +4,7 @@ import (
 	"2L1nk/internal/hub"
 	"2L1nk/internal/session"
 	"net/http"
+	"slices"
 
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
@@ -37,6 +38,11 @@ func (h *Handler) RemoveUserFromRoom(c echo.Context) error {
 		h.logg.Error("remove user from room: failed to fetch members", zap.String("roomID", roomID), zap.Error(err))
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 	}
+	if !slices.Contains(members, memberFP) {
+		h.logg.Debug("remove user from room: user is not a member", zap.String("roomID", roomID), zap.String("memberFP", memberFP))
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "user is not a member of this room"})
+	}
+
 	isLast := len(members) <= 1
 	h.logg.Debug("remove user from room: member count checked", zap.String("roomID", roomID), zap.Int("count", len(members)), zap.Bool("isLast", isLast))
 

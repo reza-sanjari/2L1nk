@@ -255,6 +255,12 @@ type MemberKeyInfo struct {
 	X25519PublicKey string
 }
 
+type MemberDetailInfo struct {
+	Fingerprint     string
+	Username        string
+	X25519PublicKey string
+}
+
 // GetMembersWithPublicKeys returns the fingerprint and X25519 public key for all
 // persistent members of a room.
 func (r *RoomRepository) GetMembersWithPublicKeys(roomID string) ([]MemberKeyInfo, error) {
@@ -274,6 +280,32 @@ func (r *RoomRepository) GetMembersWithPublicKeys(roomID string) ([]MemberKeyInf
 	for rows.Next() {
 		var m MemberKeyInfo
 		if err := rows.Scan(&m.Fingerprint, &m.X25519PublicKey); err != nil {
+			return nil, err
+		}
+		members = append(members, m)
+	}
+	return members, rows.Err()
+}
+
+// GetRoomMembersWithDetails returns fingerprint, username, and X25519 public key
+// for all persistent members of a room.
+func (r *RoomRepository) GetRoomMembersWithDetails(roomID string) ([]MemberDetailInfo, error) {
+	rows, err := r.db.Query(
+		`SELECT u.fingerprint, u.username, u.x25519_public_key
+		 FROM room_members rm
+		 JOIN users u ON rm.member_fp = u.fingerprint
+		 WHERE rm.room_id = ?`,
+		roomID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get room members with details: %w", err)
+	}
+	defer rows.Close()
+
+	var members []MemberDetailInfo
+	for rows.Next() {
+		var m MemberDetailInfo
+		if err := rows.Scan(&m.Fingerprint, &m.Username, &m.X25519PublicKey); err != nil {
 			return nil, err
 		}
 		members = append(members, m)

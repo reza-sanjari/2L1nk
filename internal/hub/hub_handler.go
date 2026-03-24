@@ -12,6 +12,20 @@ import (
 )
 
 func (h *Hub) handleInboundMessage(msg WSMessageEnvelope) {
+	switch msg.Type {
+	case models.Message:
+		h.handleMessageEnvelope(msg)
+	case models.Auth:
+		h.handleReAuth(msg)
+	default:
+		h.logg.Debug("ignoring unhandled inbound envelope type",
+			zap.String("type", string(msg.Type)),
+			zap.String("user", msg.Sender.Fingerprint),
+		)
+	}
+}
+
+func (h *Hub) handleMessageEnvelope(msg WSMessageEnvelope) {
 	var payload MessagePayload
 	err := json.Unmarshal(msg.Payload, &payload)
 	h.logg.Debug("message received", zap.String("user", msg.Sender.Username))
@@ -77,6 +91,14 @@ func (h *Hub) handleInboundMessage(msg WSMessageEnvelope) {
 			CreatedAt:  time.Now().Unix(),
 		},
 	})
+}
+
+func (h *Hub) handleReAuth(msg WSMessageEnvelope) {
+	// User is already registered in the hub (ReadPump only runs for authenticated users).
+	// A duplicate auth message is ignored for now.
+	h.logg.Debug("re-auth envelope received, ignoring",
+		zap.String("user", msg.Sender.Fingerprint),
+	)
 }
 
 func (h *Hub) handleRegisterRoom(req CreateRoomRequest) {
