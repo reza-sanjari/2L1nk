@@ -190,10 +190,19 @@ function connectLocalChat() {
             if (payload.room_id !== currentRoomId) return;
             const chatEl = document.getElementById('chat');
             if (!chatEl) return;
+            const wrapper = document.createElement('div');
+            wrapper.className = 'msg-wrapper';
+            if (payload.sender_name) {
+                const label = document.createElement('div');
+                label.className = 'msg-label';
+                label.textContent = payload.sender_name;
+                wrapper.appendChild(label);
+            }
             const div = document.createElement('div');
             div.className = 'bubble received';
             div.innerText = payload.ciphertext;
-            chatEl.appendChild(div);
+            wrapper.appendChild(div);
+            chatEl.appendChild(wrapper);
             chatEl.scrollTop = chatEl.scrollHeight;
         }
     };
@@ -226,7 +235,8 @@ async function fetchRooms() {
 
         roomList = (await response.json()).rooms ?? [];
         renderFunc(roomList);
-
+        const cr = roomList.find(r => r.room_id === currentRoomId);
+        if (cr) renderChatUserList(cr.users);
     } catch (error) {
 
         console.error("Fehler beim Abrufen der Räume:", error);
@@ -243,6 +253,23 @@ function searchfunction(event) {
     });
     renderFunc(gefilterteListe);
 }
+function toggleChatUserList() {
+    const panel = document.getElementById('chat-user-panel');
+    if (panel) panel.classList.toggle('open');
+}
+
+function renderChatUserList(users) {
+    const list = document.getElementById('chat-user-list');
+    if (!list) return;
+    list.innerHTML = '';
+    (users ?? []).forEach(u => {
+        const div = document.createElement('div');
+        div.className = 'chat-user-entry';
+        div.innerHTML = `<span class="chat-user-dot"></span><span>${u.username}</span>`;
+        list.appendChild(div);
+    });
+}
+
 function clickroom(room) {
     currentRoomId = room.room_id;
     currentRoomEpoch = room.epoch ?? 0;
@@ -252,36 +279,76 @@ function clickroom(room) {
     const main = document.getElementById('main');
     main.style.display = 'flex';
     main.innerHTML = `
+                <div class="chat-header">
+                    <span class="chat-header-name">${room.name}</span>
+                    <div class="chat-user-panel-wrapper">
+                        <button class="chat-user-btn" onclick="toggleChatUserList()" title="Mitglieder">
+                            <i class="fas fa-users"></i>
+                        </button>
+                        <div class="chat-user-panel" id="chat-user-panel">
+                            <div class="chat-user-panel-title">MITGLIEDER</div>
+                            <div id="chat-user-list"></div>
+                        </div>
+                    </div>
+                </div>
                 <div class="chat-messages" id="chat">
                 </div>
-
                 <div class="chat-input">
                     <input type="text" id="schreibnachricht" placeholder="Nachricht schreiben...">
                     <button onclick="sendMessage('${room.room_id}')">Senden</button>
                 </div>
-
             `;
     document.getElementById('schreibnachricht').addEventListener('keydown', (e) => {
         if (e.key === 'Enter') sendMessage(room.room_id);
     });
+    renderChatUserList(room.users);
     loadChat(room);
 }
 async function loadChat(room) {
     const chatEl = document.getElementById('chat');
     const myFP   = sessionStorage.getItem('my_fingerprint');
 
+    const fpToName = {};
+    if (room.host) fpToName[room.host.fingerprint] = room.host.username;
+    (room.users ?? []).forEach(u => { fpToName[u.fingerprint] = u.username; });
+
     try {
         const response = await authFetch('GET', `/api/rooms/${room.room_id}/messages`);
         if (!response.ok) throw new Error(`HTTP-Fehler: ${response.status}`);
 
         const data     = await response.json();
-        const messages = (data.messages ?? []).reverse();
+        const messages = (data.messages ?? []).filter(m => m.ciphertext && m.ciphertext.trim() !== '').reverse();
+
+        chatEl.innerHTML = '';
+
+        if (messages.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'chat-empty';
+            empty.textContent = 'Noch keine Nachrichten.';
+            chatEl.appendChild(empty);
+            return;
+        }
 
         messages.forEach(msg => {
-            const div = document.createElement('div');
-            div.className = `bubble ${msg.sender_fp === myFP ? 'sent' : 'received'}`;
-            div.innerText = msg.ciphertext;
-            chatEl.appendChild(div);
+            const isMine = msg.sender_fp === myFP;
+            if (isMine) {
+                const div = document.createElement('div');
+                div.className = 'bubble sent';
+                div.innerText = msg.ciphertext;
+                chatEl.appendChild(div);
+            } else {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'msg-wrapper';
+                const label = document.createElement('div');
+                label.className = 'msg-label';
+                label.textContent = fpToName[msg.sender_fp] ?? (msg.sender_fp.slice(0, 8) + '…');
+                wrapper.appendChild(label);
+                const div = document.createElement('div');
+                div.className = 'bubble received';
+                div.innerText = msg.ciphertext;
+                wrapper.appendChild(div);
+                chatEl.appendChild(wrapper);
+            }
         });
 
         chatEl.scrollTop = chatEl.scrollHeight;
@@ -384,10 +451,20 @@ async function openRoomMenu(room) {
     rightCol.appendChild(rightTitle);
     rightCol.appendChild(rightList);
 
+    // Footer: Gruppe löschen
+    const footer = document.createElement('div');
+    footer.className = 'member-modal-footer';
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'del-group-btn';
+    deleteBtn.textContent = 'Gruppe löschen';
+    deleteBtn.onclick = () => deleteGroup(room.room_id);
+    footer.appendChild(deleteBtn);
+
     body.appendChild(leftCol);
     body.appendChild(rightCol);
     modal.appendChild(header);
     modal.appendChild(body);
+    modal.appendChild(footer);
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
     activeMemberModal = overlay;
@@ -486,8 +563,23 @@ async function removeMember(roomId, fingerprint) {
             roomList[idx] = { ...roomList[idx], users: (roomList[idx].users ?? []).filter(u => u.fingerprint !== fingerprint) };
         }
         const room = roomList.find(r => r.room_id === roomId);
-        if (room) openRoomMenu(room);
+        if (room) openRoomMenu(room); else closeMemberModal();
     } else alert('Fehler beim Entfernen');
+}
+
+async function deleteGroup(roomId) {
+    const myFP = sessionStorage.getItem('my_fingerprint');
+    if (!confirm('Gruppe wirklich löschen?')) return;
+    const res = await authFetch('DELETE', `/api/rooms/${roomId}/users/${myFP}`);
+    if (res.ok) {
+        closeMemberModal();
+        currentRoomId = null;
+        currentRoomEpoch = 0;
+        const main = document.getElementById('main');
+        main.style.display = 'none';
+        document.querySelector('.maininfo').style.display = '';
+        await fetchRooms();
+    } else alert('Fehler beim Löschen der Gruppe');
 }
 function sendMessage(roomID) {
     const ciphertext = document.getElementById('schreibnachricht').value;
@@ -499,7 +591,8 @@ function sendMessage(roomID) {
             "payload": {
                 "room_id": roomID,
                 "epoch": currentRoomEpoch,
-                "ciphertext": ciphertext
+                "ciphertext": ciphertext,
+                "sender_name": sessionStorage.getItem('username')
             }
         };
         socket.send(JSON.stringify(messagePayload));
@@ -634,4 +727,5 @@ window.addEventListener('DOMContentLoaded', async () => {
     await whoAmI();
     connectLocalChat();
     fetchRooms();
+    setInterval(fetchRooms, 15000);
 });
