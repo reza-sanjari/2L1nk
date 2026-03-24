@@ -9,6 +9,7 @@ import (
 type User struct {
 	SessionID            string
 	PublicKey            ed25519.PublicKey
+	X25519PublicKey      []byte // raw 32-byte X25519 public key
 	PublicKeyFingerprint string
 	Username             string
 	Mode                 models.UserMode // "ephemeral" or "persistent"

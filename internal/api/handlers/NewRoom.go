@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/labstack/echo/v4"
+	"go.uber.org/zap"
 )
 
 type CreateRoomRequest struct {
@@ -20,19 +21,25 @@ func (h *Handler) NewRoom(c echo.Context) error {
 	}
 
 	groupName := req.GroupName
-	
+	caller := c.Get("user").(*session.User)
+
+	h.logg.Debug("create room request", zap.String("groupName", groupName), zap.String("callerFP", caller.PublicKeyFingerprint))
+
 	respChan := make(chan string)
 
 	h.hub.RegisterRoom <- hub.CreateRoomRequest{
-		Host:         c.Get("user").(*session.User),
+		Host:         caller,
 		GroupName:    groupName,
 		ResponseChan: respChan,
 	}
 
 	roomID := <-respChan
 	if roomID == "" {
+		h.logg.Warn("room creation failed: hub rejected request (caller not connected via WS?)", zap.String("callerFP", caller.PublicKeyFingerprint))
 		return c.JSON(http.StatusInternalServerError, "Room creation failed")
 	}
+
+	h.logg.Info("room created", zap.String("roomID", roomID), zap.String("callerFP", caller.PublicKeyFingerprint), zap.String("groupName", groupName))
 	return c.JSON(http.StatusCreated, map[string]any{
 		"room_id": roomID,
 	})

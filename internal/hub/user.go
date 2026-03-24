@@ -14,6 +14,7 @@ type User struct {
 	logg             *logger.Logger
 	Fingerprint      string `json:"fingerprint"`
 	Username         string `json:"username"`
+	X25519PublicKey  string // base64-encoded X25519 public key
 	OutGoingMessages chan []byte
 	Websocket        *websocket.Conn
 	PeerMux          sync.Mutex
@@ -64,11 +65,12 @@ func (u *User) WritePump() error {
 	return nil
 }
 
-func NewUser(fingerprint string, username string, websocket *websocket.Conn, mode models.UserMode, logg *logger.Logger) *User {
+func NewUser(fingerprint string, username string, x25519PublicKey string, websocket *websocket.Conn, mode models.UserMode, logg *logger.Logger) *User {
 	return &User{
 		logg:             logg,
 		Fingerprint:      fingerprint,
 		Username:         username,
+		X25519PublicKey:  x25519PublicKey,
 		OutGoingMessages: make(chan []byte, 32),
 		Websocket:        websocket,
 		PeerMux:          sync.Mutex{},

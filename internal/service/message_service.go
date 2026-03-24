@@ -9,6 +9,7 @@ import (
 type MessageRepository interface {
 	Save(msg *infradb.MessageRecord) error
 	GetByRoom(roomID string, limit, offset int) ([]*infradb.MessageRecord, error)
+	DeleteByRoom(roomID string) error
 }
 
 type MessageService struct {
@@ -44,4 +45,8 @@ func (s *MessageService) ProcessMessage(p hub.MessageCreatedPayload) error {
 
 func (s *MessageService) GetRoomMessages(roomID string, limit, offset int) ([]*infradb.MessageRecord, error) {
 	return s.msgRepo.GetByRoom(roomID, limit, offset)
+}
+
+func (s *MessageService) DeleteByRoom(roomID string) error {
+	return s.msgRepo.DeleteByRoom(roomID)
 }
