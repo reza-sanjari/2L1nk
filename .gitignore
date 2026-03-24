@@ -496,3 +496,5 @@ FodyWeavers.xsd
 # Additional files built by Visual Studio
 
 # End of https://www.toptal.com/developers/gitignore/api/goland+iml,visualstudio,dotenv
+/api-spec/openapi.yaml
+/api-spec/2L1nk HTTP API.postman_collection.json
