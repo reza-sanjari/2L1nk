@@ -5,9 +5,10 @@ import "2L1nk/internal/models"
 type HubEventType string
 
 const (
-	HubEventRoomCreated    HubEventType = "room_created"
-	HubEventMemberJoined   HubEventType = "member_joined"
-	HubEventMessageCreated HubEventType = "message_created"
+	HubEventRoomCreated          HubEventType = "room_created"
+	HubEventMessageCreated       HubEventType = "message_created"
+	HubEventRoomOffline          HubEventType = "room_offline"
+	HubEventKeyRotationTriggered HubEventType = "key_rotation_triggered"
 )
 
 type HubEvent struct {
@@ -23,13 +24,6 @@ type RoomCreatedPayload struct {
 	CreatedAt   int64
 }
 
-type MemberJoinedPayload struct {
-	RoomID     string
-	MemberFP   string
-	MemberMode models.UserMode
-	JoinedAt   int64
-}
-
 type MessageCreatedPayload struct {
 	ID         string
 	RoomID     string
@@ -37,4 +31,16 @@ type MessageCreatedPayload struct {
 	Epoch      int64
 	Ciphertext string
 	CreatedAt  int64
+}
+
+type RoomOfflinePayload struct {
+	RoomID   string
+	SenderFP string
+	Message  WSMessageEnvelope
+}
+
+type KeyRotationTriggeredPayload struct {
+	RoomID       string
+	Epoch        int64
+	KeyCreatorFP string
 }

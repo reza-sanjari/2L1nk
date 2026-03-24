@@ -69,7 +69,7 @@ func New(cfg *config.Config) *App {
 	go mainHub.Run()
 
 	// Event consumer: wires hub events to services for DB persistence
-	startEventConsumer(mainHub.Events, roomSvc, msgSvc, logg)
+	startEventConsumer(mainHub, roomSvc, msgSvc, logg)
 
 	// Handler
 	handler := handlers.NewHandler(services, mainHub, sessionStore, logg)

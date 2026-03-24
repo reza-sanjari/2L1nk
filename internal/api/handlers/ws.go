@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"2L1nk/internal/hub"
+	"2L1nk/internal/models"
+	"encoding/base64"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -70,7 +72,7 @@ func (h *Handler) Ws(c echo.Context) error {
 	// 5. validate auth
 	activeUser, ok := h.session.Get(auth.SessionID)
 	if !ok {
-		h.logg.Debug("websocket closed, user is not authenticated", zap.String("username", activeUser.Username), zap.String("sessionId", activeUser.SessionID))
+		h.logg.Warn("websocket closed: session not found", zap.String("sessionId", auth.SessionID))
 		return nil
 	}
 
@@ -78,9 +80,43 @@ func (h *Handler) Ws(c echo.Context) error {
 
 	// TODO: validate timestamp + signature here
 
-	newUser := hub.NewUser(activeUser.PublicKeyFingerprint, activeUser.Username, ws, activeUser.Mode, h.logg)
+	x25519Key := base64.StdEncoding.EncodeToString(activeUser.X25519PublicKey)
+	newUser := hub.NewUser(activeUser.PublicKeyFingerprint, activeUser.Username, x25519Key, ws, activeUser.Mode, h.logg)
 
 	h.hub.RegisterUser <- newUser
+
+	// Case 1: slot this user into any hub rooms they're already a DB member of.
+	// Also restore offline rooms where this user is the pending key creator.
+	if activeUser.Mode == models.UserModePersistent {
+		if dbRooms, err := h.services.Room.GetUserRooms(activeUser.PublicKeyFingerprint); err == nil {
+			for _, dbRoom := range dbRooms {
+				if h.hub.GetRoom(dbRoom.ID) != nil {
+					h.hub.AddToRoom <- hub.AddToRoomRequest{RoomID: dbRoom.ID, User: newUser}
+				} else if dbRoom.KeyCreatorFP == activeUser.PublicKeyFingerprint {
+					// Room is offline but this user is the key creator — restore it so they
+					// can receive the rotation WS if there's a pending rotation.
+					hasPending, _ := h.services.Room.HasKeySlots(dbRoom.ID, dbRoom.CurrentEpoch)
+					memberKeys, err := h.services.Room.GetMembersWithPublicKeys(dbRoom.ID)
+					if err != nil {
+						continue
+					}
+					hubMembers := make([]hub.MemberKeyInfo, len(memberKeys))
+					for i, m := range memberKeys {
+						hubMembers[i] = hub.MemberKeyInfo{FP: m.Fingerprint, X25519PublicKey: m.X25519PublicKey}
+					}
+					h.hub.RestoreRoom <- hub.RestoreRoomRequest{
+						RoomID:             dbRoom.ID,
+						RoomName:           dbRoom.Name,
+						HostFP:             dbRoom.HostFP,
+						KeyCreatorFP:       dbRoom.KeyCreatorFP,
+						Epoch:              dbRoom.CurrentEpoch,
+						Members:            hubMembers,
+						HasPendingRotation: !hasPending,
+					}
+				}
+			}
+		}
+	}
 
 	// start writer
 	go func() {
@@ -88,6 +124,30 @@ func (h *Handler) Ws(c echo.Context) error {
 			h.logg.Debug("write pump closed", zap.Error(err))
 		}
 	}()
+
+	// Push any stored epoch key slots so the user can decrypt messages after reconnecting.
+	if activeUser.Mode == models.UserModePersistent {
+		if slots, err := h.services.Room.GetKeySlotsByRecipient(activeUser.PublicKeyFingerprint); err == nil {
+			for _, slot := range slots {
+				slotPayload, err := json.Marshal(hub.RoomKeySlotPayload{
+					RoomID:       slot.RoomID,
+					Epoch:        slot.Epoch,
+					EncryptedKey: base64.StdEncoding.EncodeToString(slot.EncryptedKey),
+				})
+				if err != nil {
+					continue
+				}
+				envelope, err := json.Marshal(hub.WSMessageEnvelope{
+					Type:    models.KeySlot,
+					Payload: json.RawMessage(slotPayload),
+				})
+				if err != nil {
+					continue
+				}
+				newUser.OutGoingMessages <- envelope
+			}
+		}
+	}
 
 	// reader blocks until disconnect
 	if err := newUser.ReadPump(h.hub.InboundMessages); err != nil {

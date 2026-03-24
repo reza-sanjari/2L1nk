@@ -9,17 +9,19 @@ type UserStatus struct {
 }
 
 type RoomMemberInfo struct {
-	Username    string          `json:"username"`
-	Fingerprint string          `json:"fingerprint"`
-	Mode        models.UserMode `json:"mode"`
+	Username        string          `json:"username"`
+	Fingerprint     string          `json:"fingerprint"`
+	Mode            models.UserMode `json:"mode"`
+	X25519PublicKey string          `json:"x25519_public_key"`
 }
 
 type UserRoomInfo struct {
-	RoomID string           `json:"room_id"`
-	Name   string           `json:"name"`
-	Host   RoomMemberInfo   `json:"host"`
-	Users  []RoomMemberInfo `json:"users"`
-	Epoch  int64            `json:"epoch"`
+	RoomID       string           `json:"room_id"`
+	Name         string           `json:"name"`
+	Host         RoomMemberInfo   `json:"host"`
+	Users        []RoomMemberInfo `json:"users"`
+	Epoch        int64            `json:"epoch"`
+	KeyCreatorFP string           `json:"key_creator_fp"`
 }
 
 func (h *Hub) getUser(fingerprint string) *User {
@@ -55,6 +57,33 @@ func (h *Hub) GetUsers() []UserStatus {
 	return users
 }
 
+// roomHostInfo builds a RoomMemberInfo for the host, safe when Host is nil.
+func roomHostInfo(room *Room) RoomMemberInfo {
+	info := RoomMemberInfo{
+		Fingerprint: room.HostFP,
+		Username:    room.HostName,
+	}
+	if room.Host != nil {
+		info.Mode = room.Host.Mode
+		info.X25519PublicKey = room.Host.X25519PublicKey
+	}
+	return info
+}
+
+// keyCreatorFP returns the current key creator fingerprint.
+func keyCreatorFP(room *Room) string {
+	if room.PendingRotation != nil {
+		return room.PendingRotation.KeyCreatorFP
+	}
+	return room.KeyCreatorFP
+}
+
+// IsUserOnline reports whether the given fingerprint has an active WS connection.
+func (h *Hub) IsUserOnline(fp string) bool {
+	_, ok := h.Users[fp]
+	return ok
+}
+
 func (h *Hub) GetRoom(roomID string) *UserRoomInfo {
 	room, ok := h.Rooms[roomID]
 	if !ok {
@@ -64,24 +93,21 @@ func (h *Hub) GetRoom(roomID string) *UserRoomInfo {
 	var users []RoomMemberInfo
 	for _, user := range room.Users {
 		users = append(users, RoomMemberInfo{
-			Username:    user.Username,
-			Fingerprint: user.Fingerprint,
-			Mode:        user.Mode,
+			Username:        user.Username,
+			Fingerprint:     user.Fingerprint,
+			Mode:            user.Mode,
+			X25519PublicKey: user.X25519PublicKey,
 		})
 	}
 
-	info := &UserRoomInfo{
-		RoomID: room.RoomID,
-		Name:   room.Name,
-		Host: RoomMemberInfo{
-			Username:    room.Host.Username,
-			Fingerprint: room.Host.Fingerprint,
-			Mode:        room.Host.Mode,
-		},
-		Users: users,
-		Epoch: room.Epoch,
+	return &UserRoomInfo{
+		RoomID:       room.RoomID,
+		Name:         room.Name,
+		Host:         roomHostInfo(room),
+		Users:        users,
+		Epoch:        room.Epoch,
+		KeyCreatorFP: keyCreatorFP(room),
 	}
-	return info
 }
 
 func (h *Hub) GetUserRooms(userFingerprint string) []UserRoomInfo {
@@ -95,24 +121,30 @@ func (h *Hub) GetUserRooms(userFingerprint string) []UserRoomInfo {
 		var users []RoomMemberInfo
 		for _, user := range room.Users {
 			users = append(users, RoomMemberInfo{
-				Username:    user.Username,
-				Fingerprint: user.Fingerprint,
-				Mode:        user.Mode,
+				Username:        user.Username,
+				Fingerprint:     user.Fingerprint,
+				Mode:            user.Mode,
+				X25519PublicKey: user.X25519PublicKey,
 			})
 		}
 
 		rooms = append(rooms, UserRoomInfo{
-			RoomID: room.RoomID,
-			Name:   room.Name,
-			Host: RoomMemberInfo{
-				Username:    room.Host.Username,
-				Fingerprint: room.Host.Fingerprint,
-				Mode:        room.Host.Mode,
-			},
-			Users: users,
-			Epoch: room.Epoch,
+			RoomID:       room.RoomID,
+			Name:         room.Name,
+			Host:         roomHostInfo(room),
+			Users:        users,
+			Epoch:        room.Epoch,
+			KeyCreatorFP: keyCreatorFP(room),
 		})
 	}
 
 	return rooms
+}
+
+// GetPendingRotation returns the pending rotation for a room, or nil if none.
+func (h *Hub) GetPendingRotation(roomID string) *PendingRotation {
+	if room, ok := h.Rooms[roomID]; ok {
+		return room.PendingRotation
+	}
+	return nil
 }

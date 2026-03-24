@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/labstack/echo/v4"
+	"go.uber.org/zap"
 )
 
 type roomResponse struct {
@@ -21,13 +22,17 @@ type roomResponse struct {
 func (h *Handler) GetUserRooms(c echo.Context) error {
 	user := c.Get("user").(*session.User)
 
+	h.logg.Debug("get user rooms request", zap.String("userFP", user.PublicKeyFingerprint), zap.Int("mode", int(user.Mode)))
+
 	if user.Mode != models.UserModePersistent {
 		res := h.hub.GetUserRooms(user.PublicKeyFingerprint)
+		h.logg.Debug("get user rooms: returning hub rooms for ephemeral user", zap.String("userFP", user.PublicKeyFingerprint), zap.Int("count", len(res)))
 		return c.JSON(http.StatusOK, map[string]any{"rooms": res})
 	}
 
 	dbRooms, err := h.services.Room.GetUserRooms(user.PublicKeyFingerprint)
 	if err != nil {
+		h.logg.Error("get user rooms: failed to fetch rooms from DB", zap.String("userFP", user.PublicKeyFingerprint), zap.Error(err))
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 	}
 
@@ -56,5 +61,6 @@ func (h *Handler) GetUserRooms(c echo.Context) error {
 		rooms = append(rooms, r)
 	}
 
+	h.logg.Debug("get user rooms: returning rooms", zap.String("userFP", user.PublicKeyFingerprint), zap.Int("total", len(rooms)))
 	return c.JSON(http.StatusOK, map[string]any{"rooms": rooms})
 }

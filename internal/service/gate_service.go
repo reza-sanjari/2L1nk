@@ -37,10 +37,11 @@ func NewGateService(g *gate.Gate, store *session.Store, userRepo UserRepository,
 }
 
 type GateRequest struct {
-	GateToken string
-	PublicKey ed25519.PublicKey
-	Username  string
-	Mode      models.UserMode
+	GateToken       string
+	PublicKey       ed25519.PublicKey
+	X25519PublicKey []byte
+	Username        string
+	Mode            models.UserMode
 }
 
 type GateResult struct {
@@ -69,10 +70,11 @@ func (s *GateService) Authorize(req GateRequest) (*GateResult, error) {
 		}
 		if existing == nil {
 			if err := s.userRepo.Create(&infradb.UserRecord{
-				Fingerprint: fp,
-				PublicKey:   base64.StdEncoding.EncodeToString(req.PublicKey),
-				Username:    req.Username,
-				CreatedAt:   time.Now().Unix(),
+				Fingerprint:     fp,
+				PublicKey:       base64.StdEncoding.EncodeToString(req.PublicKey),
+				X25519PublicKey: base64.StdEncoding.EncodeToString(req.X25519PublicKey),
+				Username:        req.Username,
+				CreatedAt:       time.Now().Unix(),
 			}); err != nil {
 				return nil, err
 			}
@@ -88,6 +90,7 @@ func (s *GateService) Authorize(req GateRequest) (*GateResult, error) {
 	s.store.Add(&session.User{
 		SessionID:            sessionID,
 		PublicKey:            req.PublicKey,
+		X25519PublicKey:      req.X25519PublicKey,
 		PublicKeyFingerprint: fp,
 		Username:             req.Username,
 		Mode:                 req.Mode,

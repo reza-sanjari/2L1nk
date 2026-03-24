@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 )
 
 var expectedTables = []string{
@@ -27,17 +28,19 @@ func RunMigrations(database *sql.DB) error {
 
 	statements := []string{
 		`CREATE TABLE IF NOT EXISTS users (
-			fingerprint TEXT    PRIMARY KEY,
-			public_key  TEXT    NOT NULL,
-			username    TEXT,
-			created_at  INTEGER NOT NULL
+			fingerprint       TEXT    PRIMARY KEY,
+			public_key        TEXT    NOT NULL,
+			x25519_public_key TEXT    NOT NULL DEFAULT '',
+			username          TEXT,
+			created_at        INTEGER NOT NULL
 		)`,
 
 		`CREATE TABLE IF NOT EXISTS rooms (
 			id              TEXT    PRIMARY KEY,
 			name            TEXT,
 			current_epoch   INTEGER NOT NULL DEFAULT 0,
-			key_creator_fp  TEXT    REFERENCES users(fingerprint),
+			host_fp         TEXT,
+			key_creator_fp  TEXT,
 			created_at      INTEGER NOT NULL
 		)`,
 
@@ -105,7 +108,84 @@ func RunMigrations(database *sql.DB) error {
 	if err := addColumnIfNotExists(database, "rooms", "name", "TEXT"); err != nil {
 		return err
 	}
-	return dropColumnIfExists(database, "users", "mode")
+	if err := dropColumnIfExists(database, "users", "mode"); err != nil {
+		return err
+	}
+	if err := addColumnIfNotExists(database, "users", "x25519_public_key", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return err
+	}
+	if err := addColumnIfNotExists(database, "rooms", "host_fp", "TEXT"); err != nil {
+		return err
+	}
+	// Seed host_fp from key_creator_fp for existing rooms that have NULL host_fp.
+	// Runs as a no-op after migrateRoomsDropKeyCreatorFK (which already seeds it),
+	// but handles the case where the FK was already removed before host_fp was added.
+	if _, err := database.Exec(
+		`UPDATE rooms SET host_fp = key_creator_fp WHERE host_fp IS NULL AND key_creator_fp IS NOT NULL`,
+	); err != nil {
+		return fmt.Errorf("seed host_fp from key_creator_fp: %w", err)
+	}
+	return migrateRoomsDropKeyCreatorFK(database)
+}
+
+// migrateRoomsDropKeyCreatorFK recreates the rooms table without the FK constraint on
+// key_creator_fp so that ephemeral users can hold the key creator role without violating
+// referential integrity. Safe to run multiple times (no-op if already migrated).
+func migrateRoomsDropKeyCreatorFK(database *sql.DB) error {
+	var createSQL string
+	err := database.QueryRow(
+		`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'rooms'`,
+	).Scan(&createSQL)
+	if err == sql.ErrNoRows {
+		return nil // table doesn't exist yet, handled by CREATE TABLE IF NOT EXISTS
+	}
+	if err != nil {
+		return fmt.Errorf("check rooms schema: %w", err)
+	}
+	if !strings.Contains(strings.ToUpper(createSQL), "REFERENCES") {
+		return nil // FK already removed, nothing to do
+	}
+
+	// PRAGMA foreign_keys must be toggled outside a transaction.
+	if _, err := database.Exec(`PRAGMA foreign_keys = OFF`); err != nil {
+		return fmt.Errorf("disable foreign keys: %w", err)
+	}
+
+	tx, err := database.Begin()
+	if err != nil {
+		database.Exec(`PRAGMA foreign_keys = ON`)
+		return fmt.Errorf("begin rooms migration: %w", err)
+	}
+
+	steps := []string{
+		`CREATE TABLE rooms_new (
+			id              TEXT    PRIMARY KEY,
+			name            TEXT,
+			current_epoch   INTEGER NOT NULL DEFAULT 0,
+			host_fp         TEXT,
+			key_creator_fp  TEXT,
+			created_at      INTEGER NOT NULL
+		)`,
+		`INSERT INTO rooms_new SELECT id, name, current_epoch, key_creator_fp, key_creator_fp, created_at FROM rooms`,
+		`DROP TABLE rooms`,
+		`ALTER TABLE rooms_new RENAME TO rooms`,
+	}
+	for _, stmt := range steps {
+		if _, err := tx.Exec(stmt); err != nil {
+			tx.Rollback()
+			database.Exec(`PRAGMA foreign_keys = ON`)
+			return fmt.Errorf("migrate rooms drop FK: %w", err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		database.Exec(`PRAGMA foreign_keys = ON`)
+		return fmt.Errorf("commit rooms migration: %w", err)
+	}
+
+	if _, err := database.Exec(`PRAGMA foreign_keys = ON`); err != nil {
+		return fmt.Errorf("re-enable foreign keys: %w", err)
+	}
+	return nil
 }
 
 // addColumnIfNotExists adds a column to a table only if it doesn't already exist.
