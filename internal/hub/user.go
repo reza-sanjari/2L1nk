@@ -14,6 +14,7 @@ type User struct {
 	logg             *logger.Logger
 	Fingerprint      string `json:"fingerprint"`
 	Username         string `json:"username"`
+	X25519PublicKey  string // base64-encoded X25519 public key
 	OutGoingMessages chan []byte
 	Websocket        *websocket.Conn
 	PeerMux          sync.Mutex
@@ -25,7 +26,11 @@ func (u *User) ReadPump(inbound chan<- WSMessageEnvelope) error {
 		u.logg.Debug("read pump called for user", zap.String("username", u.Username), zap.String("fingerprint", u.Fingerprint))
 		_, message, err := u.Websocket.ReadMessage()
 		if err != nil {
-			u.logg.Error("websocket closed, failed to read message", zap.Error(err))
+			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+				u.logg.Debug("websocket closed gracefully", zap.String("username", u.Username), zap.String("fingerprint", u.Fingerprint))
+				return nil
+			}
+			u.logg.Warn("websocket closed unexpectedly", zap.Error(err))
 			return err
 		}
 
@@ -60,11 +65,12 @@ func (u *User) WritePump() error {
 	return nil
 }
 
-func NewUser(fingerprint string, username string, websocket *websocket.Conn, mode models.UserMode, logg *logger.Logger) *User {
+func NewUser(fingerprint string, username string, x25519PublicKey string, websocket *websocket.Conn, mode models.UserMode, logg *logger.Logger) *User {
 	return &User{
 		logg:             logg,
 		Fingerprint:      fingerprint,
 		Username:         username,
+		X25519PublicKey:  x25519PublicKey,
 		OutGoingMessages: make(chan []byte, 32),
 		Websocket:        websocket,
 		PeerMux:          sync.Mutex{},
