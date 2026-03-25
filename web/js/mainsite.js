@@ -7,6 +7,19 @@ let currentRoomEpoch = 0;
 const pendingSent = new Set(); // eigene gesendete Nachrichten (roomId:ciphertext) — verhindert Echo-Duplikate
 
 // ============================================================
+// VOICE CHAT STATE
+// ============================================================
+let voiceRoomId = null;
+let localStream = null;
+const peerConnections = new Map(); // FP → RTCPeerConnection
+let isMuted = false;
+const voiceParticipants = new Set(); // FP von Usern aktuell in Voice
+
+const ICE_CONFIG = {
+    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+};
+
+// ============================================================
 // CRYPTO MODULE — via tweetnacl
 // Ed25519 (Signing) + X25519/box (ECDH) + secretbox (AES-äquivalent)
 // ============================================================
@@ -175,6 +188,21 @@ function connectLocalChat() {
             return;
         }
 
+        if (envelope.type === "signal") {
+            handleSignalMessage(envelope.payload);
+            return;
+        }
+
+        if (envelope.type === "voice_joined") {
+            handleVoiceJoined(envelope.payload);
+            return;
+        }
+
+        if (envelope.type === "voice_left") {
+            handleVoiceLeft(envelope.payload);
+            return;
+        }
+
         if (envelope.type === "message") {
             const payload = envelope.payload;
 
@@ -281,13 +309,28 @@ function clickroom(room) {
     main.innerHTML = `
                 <div class="chat-header">
                     <span class="chat-header-name">${room.name}</span>
-                    <div class="chat-user-panel-wrapper">
-                        <button class="chat-user-btn" onclick="toggleChatUserList()" title="Mitglieder">
-                            <i class="fas fa-users"></i>
-                        </button>
-                        <div class="chat-user-panel" id="chat-user-panel">
-                            <div class="chat-user-panel-title">MITGLIEDER</div>
-                            <div id="chat-user-list"></div>
+                    <div class="chat-header-actions">
+                        <div class="voice-controls">
+                            <button id="voice-join-btn" class="voice-btn" onclick="toggleVoice('${room.room_id}')">🎙️ Voice</button>
+                            <button id="voice-mute-btn" class="voice-btn" onclick="toggleMute()" style="display:none">🎤 Stumm</button>
+                        </div>
+                        <div class="chat-user-panel-wrapper" style="position:relative">
+                            <button class="chat-user-btn" onclick="toggleVoicePanel()" title="Voice-Teilnehmer">
+                                <i class="fas fa-headphones"></i>
+                            </button>
+                            <div class="voice-panel" id="voice-panel">
+                                <div class="voice-panel-title">IN VOICE</div>
+                                <div id="voice-participants-list"></div>
+                            </div>
+                        </div>
+                        <div class="chat-user-panel-wrapper">
+                            <button class="chat-user-btn" onclick="toggleChatUserList()" title="Mitglieder">
+                                <i class="fas fa-users"></i>
+                            </button>
+                            <div class="chat-user-panel" id="chat-user-panel">
+                                <div class="chat-user-panel-title">MITGLIEDER</div>
+                                <div id="chat-user-list"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -303,6 +346,12 @@ function clickroom(room) {
     });
     renderChatUserList(room.users);
     loadChat(room);
+    updateVoiceUI();
+}
+
+function toggleVoicePanel() {
+    const panel = document.getElementById('voice-panel');
+    if (panel) panel.classList.toggle('open');
 }
 async function loadChat(room) {
     const chatEl = document.getElementById('chat');
@@ -723,6 +772,232 @@ function logout() {
     sessionStorage.clear();
     window.location.href = 'Login';
 }
+
+// ============================================================
+// VOICE CHAT — WebRTC
+// ============================================================
+
+function sendSignal(roomId, targetFP, signalData) {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({
+            type: 'signal',
+            payload: { room_id: roomId, target_fp: targetFP, signal: signalData }
+        }));
+    }
+}
+
+async function joinVoice(roomId) {
+    if (voiceRoomId === roomId) return;
+    if (voiceRoomId) leaveVoice();
+
+    try {
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    } catch (e) {
+        alert('Mikrofon nicht verfügbar: ' + e.message);
+        return;
+    }
+
+    voiceRoomId = roomId;
+    const myFP = sessionStorage.getItem('my_fingerprint');
+    voiceParticipants.clear();
+    voiceParticipants.add(myFP);
+
+    if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: 'voice_joined', payload: { room_id: roomId } }));
+    }
+
+    updateVoiceUI();
+}
+
+function leaveVoice() {
+    if (!voiceRoomId) return;
+    const roomId = voiceRoomId;
+
+    peerConnections.forEach((pc) => pc.close());
+    peerConnections.clear();
+
+    if (localStream) {
+        localStream.getTracks().forEach(t => t.stop());
+        localStream = null;
+    }
+
+    // Remove all audio elements
+    document.querySelectorAll('audio[data-voice]').forEach(a => a.remove());
+
+    voiceParticipants.clear();
+    voiceRoomId = null;
+    isMuted = false;
+
+    if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: 'voice_left', payload: { room_id: roomId } }));
+    }
+
+    updateVoiceUI();
+}
+
+function toggleVoice(roomId) {
+    if (voiceRoomId === roomId) leaveVoice(); else joinVoice(roomId);
+}
+
+function toggleMute() {
+    if (!localStream) return;
+    isMuted = !isMuted;
+    localStream.getAudioTracks().forEach(t => { t.enabled = !isMuted; });
+    updateVoiceUI();
+}
+
+async function createPeerConnection(targetFP, roomId, isInitiator) {
+    if (peerConnections.has(targetFP)) {
+        peerConnections.get(targetFP).close();
+    }
+
+    const pc = new RTCPeerConnection(ICE_CONFIG);
+    peerConnections.set(targetFP, pc);
+
+    if (localStream) {
+        localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+    }
+
+    pc.ontrack = (event) => {
+        let audio = document.querySelector(`audio[data-voice="${targetFP}"]`);
+        if (!audio) {
+            audio = document.createElement('audio');
+            audio.dataset.voice = targetFP;
+            audio.autoplay = true;
+            document.body.appendChild(audio);
+        }
+        audio.srcObject = event.streams[0];
+    };
+
+    pc.onicecandidate = (event) => {
+        if (event.candidate) {
+            sendSignal(roomId, targetFP, { type: 'ice', candidate: event.candidate });
+        }
+    };
+
+    pc.onconnectionstatechange = () => {
+        if (['disconnected', 'failed', 'closed'].includes(pc.connectionState)) {
+            const audio = document.querySelector(`audio[data-voice="${targetFP}"]`);
+            if (audio) audio.remove();
+            if (peerConnections.get(targetFP) === pc) peerConnections.delete(targetFP);
+        }
+    };
+
+    if (isInitiator) {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        sendSignal(roomId, targetFP, { type: 'offer', sdp: offer.sdp });
+    }
+
+    return pc;
+}
+
+async function handleSignalMessage(payload) {
+    // payload: { room_id, from_fp, signal }
+    if (!voiceRoomId || payload.room_id !== voiceRoomId) return;
+
+    const fromFP = payload.from_fp;
+    const sig = payload.signal;
+
+    try {
+        if (sig.type === 'offer') {
+            const pc = await createPeerConnection(fromFP, voiceRoomId, false);
+            await pc.setRemoteDescription({ type: 'offer', sdp: sig.sdp });
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            sendSignal(voiceRoomId, fromFP, { type: 'answer', sdp: answer.sdp });
+        } else if (sig.type === 'answer') {
+            const pc = peerConnections.get(fromFP);
+            if (pc) await pc.setRemoteDescription({ type: 'answer', sdp: sig.sdp });
+        } else if (sig.type === 'ice') {
+            const pc = peerConnections.get(fromFP);
+            if (pc && sig.candidate) await pc.addIceCandidate(sig.candidate);
+        }
+    } catch (e) {
+        console.error('WebRTC signal error:', e);
+    }
+}
+
+async function handleVoiceJoined(payload) {
+    // payload: { room_id, fingerprint, voice_users }
+    const myFP = sessionStorage.getItem('my_fingerprint');
+
+    if (payload.voice_users) {
+        payload.voice_users.forEach(fp => voiceParticipants.add(fp));
+    } else {
+        voiceParticipants.add(payload.fingerprint);
+    }
+
+    // If we're in voice in this room and someone else joined, initiate connection
+    if (voiceRoomId === payload.room_id && payload.fingerprint !== myFP) {
+        await createPeerConnection(payload.fingerprint, voiceRoomId, true);
+    }
+
+    if (payload.room_id === currentRoomId) updateVoiceUI();
+}
+
+function handleVoiceLeft(payload) {
+    // payload: { room_id, fingerprint }
+    voiceParticipants.delete(payload.fingerprint);
+
+    const pc = peerConnections.get(payload.fingerprint);
+    if (pc) {
+        pc.close();
+        peerConnections.delete(payload.fingerprint);
+    }
+
+    const audio = document.querySelector(`audio[data-voice="${payload.fingerprint}"]`);
+    if (audio) audio.remove();
+
+    if (payload.room_id === currentRoomId) updateVoiceUI();
+}
+
+function updateVoiceUI() {
+    const isInVoice = voiceRoomId === currentRoomId;
+
+    const joinBtn = document.getElementById('voice-join-btn');
+    if (joinBtn) {
+        joinBtn.textContent = isInVoice ? '🔴 Verlassen' : '🎙️ Voice';
+        joinBtn.className = isInVoice ? 'voice-btn active' : 'voice-btn';
+    }
+
+    const muteBtn = document.getElementById('voice-mute-btn');
+    if (muteBtn) {
+        muteBtn.style.display = isInVoice ? '' : 'none';
+        muteBtn.textContent = isMuted ? '🔇 Stumm' : '🎤 Stumm';
+        muteBtn.className = isMuted ? 'voice-btn muted' : 'voice-btn';
+    }
+
+    const list = document.getElementById('voice-participants-list');
+    if (!list) return;
+    list.innerHTML = '';
+
+    if (voiceParticipants.size === 0) {
+        const empty = document.createElement('div');
+        empty.style.cssText = 'padding:10px 14px;font-size:0.75rem;color:rgba(255,255,255,0.3)';
+        empty.textContent = 'Niemand im Voice';
+        list.appendChild(empty);
+        return;
+    }
+
+    const myFP = sessionStorage.getItem('my_fingerprint');
+    const room = roomList.find(r => r.room_id === currentRoomId);
+    const fpToName = {};
+    if (room) {
+        if (room.host) fpToName[room.host.fingerprint] = room.host.username;
+        (room.users ?? []).forEach(u => { fpToName[u.fingerprint] = u.username; });
+    }
+
+    voiceParticipants.forEach(fp => {
+        const div = document.createElement('div');
+        div.className = 'voice-participant';
+        const name = fpToName[fp] || fp.slice(0, 8) + '…';
+        const isMe = fp === myFP;
+        div.innerHTML = `<span class="voice-dot"></span><span>${name}${isMe ? ' (Du)' : ''}${isMe && isMuted ? ' 🔇' : ''}</span>`;
+        list.appendChild(div);
+    });
+}
+
 window.addEventListener('DOMContentLoaded', async () => {
     await whoAmI();
     connectLocalChat();

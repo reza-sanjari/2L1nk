@@ -695,4 +695,99 @@ button {
     background: rgba(248, 113, 113, 0.15);
 }
 
+/* --- VOICE CHAT --- */
+.chat-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.voice-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.voice-btn {
+    background: none;
+    border: 1px solid rgba(188, 19, 254, 0.4);
+    color: rgba(255, 255, 255, 0.7);
+    border-radius: 8px;
+    padding: 5px 12px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: 0.2s;
+    font-weight: normal;
+}
+
+.voice-btn:hover {
+    background: rgba(188, 19, 254, 0.15);
+    border-color: #bc13fe;
+    color: white;
+}
+
+.voice-btn.active {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: #ef4444;
+    color: #ef4444;
+}
+
+.voice-btn.active:hover {
+    background: rgba(239, 68, 68, 0.25);
+}
+
+.voice-btn.muted {
+    border-color: #f59e0b;
+    color: #f59e0b;
+}
+
+.voice-panel {
+    display: none;
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 180px;
+    background: rgba(10, 1, 18, 0.97);
+    border: 1px solid rgba(188, 19, 254, 0.3);
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+    z-index: 100;
+    overflow: hidden;
+}
+
+.voice-panel.open {
+    display: block;
+}
+
+.voice-panel-title {
+    padding: 10px 14px 6px;
+    font-size: 0.6rem;
+    letter-spacing: 2px;
+    color: #4ade80;
+    border-bottom: 1px solid rgba(188, 19, 254, 0.1);
+}
+
+.voice-participant {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 14px;
+    font-size: 0.82rem;
+}
+
+.voice-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #4ade80;
+    flex-shrink: 0;
+    box-shadow: 0 0 5px rgba(74, 222, 128, 0.6);
+    animation: voicePulse 1.5s ease-in-out infinite;
+}
+
+@keyframes voicePulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
 
