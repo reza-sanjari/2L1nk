@@ -5,6 +5,7 @@ let gefilterteListe = [];
 let currentRoomId = null;
 let currentRoomEpoch = 0;
 const pendingSent = new Set(); // eigene gesendete Nachrichten (roomId:ciphertext) — verhindert Echo-Duplikate
+const roomKeys = new Map();   // `${roomId}:${epoch}` → Uint8Array (Room-Key)
 
 // ============================================================
 // VOICE CHAT STATE
@@ -148,6 +149,38 @@ const AppCrypto = (() => {
     };
 })();
 if (!AppCrypto.loadIdentity()) AppCrypto.generateIdentity();
+// Gibt den entschlüsselten Text zurück, oder null wenn kein Key vorhanden / Fehler / leer.
+function decryptText(ciphertextStr, roomId, epoch) {
+    try {
+        const roomKey = roomKeys.get(`${roomId}:${epoch}`);
+        if (!roomKey) return null;
+        const { nonce, ciphertext } = JSON.parse(ciphertextStr);
+        const text = AppCrypto.decryptMessage({ nonce, ciphertext }, roomKey);
+        return text || null;
+    } catch {
+        return null;
+    }
+}
+
+// Generiert einen neuen Room-Key, speichert ihn lokal und POSTet die
+// verschlüsselten Key-Slots für alle Mitglieder an den Server.
+async function submitRoomKey(roomId, epoch, members) {
+    const roomKey = AppCrypto.generateRoomKey();
+    roomKeys.set(`${roomId}:${epoch}`, roomKey);
+
+    const keys = members.map(m => ({
+        recipient_fp: m.fingerprint,
+        encrypted_key: btoa(JSON.stringify(AppCrypto.encryptRoomKey(roomKey, m.x25519_public_key)))
+    }));
+
+    try {
+        const res = await authFetch('POST', `/api/rooms/${roomId}/epoch-keys`, { epoch, keys });
+        if (!res.ok) console.error('submitRoomKey fehlgeschlagen:', await res.text());
+    } catch (e) {
+        console.error('submitRoomKey Netzwerkfehler:', e);
+    }
+}
+
 function connectLocalChat() {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     socket = new WebSocket(`${wsProtocol}//${window.location.host}/api/ws`);
@@ -174,8 +207,20 @@ function connectLocalChat() {
 
         if (envelope.type === "room_key_rotation") {
             const p = envelope.payload;
-            if (p && p.room_id === currentRoomId) {
-                currentRoomEpoch = p.epoch;
+            if (p.room_id === currentRoomId) currentRoomEpoch = p.epoch;
+            const myFP = sessionStorage.getItem('my_fingerprint');
+            if (p.key_creator_fp === myFP) submitRoomKey(p.room_id, p.epoch, p.members);
+            return;
+        }
+
+        if (envelope.type === "room_key_slot") {
+            const p = envelope.payload;
+            try {
+                const keyData = JSON.parse(atob(p.encrypted_key));
+                const roomKey = AppCrypto.decryptRoomKey(keyData);
+                roomKeys.set(`${p.room_id}:${p.epoch}`, roomKey);
+            } catch (e) {
+                console.error('Fehler beim Entschlüsseln des Room-Keys:', e);
             }
             return;
         }
@@ -216,6 +261,8 @@ function connectLocalChat() {
 
             // nur anzeigen wenn dieser Raum gerade offen ist
             if (payload.room_id !== currentRoomId) return;
+            const text = decryptText(payload.ciphertext, payload.room_id, payload.epoch);
+            if (!text) return; // leer oder nicht entschlüsselbar → nicht anzeigen
             const chatEl = document.getElementById('chat');
             if (!chatEl) return;
             const wrapper = document.createElement('div');
@@ -228,7 +275,7 @@ function connectLocalChat() {
             }
             const div = document.createElement('div');
             div.className = 'bubble received';
-            div.innerText = payload.ciphertext;
+            div.innerText = text;
             wrapper.appendChild(div);
             chatEl.appendChild(wrapper);
             chatEl.scrollTop = chatEl.scrollHeight;
@@ -394,10 +441,12 @@ async function loadChat(room) {
 
         messages.forEach(msg => {
             const isMine = msg.sender_fp === myFP;
+            const text = decryptText(msg.ciphertext, room.room_id, msg.epoch);
+            if (!text) return; // leer oder nicht entschlüsselbar → überspringen
             if (isMine) {
                 const div = document.createElement('div');
                 div.className = 'bubble sent';
-                div.innerText = msg.ciphertext;
+                div.innerText = text;
                 chatEl.appendChild(div);
             } else {
                 const wrapper = document.createElement('div');
@@ -408,7 +457,7 @@ async function loadChat(room) {
                 wrapper.appendChild(label);
                 const div = document.createElement('div');
                 div.className = 'bubble received';
-                div.innerText = msg.ciphertext;
+                div.innerText = text;
                 wrapper.appendChild(div);
                 chatEl.appendChild(wrapper);
             }
@@ -645,24 +694,35 @@ async function deleteGroup(roomId) {
     } else alert('Fehler beim Löschen der Gruppe');
 }
 function sendMessage(roomID) {
-    const ciphertext = document.getElementById('schreibnachricht').value;
+    const plaintext = document.getElementById('schreibnachricht').value.trim();
     document.getElementById('schreibnachricht').value = "";
-    if (socket && socket.readyState === WebSocket.OPEN) {
-        pendingSent.add(`${roomID}:${ciphertext}`);
-        const messagePayload = {
-            "type": "message",
-            "payload": {
-                "room_id": roomID,
-                "epoch": currentRoomEpoch,
-                "ciphertext": ciphertext,
-                "sender_name": sessionStorage.getItem('username')
-            }
-        };
-        socket.send(JSON.stringify(messagePayload));
-        send(ciphertext);
-    } else {
+    if (!plaintext) return;
+
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
         console.error("Socket ist nicht bereit. Verbindung prüfen!");
+        return;
     }
+
+    const roomKey = roomKeys.get(`${roomID}:${currentRoomEpoch}`);
+    if (!roomKey) {
+        console.warn('Kein Room-Key verfügbar – warte auf Key-Rotation.');
+        return;
+    }
+
+    const encrypted = AppCrypto.encryptMessage(plaintext, roomKey);
+    const ciphertext = JSON.stringify(encrypted); // { nonce, ciphertext } als String
+
+    pendingSent.add(`${roomID}:${ciphertext}`);
+    socket.send(JSON.stringify({
+        type: "message",
+        payload: {
+            room_id: roomID,
+            epoch: currentRoomEpoch,
+            ciphertext,
+            sender_name: sessionStorage.getItem('username')
+        }
+    }));
+    send(plaintext); // eigene Nachricht lokal als Klartext anzeigen
 }
 
 function send(ciphertext) {
