@@ -9,6 +9,7 @@ const (
 	HubEventMessageCreated       HubEventType = "message_created"
 	HubEventRoomOffline          HubEventType = "room_offline"
 	HubEventKeyRotationTriggered HubEventType = "key_rotation_triggered"
+	HubEventEpochKeysSubmitted   HubEventType = "epoch_keys_submitted"
 )
 
 type HubEvent struct {
@@ -43,4 +44,10 @@ type KeyRotationTriggeredPayload struct {
 	RoomID       string
 	Epoch        int64
 	KeyCreatorFP string
+}
+
+type EpochKeysSubmittedPayload struct {
+	RoomID string
+	Epoch  int64
+	Keys   []KeySlotEntry
 }

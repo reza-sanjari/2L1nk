@@ -125,30 +125,6 @@ func (h *Handler) Ws(c echo.Context) error {
 		}
 	}()
 
-	// Push any stored epoch key slots so the user can decrypt messages after reconnecting.
-	if activeUser.Mode == models.UserModePersistent {
-		if slots, err := h.services.Room.GetKeySlotsByRecipient(activeUser.PublicKeyFingerprint); err == nil {
-			for _, slot := range slots {
-				slotPayload, err := json.Marshal(hub.RoomKeySlotPayload{
-					RoomID:       slot.RoomID,
-					Epoch:        slot.Epoch,
-					EncryptedKey: base64.StdEncoding.EncodeToString(slot.EncryptedKey),
-				})
-				if err != nil {
-					continue
-				}
-				envelope, err := json.Marshal(hub.WSMessageEnvelope{
-					Type:    models.KeySlot,
-					Payload: json.RawMessage(slotPayload),
-				})
-				if err != nil {
-					continue
-				}
-				newUser.OutGoingMessages <- envelope
-			}
-		}
-	}
-
 	// reader blocks until disconnect
 	if err := newUser.ReadPump(h.hub.InboundMessages); err != nil {
 		h.logg.Debug("read pump closed unexpectedly", zap.Error(err))

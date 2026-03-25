@@ -84,6 +84,11 @@ func (h *Hub) IsUserOnline(fp string) bool {
 	return ok
 }
 
+// GetOnlineUser returns the User for a given fingerprint if they are currently connected, or nil.
+func (h *Hub) GetOnlineUser(fp string) *User {
+	return h.Users[fp]
+}
+
 func (h *Hub) GetRoom(roomID string) *UserRoomInfo {
 	room, ok := h.Rooms[roomID]
 	if !ok {

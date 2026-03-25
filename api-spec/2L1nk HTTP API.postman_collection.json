@@ -1232,177 +1232,6 @@
               ]
             },
             {
-              "name": "Leave room",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Chat-Session-ID",
-                    "value": "",
-                    "description": "Session ID returned by POST /api/auth/gate."
-                  },
-                  {
-                    "key": "Chat-Timestamp",
-                    "value": "0",
-                    "description": "Unix timestamp used as part of the canonical signing string.\n"
-                  },
-                  {
-                    "key": "Chat-Signature",
-                    "value": "",
-                    "description": "Base64-encoded signature of the canonical request string:\nMETHOD + \"\\n\" + PATH + \"\\n\" + TIMESTAMP + \"\\n\" + BODY_HASH\n"
-                  },
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  },
-                  {
-                    "key": "Accept",
-                    "value": "application/json"
-                  }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"id\": \"room_123\"\n}",
-                  "options": {
-                    "raw": {
-                      "headerFamily": "json",
-                      "language": "json"
-                    }
-                  }
-                },
-                "url": {
-                  "raw": "{{baseUrl}}/api/rooms/leave",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "api",
-                    "rooms",
-                    "leave"
-                  ]
-                }
-              },
-              "response": [
-                {
-                  "name": "Left chat successfully",
-                  "originalRequest": {
-                    "method": "POST",
-                    "header": [
-                      {
-                        "description": "Session ID returned by POST /api/auth/gate.",
-                        "key": "Chat-Session-ID",
-                        "value": ""
-                      },
-                      {
-                        "description": "Unix timestamp used as part of the canonical signing string.\n",
-                        "key": "Chat-Timestamp",
-                        "value": "0"
-                      },
-                      {
-                        "description": "Base64-encoded signature of the canonical request string:\nMETHOD + \"\\n\" + PATH + \"\\n\" + TIMESTAMP + \"\\n\" + BODY_HASH\n",
-                        "key": "Chat-Signature",
-                        "value": ""
-                      },
-                      {
-                        "key": "Content-Type",
-                        "value": "application/json"
-                      }
-                    ],
-                    "body": {
-                      "mode": "raw",
-                      "raw": "{\n  \"id\": \"room_123\"\n}",
-                      "options": {
-                        "raw": {
-                          "headerFamily": "json",
-                          "language": "json"
-                        }
-                      }
-                    },
-                    "url": {
-                      "raw": "{{baseUrl}}/api/rooms/leave",
-                      "host": [
-                        "{{baseUrl}}"
-                      ],
-                      "path": [
-                        "api",
-                        "rooms",
-                        "leave"
-                      ]
-                    }
-                  },
-                  "status": "OK",
-                  "code": 200,
-                  "_postman_previewlanguage": "text",
-                  "header": [],
-                  "cookie": [],
-                  "body": ""
-                },
-                {
-                  "name": "Invalid or missing session ID, or signature verification failed",
-                  "originalRequest": {
-                    "method": "POST",
-                    "header": [
-                      {
-                        "description": "Session ID returned by POST /api/auth/gate.",
-                        "key": "Chat-Session-ID",
-                        "value": ""
-                      },
-                      {
-                        "description": "Unix timestamp used as part of the canonical signing string.\n",
-                        "key": "Chat-Timestamp",
-                        "value": "0"
-                      },
-                      {
-                        "description": "Base64-encoded signature of the canonical request string:\nMETHOD + \"\\n\" + PATH + \"\\n\" + TIMESTAMP + \"\\n\" + BODY_HASH\n",
-                        "key": "Chat-Signature",
-                        "value": ""
-                      },
-                      {
-                        "key": "Content-Type",
-                        "value": "application/json"
-                      },
-                      {
-                        "key": "Accept",
-                        "value": "application/json"
-                      }
-                    ],
-                    "body": {
-                      "mode": "raw",
-                      "raw": "{\n  \"id\": \"room_123\"\n}",
-                      "options": {
-                        "raw": {
-                          "headerFamily": "json",
-                          "language": "json"
-                        }
-                      }
-                    },
-                    "url": {
-                      "raw": "{{baseUrl}}/api/rooms/leave",
-                      "host": [
-                        "{{baseUrl}}"
-                      ],
-                      "path": [
-                        "api",
-                        "rooms",
-                        "leave"
-                      ]
-                    }
-                  },
-                  "status": "Unauthorized",
-                  "code": 401,
-                  "_postman_previewlanguage": "json",
-                  "header": [
-                    {
-                      "key": "Content-Type",
-                      "value": "application/json"
-                    }
-                  ],
-                  "cookie": [],
-                  "body": "{\n  \"error\": \"string\"\n}"
-                }
-              ]
-            },
-            {
               "name": "Add user to room",
               "request": {
                 "method": "POST",
@@ -1442,17 +1271,16 @@
                   }
                 },
                 "url": {
-                  "raw": "{{baseUrl}}/api//rooms/{{room_id}}/users/{{savedPublicKey}}",
+                  "raw": "{{baseUrl}}/api/rooms/{{room_id}}/users/FingerPrint",
                   "host": [
                     "{{baseUrl}}"
                   ],
                   "path": [
                     "api",
-                    "",
                     "rooms",
                     "{{room_id}}",
                     "users",
-                    "{{savedPublicKey}}"
+                    "FingerPrint"
                   ]
                 }
               },
@@ -1512,16 +1340,17 @@
                   }
                 },
                 "url": {
-                  "raw": "{{baseUrl}}/api/rooms/{{room_id}}/users/{{savedPublicKey}}",
+                  "raw": "{{baseUrl}}/api/rooms/{{room_id}}/users/FingerPrint",
                   "host": [
                     "{{baseUrl}}"
                   ],
                   "path": [
                     "api",
+                    "",
                     "rooms",
                     "{{room_id}}",
                     "users",
-                    "{{savedPublicKey}}"
+                    "FingerPrint"
                   ]
                 }
               },
