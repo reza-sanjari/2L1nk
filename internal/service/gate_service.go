@@ -16,6 +16,7 @@ import (
 
 type UserRepository interface {
 	GetByFingerprint(fingerprint string) (*infradb.UserRecord, error)
+	GetAllUsers() ([]infradb.UserRecord, error)
 	Create(u *infradb.UserRecord) error
 	UpdateUsername(fingerprint, username string) error
 }
@@ -102,4 +103,9 @@ func (s *GateService) Authorize(req GateRequest) (*GateResult, error) {
 // GetUserByFingerprint returns the DB record for a persistent user.
 func (s *GateService) GetUserByFingerprint(fingerprint string) (*infradb.UserRecord, error) {
 	return s.userRepo.GetByFingerprint(fingerprint)
+}
+
+// GetAllUsers returns all persistent users from the DB.
+func (s *GateService) GetAllUsers() ([]infradb.UserRecord, error) {
+	return s.userRepo.GetAllUsers()
 }
