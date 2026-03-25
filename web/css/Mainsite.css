@@ -790,4 +790,243 @@ button {
     50% { opacity: 0.4; }
 }
 
+/* ============================================================
+   MOBILE RESPONSIVE
+   ============================================================ */
+
+/* Hamburger — nur auf Desktop versteckt */
+.nav-toggle {
+    display: none;
+}
+
+/* Schließen-Button in der Nav — nur auf Desktop versteckt */
+.nav-close-btn {
+    display: none;
+}
+
+/* Overlay hinter geöffneter Nav */
+.nav-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(2px);
+    z-index: 400;
+}
+
+.nav-overlay.active {
+    display: block;
+}
+
+@media (max-width: 768px) {
+
+    /* ---- Top-Bar ---- */
+    .top-bar {
+        justify-content: space-between;
+        padding: 0 14px;
+        height: 55px;
+    }
+
+    .nav-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 38px;
+        height: 38px;
+        background: none;
+        border: 1px solid rgba(188, 19, 254, 0.4);
+        border-radius: 8px;
+        color: rgba(255, 255, 255, 0.75);
+        font-size: 1.05rem;
+        cursor: pointer;
+        flex-shrink: 0;
+        padding: 0;
+        margin: 0;
+    }
+
+    .nav-toggle:hover {
+        background: rgba(188, 19, 254, 0.15);
+        border-color: #bc13fe;
+        color: white;
+    }
+
+    /* Schließen-Button oben rechts in der Nav */
+    .nav-close-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: absolute;
+        top: 14px;
+        right: 14px;
+        width: 36px;
+        height: 36px;
+        background: none;
+        border: 1px solid rgba(188, 19, 254, 0.4);
+        border-radius: 8px;
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 1rem;
+        cursor: pointer;
+        padding: 0;
+        margin: 0;
+        z-index: 10;
+    }
+
+    .nav-close-btn:hover {
+        background: rgba(188, 19, 254, 0.15);
+        border-color: #bc13fe;
+        color: white;
+    }
+
+    /* ---- Sidebar ---- */
+    nav {
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: 285px;
+        z-index: 500;
+        transform: translateX(-100%);
+        transition: transform 0.27s ease;
+        box-shadow: none;
+        padding: 60px 20px 20px; /* Platz oben für Schließen-Button */
+    }
+
+    nav.open {
+        transform: translateX(0);
+        box-shadow: 6px 0 40px rgba(0, 0, 0, 0.7);
+    }
+
+    /* ---- App-Container ---- */
+    .app-container {
+        position: relative; /* Overlay + fixed nav korrekt positioniert */
+    }
+
+    /* ---- Welcome-Screen ---- */
+    .maininfo {
+        width: 100%;
+        padding: 30px 20px;
+        box-sizing: border-box;
+    }
+
+    .maininfo h1 {
+        font-size: 1.7rem !important;
+        text-align: center;
+    }
+
+    .welcome-icon {
+        font-size: 2.6rem;
+        margin-bottom: 14px;
+    }
+
+    .feature-grid {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 10px;
+        margin-top: 24px;
+    }
+
+    .feature-card {
+        width: 80px;
+        height: 80px;
+        border-radius: 12px;
+    }
+
+    .status-bar {
+        font-size: 0.7rem;
+        bottom: 16px;
+    }
+
+    /* ---- Chat-Bereich ---- */
+    main {
+        width: 100%;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    .chat-header {
+        padding: 8px 10px;
+        flex-wrap: nowrap;
+    }
+
+    .chat-header-name {
+        font-size: 0.85rem;
+        max-width: 100px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .chat-header-actions {
+        gap: 4px;
+        flex-shrink: 0;
+    }
+
+    .voice-controls {
+        gap: 3px;
+    }
+
+    .voice-btn {
+        padding: 4px 7px;
+        font-size: 0.7rem;
+        border-radius: 6px;
+    }
+
+    .chat-user-btn {
+        padding: 5px 8px;
+        font-size: 0.8rem;
+    }
+
+    /* Nachrichten */
+    .chat-messages {
+        padding: 6px 10px;
+    }
+
+    .msg-wrapper {
+        max-width: 84%;
+    }
+
+    .bubble {
+        max-width: 100%;
+        padding: 10px 13px;
+        font-size: 0.9rem;
+        border-radius: 14px;
+    }
+
+    /* Eingabefeld — font-size:16px verhindert iOS-Zoom */
+    .chat-input {
+        padding: 10px;
+        padding-bottom: max(10px, env(safe-area-inset-bottom));
+        gap: 7px;
+    }
+
+    input {
+        font-size: 16px;
+        padding: 10px 16px;
+    }
+
+    /* ---- Member-Modal: Vollbild ---- */
+    .member-modal {
+        width: 100vw;
+        height: 100dvh;
+        max-width: 100vw;
+        max-height: 100dvh;
+        border-radius: 0;
+    }
+
+    .member-modal-body {
+        flex-direction: column;
+    }
+
+    .member-col + .member-col {
+        border-left: none;
+        border-top: 1px solid rgba(188, 19, 254, 0.15);
+    }
+
+    /* ---- Dialog ---- */
+    dialog {
+        width: 92vw !important;
+        padding: 20px !important;
+    }
+}
+
 
