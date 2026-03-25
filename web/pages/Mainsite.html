@@ -17,6 +17,9 @@
     <div class="shape square"></div>
 
     <header class="top-bar">
+        <button class="nav-toggle" onclick="document.querySelector('nav').classList.contains('open') ? closeSidebar() : openSidebar()" aria-label="Menü öffnen">
+            <i class="fas fa-bars"></i>
+        </button>
         <div class="top-bar-actions">
             <i class="fas fa-search nav-icon" title="Global Search"></i>
             <i class="fas fa-bell nav-icon" title="Notifications"></i>
@@ -31,6 +34,7 @@
         </div>
     </header>
 
+    <div class="nav-overlay" id="nav-overlay" onclick="closeSidebar()"></div>
 
     <dialog id="newChatModal" style="background: #1a0525; color: white; border: 1px solid #bc13fe; border-radius: 15px; padding: 25px; width: 320px; box-shadow: 0 0 30px rgba(188, 19, 254, 0.3);">
         <h3 style="margin-top: 0; color: #bc13fe;">Neuer Chat erstellen</h3>
@@ -42,6 +46,9 @@
     </dialog>
     <div class="app-container">
         <nav>
+            <button class="nav-close-btn" onclick="closeSidebar()" aria-label="Menü schließen">
+                <i class="fas fa-times"></i>
+            </button>
             <div class="brand">
                 <div class="brand-icon"><i class="fas fa-shield-alt"></i></div>
                 <div>
@@ -57,7 +64,7 @@
 
             <div class="chat-list-header">
                 <span>CHATS</span>
-                <i class="fas fa-plus" onclick="document.getElementById('newChatModal').showModal()"></i>
+                <i class="fas fa-plus"></i>
             </div>
 
             <div id="chat-list-container" class="empty-state">
@@ -65,8 +72,8 @@
                 <p>Keine aktiven Chats </p>
             </div>
 
-            <button class="btn-action">Neuer Chat</button>
-            <button class="btn-action btn-voice" onclick="connectLocalChat()"><i class="fas fa-voice"></i> &nbsp;  Anrufen</button>
+            <button class="btn-action" onclick="document.getElementById('newChatModal').showModal()">Neuer Chat</button>
+            <!--<button class="btn-action btn-voice" onclick="connectLocalChat()"><i class="fas fa-voice"></i> &nbsp;  Anrufen</button>-->
 
             <div style="display: flex; justify-content: space-around; margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); opacity: 0.6;">
                 <i class="fas fa-question-circle"></i>

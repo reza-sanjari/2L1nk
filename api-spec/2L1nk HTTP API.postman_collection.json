@@ -443,6 +443,22 @@
           "item": [
             {
               "name": "Get current user info (from session)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const body = pm.response.json();\r",
+                      "if (body.publicFingerPrint) {\r",
+                      "    pm.environment.set(\"userFingerprint\", body.publicFingerPrint);\r",
+                      "}"
+                    ],
+                    "type": "text/javascript",
+                    "packages": {},
+                    "requests": {}
+                  }
+                }
+              ],
               "request": {
                 "method": "GET",
                 "header": [
@@ -1301,7 +1317,10 @@
                     "requests": {}
                   }
                 }
-              ],
+              ]
+            },
+            {
+              "name": "Add user to room",
               "request": {
                 "method": "DELETE",
                 "header": [
@@ -1351,6 +1370,75 @@
                     "{{room_id}}",
                     "users",
                     "FingerPrint"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "remove user to room",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const res = pm.response.json();\r",
+                      "pm.environment.set(\"room_id\", res.room_id);"
+                    ],
+                    "type": "text/javascript",
+                    "packages": {},
+                    "requests": {}
+                  }
+                }
+              ],
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Chat-Session-ID",
+                    "value": "{{chatSessionId}}",
+                    "description": "Session ID returned by POST /api/auth/gate."
+                  },
+                  {
+                    "key": "Chat-Timestamp",
+                    "value": "{{$timestamp}}",
+                    "description": "Unix timestamp used as part of the canonical signing string.\n"
+                  },
+                  {
+                    "key": "Chat-Signature",
+                    "value": "{{$randomLoremText}}",
+                    "description": "Base64-encoded signature of the canonical request string:\nMETHOD + \"\\n\" + PATH + \"\\n\" + TIMESTAMP + \"\\n\" + BODY_HASH\n"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/rooms/{{room_id}}/users/{{userFingerprint}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "rooms",
+                    "{{room_id}}",
+                    "users",
+                    "{{userFingerprint}}"
                   ]
                 }
               },
