@@ -1346,6 +1346,7 @@
                   ],
                   "path": [
                     "api",
+                    "",
                     "rooms",
                     "{{room_id}}",
                     "users",
