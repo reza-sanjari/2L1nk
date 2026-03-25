@@ -283,7 +283,13 @@ function searchfunction(event) {
 }
 function toggleChatUserList() {
     const panel = document.getElementById('chat-user-panel');
-    if (panel) panel.classList.toggle('open');
+    if (!panel) return;
+    const isOpening = !panel.classList.contains('open');
+    if (isOpening) {
+        const voicePanel = document.getElementById('voice-panel');
+        if (voicePanel) voicePanel.classList.remove('open');
+    }
+    panel.classList.toggle('open');
 }
 
 function renderChatUserList(users) {
@@ -301,6 +307,8 @@ function renderChatUserList(users) {
 function clickroom(room) {
     currentRoomId = room.room_id;
     currentRoomEpoch = room.epoch ?? 0;
+    // Auf Mobile: Sidebar schließen wenn ein Raum geöffnet wird
+    if (window.innerWidth <= 768) closeSidebar();
 
     const maininfo = document.querySelector('.maininfo');
     maininfo.style.display = 'none';
@@ -351,7 +359,13 @@ function clickroom(room) {
 
 function toggleVoicePanel() {
     const panel = document.getElementById('voice-panel');
-    if (panel) panel.classList.toggle('open');
+    if (!panel) return;
+    const isOpening = !panel.classList.contains('open');
+    if (isOpening) {
+        const memberPanel = document.getElementById('chat-user-panel');
+        if (memberPanel) memberPanel.classList.remove('open');
+    }
+    panel.classList.toggle('open');
 }
 async function loadChat(room) {
     const chatEl = document.getElementById('chat');
@@ -774,6 +788,26 @@ function logout() {
 }
 
 // ============================================================
+// MOBILE SIDEBAR TOGGLE
+// ============================================================
+
+function openSidebar() {
+    document.querySelector('nav').classList.add('open');
+    document.getElementById('nav-overlay').classList.add('active');
+    document.body.style.overflow = 'hidden';
+    const icon = document.querySelector('.nav-toggle i');
+    if (icon) { icon.classList.remove('fa-bars'); icon.classList.add('fa-times'); }
+}
+
+function closeSidebar() {
+    document.querySelector('nav').classList.remove('open');
+    document.getElementById('nav-overlay').classList.remove('active');
+    document.body.style.overflow = '';
+    const icon = document.querySelector('.nav-toggle i');
+    if (icon) { icon.classList.remove('fa-times'); icon.classList.add('fa-bars'); }
+}
+
+// ============================================================
 // VOICE CHAT — WebRTC
 // ============================================================
 
@@ -1003,4 +1037,13 @@ window.addEventListener('DOMContentLoaded', async () => {
     connectLocalChat();
     fetchRooms();
     setInterval(fetchRooms, 15000);
+});
+
+// Beim Wechsel auf Desktop: Sidebar-Zustand zurücksetzen
+window.addEventListener('resize', () => {
+    if (window.innerWidth > 768) {
+        document.querySelector('nav').classList.remove('open');
+        document.getElementById('nav-overlay').classList.remove('active');
+        document.body.style.overflow = '';
+    }
 });
