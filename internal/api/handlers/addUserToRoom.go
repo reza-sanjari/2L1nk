@@ -34,7 +34,29 @@ func (h *Handler) AddUsersToRoom(c echo.Context) error {
 		return c.JSON(http.StatusForbidden, map[string]string{"error": "only the host can add members"})
 	}
 
-	// DB first: add member to room_members.
+	// Resolve the new member's X25519 key and mode.
+	// DB is the primary source: persistent users are always there.
+	// If not in DB, fall back to the hub for online ephemeral users.
+	// AddMemberDirect will silently skip the DB insert for ephemeral users (by design).
+	var memberX25519Key string
+	var memberMode models.UserMode
+	dbUser, err := h.services.Gate.GetUserByFingerprint(memberFP)
+	if err != nil {
+		h.logg.Error("add user to room: failed to look up user", zap.String("memberFP", memberFP), zap.Error(err))
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+	}
+	if dbUser != nil {
+		memberX25519Key = dbUser.X25519PublicKey
+		memberMode = models.UserModePersistent
+	} else if onlineUser := h.hub.GetOnlineUser(memberFP); onlineUser != nil {
+		memberX25519Key = onlineUser.X25519PublicKey
+		memberMode = onlineUser.Mode
+	} else {
+		h.logg.Debug("add user to room: user not found", zap.String("memberFP", memberFP))
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "user not found"})
+	}
+
+	// DB first: add member to room_members (silently skips ephemeral users by design).
 	if err := h.services.Room.AddMemberDirect(roomID, memberFP, time.Now().Unix()); err != nil {
 		h.logg.Error("add user to room: failed to add member to DB", zap.String("roomID", roomID), zap.String("memberFP", memberFP), zap.Error(err))
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
@@ -54,19 +76,6 @@ func (h *Handler) AddUsersToRoom(c echo.Context) error {
 	}
 	h.logg.Debug("add user to room: epoch updated", zap.String("roomID", roomID), zap.Int64("newEpoch", newEpoch), zap.String("keyCreatorFP", newKeyCreatorFP))
 
-	// Find the new member's X25519 key and mode for hub sync.
-	var memberX25519Key string
-	var memberMode models.UserMode
-	if liveRoom := h.hub.GetRoom(roomID); liveRoom != nil {
-		for _, u := range liveRoom.Users {
-			if u.Fingerprint == memberFP {
-				memberX25519Key = u.X25519PublicKey
-				memberMode = u.Mode
-				break
-			}
-		}
-	}
-
 	// Hub sync: sends to JoinRoom channel; hub updates state and broadcasts rotation WS.
 	h.hub.JoinRoom <- hub.RoomMembersChangeRequest{
 		RoomID:          roomID,
@@ -79,12 +88,44 @@ func (h *Handler) AddUsersToRoom(c echo.Context) error {
 
 	h.logg.Info("user added to room", zap.String("roomID", roomID), zap.String("memberFP", memberFP), zap.Int64("newEpoch", newEpoch))
 
-	updatedRoom, err := h.services.Room.GetRoomByID(roomID)
-	if err != nil || updatedRoom == nil {
-		h.logg.Error("add user to room: failed to fetch updated room", zap.String("roomID", roomID), zap.Error(err))
+	// Build member list from DB (authoritative, already updated) to avoid
+	// the async hub race and the hub-only-tracks-online-members limitation.
+	members, err := h.services.Room.GetRoomMembersWithDetails(roomID)
+	if err != nil {
+		h.logg.Error("add user to room: failed to fetch room members", zap.String("roomID", roomID), zap.Error(err))
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 	}
-	return c.JSON(http.StatusCreated, map[string]any{"room": buildRoomResponse(updatedRoom, h.hub.GetRoom(roomID))})
+
+	userList := make([]hub.RoomMemberInfo, 0, len(members))
+	for _, m := range members {
+		userList = append(userList, hub.RoomMemberInfo{
+			Fingerprint:     m.Fingerprint,
+			Username:        m.Username,
+			X25519PublicKey: m.X25519PublicKey,
+			Mode:            models.UserModePersistent,
+		})
+	}
+	liveRoom := h.hub.GetRoom(roomID)
+	if liveRoom != nil {
+		for _, u := range liveRoom.Users {
+			if u.Mode == models.UserModeEphemeral {
+				userList = append(userList, u)
+			}
+		}
+	}
+
+	resp := roomResponse{
+		RoomID: roomRecord.ID,
+		Name:   roomRecord.Name,
+		Epoch:  newEpoch,
+		Online: liveRoom != nil,
+		Users:  userList,
+	}
+	if liveRoom != nil {
+		host := liveRoom.Host
+		resp.Host = &host
+	}
+	return c.JSON(http.StatusCreated, map[string]any{"room": resp})
 }
 
 // selectKeyCreatorAfterChange picks the key creator for the updated room.

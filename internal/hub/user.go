@@ -23,7 +23,7 @@ type User struct {
 
 func (u *User) ReadPump(inbound chan<- WSMessageEnvelope) error {
 	for {
-		u.logg.Debug("read pump called for user", zap.String("username", u.Username), zap.String("fingerprint", u.Fingerprint))
+		//u.logg.Debug("read pump called for user", zap.String("username", u.Username), zap.String("fingerprint", u.Fingerprint))
 		_, message, err := u.Websocket.ReadMessage()
 		if err != nil {
 			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
@@ -51,7 +51,7 @@ func (u *User) ReadPump(inbound chan<- WSMessageEnvelope) error {
 
 func (u *User) WritePump() error {
 	for msg := range u.OutGoingMessages {
-		u.logg.Debug("write pump called for user", zap.String("username", u.Username), zap.String("fingerprint", u.Fingerprint))
+		//u.logg.Debug("write pump called for user", zap.String("username", u.Username), zap.String("fingerprint", u.Fingerprint))
 		u.PeerMux.Lock()
 
 		err := u.Websocket.WriteMessage(websocket.TextMessage, msg)

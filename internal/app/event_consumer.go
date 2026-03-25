@@ -2,8 +2,10 @@ package app
 
 import (
 	"2L1nk/internal/hub"
+	infradb "2L1nk/internal/infrastructure/db"
 	"2L1nk/internal/logger"
 	"2L1nk/internal/service"
+	"time"
 
 	"go.uber.org/zap"
 )
@@ -76,6 +78,23 @@ func startEventConsumer(
 				payload := event.Payload.(hub.KeyRotationTriggeredPayload)
 				if err := roomSvc.UpdateEpochAndKeyCreator(payload.RoomID, payload.Epoch, payload.KeyCreatorFP); err != nil {
 					logg.Error("event consumer: failed to update epoch and key creator", zap.Error(err))
+				}
+
+			case hub.HubEventEpochKeysSubmitted:
+				payload := event.Payload.(hub.EpochKeysSubmittedPayload)
+				now := time.Now().Unix()
+				slots := make([]infradb.KeySlotRecord, 0, len(payload.Keys))
+				for _, k := range payload.Keys {
+					slots = append(slots, infradb.KeySlotRecord{
+						RoomID:       payload.RoomID,
+						Epoch:        payload.Epoch,
+						RecipientFP:  k.RecipientFP,
+						EncryptedKey: k.EncryptedKey,
+						CreatedAt:    now,
+					})
+				}
+				if err := roomSvc.StoreKeySlots(slots); err != nil {
+					logg.Error("event consumer: failed to store epoch key slots", zap.Error(err))
 				}
 			}
 		}
