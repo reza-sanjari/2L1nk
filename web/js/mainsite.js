@@ -3,7 +3,22 @@ let socket;
 let roomList = [];
 let gefilterteListe = [];
 let currentRoomId = null;
+let currentRoomEpoch = 0;
 const pendingSent = new Set(); // eigene gesendete Nachrichten (roomId:ciphertext) — verhindert Echo-Duplikate
+const roomKeys = new Map();   // `${roomId}:${epoch}` → Uint8Array (Room-Key)
+
+// ============================================================
+// VOICE CHAT STATE
+// ============================================================
+let voiceRoomId = null;
+let localStream = null;
+const peerConnections = new Map(); // FP → RTCPeerConnection
+let isMuted = false;
+const voiceParticipants = new Set(); // FP von Usern aktuell in Voice
+
+const ICE_CONFIG = {
+    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+};
 
 // ============================================================
 // CRYPTO MODULE — via tweetnacl
@@ -134,6 +149,38 @@ const AppCrypto = (() => {
     };
 })();
 if (!AppCrypto.loadIdentity()) AppCrypto.generateIdentity();
+// Gibt den entschlüsselten Text zurück, oder null wenn kein Key vorhanden / Fehler / leer.
+function decryptText(ciphertextStr, roomId, epoch) {
+    try {
+        const roomKey = roomKeys.get(`${roomId}:${epoch}`);
+        if (!roomKey) return null;
+        const { nonce, ciphertext } = JSON.parse(ciphertextStr);
+        const text = AppCrypto.decryptMessage({ nonce, ciphertext }, roomKey);
+        return text || null;
+    } catch {
+        return null;
+    }
+}
+
+// Generiert einen neuen Room-Key, speichert ihn lokal und POSTet die
+// verschlüsselten Key-Slots für alle Mitglieder an den Server.
+async function submitRoomKey(roomId, epoch, members) {
+    const roomKey = AppCrypto.generateRoomKey();
+    roomKeys.set(`${roomId}:${epoch}`, roomKey);
+
+    const keys = members.map(m => ({
+        recipient_fp: m.fingerprint,
+        encrypted_key: btoa(JSON.stringify(AppCrypto.encryptRoomKey(roomKey, m.x25519_public_key)))
+    }));
+
+    try {
+        const res = await authFetch('POST', `/api/rooms/${roomId}/epoch-keys`, { epoch, keys });
+        if (!res.ok) console.error('submitRoomKey fehlgeschlagen:', await res.text());
+    } catch (e) {
+        console.error('submitRoomKey Netzwerkfehler:', e);
+    }
+}
+
 function connectLocalChat() {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     socket = new WebSocket(`${wsProtocol}//${window.location.host}/api/ws`);
@@ -153,6 +200,54 @@ function connectLocalChat() {
     socket.onmessage = (event) => {
         const envelope = JSON.parse(event.data);
 
+        if (envelope.type === "join_room" || envelope.type === "leave_room") {
+            fetchRooms();
+            return;
+        }
+
+        if (envelope.type === "room_key_rotation") {
+            const p = envelope.payload;
+            if (p.room_id === currentRoomId) currentRoomEpoch = p.epoch;
+            const myFP = sessionStorage.getItem('my_fingerprint');
+            if (p.key_creator_fp === myFP) submitRoomKey(p.room_id, p.epoch, p.members);
+            return;
+        }
+
+        if (envelope.type === "room_key_slot") {
+            const p = envelope.payload;
+            try {
+                const keyData = JSON.parse(atob(p.encrypted_key));
+                const roomKey = AppCrypto.decryptRoomKey(keyData);
+                roomKeys.set(`${p.room_id}:${p.epoch}`, roomKey);
+            } catch (e) {
+                console.error('Fehler beim Entschlüsseln des Room-Keys:', e);
+            }
+            return;
+        }
+
+        if (envelope.type === "epoch_mismatch") {
+            const p = envelope.payload;
+            if (p && p.room_id === currentRoomId) {
+                currentRoomEpoch = p.current_epoch;
+            }
+            return;
+        }
+
+        if (envelope.type === "signal") {
+            handleSignalMessage(envelope.payload);
+            return;
+        }
+
+        if (envelope.type === "voice_joined") {
+            handleVoiceJoined(envelope.payload);
+            return;
+        }
+
+        if (envelope.type === "voice_left") {
+            handleVoiceLeft(envelope.payload);
+            return;
+        }
+
         if (envelope.type === "message") {
             const payload = envelope.payload;
 
@@ -166,12 +261,23 @@ function connectLocalChat() {
 
             // nur anzeigen wenn dieser Raum gerade offen ist
             if (payload.room_id !== currentRoomId) return;
+            const text = decryptText(payload.ciphertext, payload.room_id, payload.epoch);
+            if (!text) return; // leer oder nicht entschlüsselbar → nicht anzeigen
             const chatEl = document.getElementById('chat');
             if (!chatEl) return;
+            const wrapper = document.createElement('div');
+            wrapper.className = 'msg-wrapper';
+            if (payload.sender_name) {
+                const label = document.createElement('div');
+                label.className = 'msg-label';
+                label.textContent = payload.sender_name;
+                wrapper.appendChild(label);
+            }
             const div = document.createElement('div');
             div.className = 'bubble received';
-            div.innerText = payload.ciphertext;
-            chatEl.appendChild(div);
+            div.innerText = text;
+            wrapper.appendChild(div);
+            chatEl.appendChild(wrapper);
             chatEl.scrollTop = chatEl.scrollHeight;
         }
     };
@@ -181,7 +287,6 @@ function connectLocalChat() {
 }
 async function fetchRooms() {
 
-    console.log("Daten erfolgreich fetch:");
     const timestamp = Math.floor(Date.now() / 1000);
     const path = '/api/users/me/rooms';
 
@@ -204,9 +309,9 @@ async function fetchRooms() {
         }
 
         roomList = (await response.json()).rooms ?? [];
-        console.log("Räume geladen:", roomList);
         renderFunc(roomList);
-
+        const cr = roomList.find(r => r.room_id === currentRoomId);
+        if (cr) renderChatUserList(cr.users);
     } catch (error) {
 
         console.error("Fehler beim Abrufen der Räume:", error);
@@ -222,46 +327,140 @@ function searchfunction(event) {
             room.name.toLowerCase().includes(searchTerm);
     });
     renderFunc(gefilterteListe);
-    console.log("Daten erfolgreich geladen:", gefilterteListe);
 }
+function toggleChatUserList() {
+    const panel = document.getElementById('chat-user-panel');
+    if (!panel) return;
+    const isOpening = !panel.classList.contains('open');
+    if (isOpening) {
+        const voicePanel = document.getElementById('voice-panel');
+        if (voicePanel) voicePanel.classList.remove('open');
+    }
+    panel.classList.toggle('open');
+}
+
+function renderChatUserList(users) {
+    const list = document.getElementById('chat-user-list');
+    if (!list) return;
+    list.innerHTML = '';
+    (users ?? []).forEach(u => {
+        const div = document.createElement('div');
+        div.className = 'chat-user-entry';
+        div.innerHTML = `<span class="chat-user-dot"></span><span>${u.username}</span>`;
+        list.appendChild(div);
+    });
+}
+
 function clickroom(room) {
     currentRoomId = room.room_id;
+    currentRoomEpoch = room.epoch ?? 0;
+    // Auf Mobile: Sidebar schließen wenn ein Raum geöffnet wird
+    if (window.innerWidth <= 768) closeSidebar();
 
     const maininfo = document.querySelector('.maininfo');
     maininfo.style.display = 'none';
     const main = document.getElementById('main');
     main.style.display = 'flex';
     main.innerHTML = `
+                <div class="chat-header">
+                    <span class="chat-header-name">${room.name}</span>
+                    <div class="chat-header-actions">
+                        <div class="voice-controls">
+                            <button id="voice-join-btn" class="voice-btn" onclick="toggleVoice('${room.room_id}')">🎙️ Voice</button>
+                            <button id="voice-mute-btn" class="voice-btn" onclick="toggleMute()" style="display:none">🎤 Stumm</button>
+                        </div>
+                        <div class="chat-user-panel-wrapper" style="position:relative">
+                            <button class="chat-user-btn" onclick="toggleVoicePanel()" title="Voice-Teilnehmer">
+                                <i class="fas fa-headphones"></i>
+                            </button>
+                            <div class="voice-panel" id="voice-panel">
+                                <div class="voice-panel-title">IN VOICE</div>
+                                <div id="voice-participants-list"></div>
+                            </div>
+                        </div>
+                        <div class="chat-user-panel-wrapper">
+                            <button class="chat-user-btn" onclick="toggleChatUserList()" title="Mitglieder">
+                                <i class="fas fa-users"></i>
+                            </button>
+                            <div class="chat-user-panel" id="chat-user-panel">
+                                <div class="chat-user-panel-title">MITGLIEDER</div>
+                                <div id="chat-user-list"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <div class="chat-messages" id="chat">
                 </div>
-
                 <div class="chat-input">
                     <input type="text" id="schreibnachricht" placeholder="Nachricht schreiben...">
                     <button onclick="sendMessage('${room.room_id}')">Senden</button>
                 </div>
-
             `;
     document.getElementById('schreibnachricht').addEventListener('keydown', (e) => {
         if (e.key === 'Enter') sendMessage(room.room_id);
     });
+    renderChatUserList(room.users);
     loadChat(room);
+    updateVoiceUI();
+}
+
+function toggleVoicePanel() {
+    const panel = document.getElementById('voice-panel');
+    if (!panel) return;
+    const isOpening = !panel.classList.contains('open');
+    if (isOpening) {
+        const memberPanel = document.getElementById('chat-user-panel');
+        if (memberPanel) memberPanel.classList.remove('open');
+    }
+    panel.classList.toggle('open');
 }
 async function loadChat(room) {
     const chatEl = document.getElementById('chat');
     const myFP   = sessionStorage.getItem('my_fingerprint');
+
+    const fpToName = {};
+    if (room.host) fpToName[room.host.fingerprint] = room.host.username;
+    (room.users ?? []).forEach(u => { fpToName[u.fingerprint] = u.username; });
 
     try {
         const response = await authFetch('GET', `/api/rooms/${room.room_id}/messages`);
         if (!response.ok) throw new Error(`HTTP-Fehler: ${response.status}`);
 
         const data     = await response.json();
-        const messages = (data.messages ?? []).reverse();
+        const messages = (data.messages ?? []).filter(m => m.ciphertext && m.ciphertext.trim() !== '').reverse();
+
+        chatEl.innerHTML = '';
+
+        if (messages.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'chat-empty';
+            empty.textContent = 'Noch keine Nachrichten.';
+            chatEl.appendChild(empty);
+            return;
+        }
 
         messages.forEach(msg => {
-            const div = document.createElement('div');
-            div.className = `bubble ${msg.sender_fp === myFP ? 'sent' : 'received'}`;
-            div.innerText = msg.ciphertext;
-            chatEl.appendChild(div);
+            const isMine = msg.sender_fp === myFP;
+            const text = decryptText(msg.ciphertext, room.room_id, msg.epoch);
+            if (!text) return; // leer oder nicht entschlüsselbar → überspringen
+            if (isMine) {
+                const div = document.createElement('div');
+                div.className = 'bubble sent';
+                div.innerText = text;
+                chatEl.appendChild(div);
+            } else {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'msg-wrapper';
+                const label = document.createElement('div');
+                label.className = 'msg-label';
+                label.textContent = fpToName[msg.sender_fp] ?? (msg.sender_fp.slice(0, 8) + '…');
+                wrapper.appendChild(label);
+                const div = document.createElement('div');
+                div.className = 'bubble received';
+                div.innerText = text;
+                wrapper.appendChild(div);
+                chatEl.appendChild(wrapper);
+            }
         });
 
         chatEl.scrollTop = chatEl.scrollHeight;
@@ -364,10 +563,20 @@ async function openRoomMenu(room) {
     rightCol.appendChild(rightTitle);
     rightCol.appendChild(rightList);
 
+    // Footer: Gruppe löschen
+    const footer = document.createElement('div');
+    footer.className = 'member-modal-footer';
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'del-group-btn';
+    deleteBtn.textContent = 'Gruppe löschen';
+    deleteBtn.onclick = () => deleteGroup(room.room_id);
+    footer.appendChild(deleteBtn);
+
     body.appendChild(leftCol);
     body.appendChild(rightCol);
     modal.appendChild(header);
     modal.appendChild(body);
+    modal.appendChild(footer);
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
     activeMemberModal = overlay;
@@ -415,10 +624,9 @@ async function openRoomMenu(room) {
         rightList.innerHTML = '<div class="member-col-empty">Keine online User verfügbar</div>';
     } else {
         addable.forEach(u => rightList.appendChild(
-            makeRow(u.username, 'add-btn', '+ Hinzufügen', () => addMember(room.room_id, u.fingerprint))
+            makeRow(u.username, 'add-btn', '+ Hinzufügen', () => addMember(room.room_id, u))
         ));
     }
-    fetchRooms(); // aktualisiert die roomList mit den neuesten User-Infos (z.B. falls jemand gerade online gekommen ist)
 }
 
 async function authFetch(method, path, body = null) {
@@ -445,35 +653,76 @@ async function authFetch(method, path, body = null) {
     return fetch(`${path}`, opts);
 }
 
-async function addMember(roomId, fingerprint) {
-    const res = await authFetch('POST', `/api/rooms/${roomId}/users`, { users: [fingerprint] });
-    if (res.ok) { await fetchRooms(); const room = roomList.find(r => r.room_id === roomId); if (room) openRoomMenu(room); }
-    else alert('Fehler beim Hinzufügen');
+async function addMember(roomId, user) {
+    const res = await authFetch('POST', `/api/rooms/${roomId}/users/${user.fingerprint}`);
+    if (res.ok) {
+        await fetchRooms();
+        const idx = roomList.findIndex(r => r.room_id === roomId);
+        if (idx >= 0 && !roomList[idx].users?.some(u => u.fingerprint === user.fingerprint)) {
+            roomList[idx] = { ...roomList[idx], users: [...(roomList[idx].users ?? []), user] };
+        }
+        const room = roomList.find(r => r.room_id === roomId);
+        if (room) openRoomMenu(room);
+    } else alert('Fehler beim Hinzufügen');
 }
 
 async function removeMember(roomId, fingerprint) {
-    const res = await authFetch('DELETE', `/api/rooms/${roomId}/users`, { user_fp: fingerprint });
-    if (res.ok) { await fetchRooms(); const room = roomList.find(r => r.room_id === roomId); if (room) openRoomMenu(room); }
-    else alert('Fehler beim Entfernen');
+    const res = await authFetch('DELETE', `/api/rooms/${roomId}/users/${fingerprint}`);
+    if (res.ok) {
+        await fetchRooms();
+        const idx = roomList.findIndex(r => r.room_id === roomId);
+        if (idx >= 0) {
+            roomList[idx] = { ...roomList[idx], users: (roomList[idx].users ?? []).filter(u => u.fingerprint !== fingerprint) };
+        }
+        const room = roomList.find(r => r.room_id === roomId);
+        if (room) openRoomMenu(room); else closeMemberModal();
+    } else alert('Fehler beim Entfernen');
+}
+
+async function deleteGroup(roomId) {
+    const myFP = sessionStorage.getItem('my_fingerprint');
+    if (!confirm('Gruppe wirklich löschen?')) return;
+    const res = await authFetch('DELETE', `/api/rooms/${roomId}/users/${myFP}`);
+    if (res.ok) {
+        closeMemberModal();
+        currentRoomId = null;
+        currentRoomEpoch = 0;
+        const main = document.getElementById('main');
+        main.style.display = 'none';
+        document.querySelector('.maininfo').style.display = '';
+        await fetchRooms();
+    } else alert('Fehler beim Löschen der Gruppe');
 }
 function sendMessage(roomID) {
-    const ciphertext = document.getElementById('schreibnachricht').value;
+    const plaintext = document.getElementById('schreibnachricht').value.trim();
     document.getElementById('schreibnachricht').value = "";
-    if (socket && socket.readyState === WebSocket.OPEN) {
-        pendingSent.add(`${roomID}:${ciphertext}`);
-        const messagePayload = {
-            "type": "message",
-            "payload": {
-                "room_id": roomID,
-                "epoch": 0,
-                "ciphertext": ciphertext
-            }
-        };
-        socket.send(JSON.stringify(messagePayload));
-        send(ciphertext);
-    } else {
+    if (!plaintext) return;
+
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
         console.error("Socket ist nicht bereit. Verbindung prüfen!");
+        return;
     }
+
+    const roomKey = roomKeys.get(`${roomID}:${currentRoomEpoch}`);
+    if (!roomKey) {
+        console.warn('Kein Room-Key verfügbar – warte auf Key-Rotation.');
+        return;
+    }
+
+    const encrypted = AppCrypto.encryptMessage(plaintext, roomKey);
+    const ciphertext = JSON.stringify(encrypted); // { nonce, ciphertext } als String
+
+    pendingSent.add(`${roomID}:${ciphertext}`);
+    socket.send(JSON.stringify({
+        type: "message",
+        payload: {
+            room_id: roomID,
+            epoch: currentRoomEpoch,
+            ciphertext,
+            sender_name: sessionStorage.getItem('username')
+        }
+    }));
+    send(plaintext); // eigene Nachricht lokal als Klartext anzeigen
 }
 
 function send(ciphertext) {
@@ -564,7 +813,7 @@ async function newChat(groupName) {
         // 3. Signatur erzeugen
         const signature = AppCrypto.sign(canonical);
 
-        console.log("Sende Request mit Canonical:", canonical); // Zum Debuggen mit Go-Log vergleichen
+       
 
         const response = await fetch(`${path}`, {
             method: 'POST',
@@ -597,8 +846,264 @@ function logout() {
     sessionStorage.clear();
     window.location.href = 'Login';
 }
+
+// ============================================================
+// MOBILE SIDEBAR TOGGLE
+// ============================================================
+
+function openSidebar() {
+    document.querySelector('nav').classList.add('open');
+    document.getElementById('nav-overlay').classList.add('active');
+    document.body.style.overflow = 'hidden';
+    const icon = document.querySelector('.nav-toggle i');
+    if (icon) { icon.classList.remove('fa-bars'); icon.classList.add('fa-times'); }
+}
+
+function closeSidebar() {
+    document.querySelector('nav').classList.remove('open');
+    document.getElementById('nav-overlay').classList.remove('active');
+    document.body.style.overflow = '';
+    const icon = document.querySelector('.nav-toggle i');
+    if (icon) { icon.classList.remove('fa-times'); icon.classList.add('fa-bars'); }
+}
+
+// ============================================================
+// VOICE CHAT — WebRTC
+// ============================================================
+
+function sendSignal(roomId, targetFP, signalData) {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({
+            type: 'signal',
+            payload: { room_id: roomId, target_fp: targetFP, signal: signalData }
+        }));
+    }
+}
+
+async function joinVoice(roomId) {
+    if (voiceRoomId === roomId) return;
+    if (voiceRoomId) leaveVoice();
+
+    try {
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    } catch (e) {
+        alert('Mikrofon nicht verfügbar: ' + e.message);
+        return;
+    }
+
+    voiceRoomId = roomId;
+    const myFP = sessionStorage.getItem('my_fingerprint');
+    voiceParticipants.clear();
+    voiceParticipants.add(myFP);
+
+    if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: 'voice_joined', payload: { room_id: roomId } }));
+    }
+
+    updateVoiceUI();
+}
+
+function leaveVoice() {
+    if (!voiceRoomId) return;
+    const roomId = voiceRoomId;
+
+    peerConnections.forEach((pc) => pc.close());
+    peerConnections.clear();
+
+    if (localStream) {
+        localStream.getTracks().forEach(t => t.stop());
+        localStream = null;
+    }
+
+    // Remove all audio elements
+    document.querySelectorAll('audio[data-voice]').forEach(a => a.remove());
+
+    voiceParticipants.clear();
+    voiceRoomId = null;
+    isMuted = false;
+
+    if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: 'voice_left', payload: { room_id: roomId } }));
+    }
+
+    updateVoiceUI();
+}
+
+function toggleVoice(roomId) {
+    if (voiceRoomId === roomId) leaveVoice(); else joinVoice(roomId);
+}
+
+function toggleMute() {
+    if (!localStream) return;
+    isMuted = !isMuted;
+    localStream.getAudioTracks().forEach(t => { t.enabled = !isMuted; });
+    updateVoiceUI();
+}
+
+async function createPeerConnection(targetFP, roomId, isInitiator) {
+    if (peerConnections.has(targetFP)) {
+        peerConnections.get(targetFP).close();
+    }
+
+    const pc = new RTCPeerConnection(ICE_CONFIG);
+    peerConnections.set(targetFP, pc);
+
+    if (localStream) {
+        localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+    }
+
+    pc.ontrack = (event) => {
+        let audio = document.querySelector(`audio[data-voice="${targetFP}"]`);
+        if (!audio) {
+            audio = document.createElement('audio');
+            audio.dataset.voice = targetFP;
+            audio.autoplay = true;
+            document.body.appendChild(audio);
+        }
+        audio.srcObject = event.streams[0];
+    };
+
+    pc.onicecandidate = (event) => {
+        if (event.candidate) {
+            sendSignal(roomId, targetFP, { type: 'ice', candidate: event.candidate });
+        }
+    };
+
+    pc.onconnectionstatechange = () => {
+        if (['disconnected', 'failed', 'closed'].includes(pc.connectionState)) {
+            const audio = document.querySelector(`audio[data-voice="${targetFP}"]`);
+            if (audio) audio.remove();
+            if (peerConnections.get(targetFP) === pc) peerConnections.delete(targetFP);
+        }
+    };
+
+    if (isInitiator) {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        sendSignal(roomId, targetFP, { type: 'offer', sdp: offer.sdp });
+    }
+
+    return pc;
+}
+
+async function handleSignalMessage(payload) {
+    // payload: { room_id, from_fp, signal }
+    if (!voiceRoomId || payload.room_id !== voiceRoomId) return;
+
+    const fromFP = payload.from_fp;
+    const sig = payload.signal;
+
+    try {
+        if (sig.type === 'offer') {
+            const pc = await createPeerConnection(fromFP, voiceRoomId, false);
+            await pc.setRemoteDescription({ type: 'offer', sdp: sig.sdp });
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            sendSignal(voiceRoomId, fromFP, { type: 'answer', sdp: answer.sdp });
+        } else if (sig.type === 'answer') {
+            const pc = peerConnections.get(fromFP);
+            if (pc) await pc.setRemoteDescription({ type: 'answer', sdp: sig.sdp });
+        } else if (sig.type === 'ice') {
+            const pc = peerConnections.get(fromFP);
+            if (pc && sig.candidate) await pc.addIceCandidate(sig.candidate);
+        }
+    } catch (e) {
+        console.error('WebRTC signal error:', e);
+    }
+}
+
+async function handleVoiceJoined(payload) {
+    // payload: { room_id, fingerprint, voice_users }
+    const myFP = sessionStorage.getItem('my_fingerprint');
+
+    if (payload.voice_users) {
+        payload.voice_users.forEach(fp => voiceParticipants.add(fp));
+    } else {
+        voiceParticipants.add(payload.fingerprint);
+    }
+
+    // If we're in voice in this room and someone else joined, initiate connection
+    if (voiceRoomId === payload.room_id && payload.fingerprint !== myFP) {
+        await createPeerConnection(payload.fingerprint, voiceRoomId, true);
+    }
+
+    if (payload.room_id === currentRoomId) updateVoiceUI();
+}
+
+function handleVoiceLeft(payload) {
+    // payload: { room_id, fingerprint }
+    voiceParticipants.delete(payload.fingerprint);
+
+    const pc = peerConnections.get(payload.fingerprint);
+    if (pc) {
+        pc.close();
+        peerConnections.delete(payload.fingerprint);
+    }
+
+    const audio = document.querySelector(`audio[data-voice="${payload.fingerprint}"]`);
+    if (audio) audio.remove();
+
+    if (payload.room_id === currentRoomId) updateVoiceUI();
+}
+
+function updateVoiceUI() {
+    const isInVoice = voiceRoomId === currentRoomId;
+
+    const joinBtn = document.getElementById('voice-join-btn');
+    if (joinBtn) {
+        joinBtn.textContent = isInVoice ? '🔴 Verlassen' : '🎙️ Voice';
+        joinBtn.className = isInVoice ? 'voice-btn active' : 'voice-btn';
+    }
+
+    const muteBtn = document.getElementById('voice-mute-btn');
+    if (muteBtn) {
+        muteBtn.style.display = isInVoice ? '' : 'none';
+        muteBtn.textContent = isMuted ? '🔇 Stumm' : '🎤 Stumm';
+        muteBtn.className = isMuted ? 'voice-btn muted' : 'voice-btn';
+    }
+
+    const list = document.getElementById('voice-participants-list');
+    if (!list) return;
+    list.innerHTML = '';
+
+    if (voiceParticipants.size === 0) {
+        const empty = document.createElement('div');
+        empty.style.cssText = 'padding:10px 14px;font-size:0.75rem;color:rgba(255,255,255,0.3)';
+        empty.textContent = 'Niemand im Voice';
+        list.appendChild(empty);
+        return;
+    }
+
+    const myFP = sessionStorage.getItem('my_fingerprint');
+    const room = roomList.find(r => r.room_id === currentRoomId);
+    const fpToName = {};
+    if (room) {
+        if (room.host) fpToName[room.host.fingerprint] = room.host.username;
+        (room.users ?? []).forEach(u => { fpToName[u.fingerprint] = u.username; });
+    }
+
+    voiceParticipants.forEach(fp => {
+        const div = document.createElement('div');
+        div.className = 'voice-participant';
+        const name = fpToName[fp] || fp.slice(0, 8) + '…';
+        const isMe = fp === myFP;
+        div.innerHTML = `<span class="voice-dot"></span><span>${name}${isMe ? ' (Du)' : ''}${isMe && isMuted ? ' 🔇' : ''}</span>`;
+        list.appendChild(div);
+    });
+}
+
 window.addEventListener('DOMContentLoaded', async () => {
     await whoAmI();
     connectLocalChat();
     fetchRooms();
+    setInterval(fetchRooms, 15000);
+});
+
+// Beim Wechsel auf Desktop: Sidebar-Zustand zurücksetzen
+window.addEventListener('resize', () => {
+    if (window.innerWidth > 768) {
+        document.querySelector('nav').classList.remove('open');
+        document.getElementById('nav-overlay').classList.remove('active');
+        document.body.style.overflow = '';
+    }
 });
