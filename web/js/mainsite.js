@@ -6,6 +6,136 @@ let currentRoomId = null;
 let currentRoomEpoch = 0;
 const pendingSent = new Set(); // eigene gesendete Nachrichten (roomId:ciphertext) — verhindert Echo-Duplikate
 const roomKeys = new Map();   // `${roomId}:${epoch}` → Uint8Array (Room-Key)
+const unreadCounts = new Map(); // roomId → number (ungelesene Nachrichten)
+let pendingScrollMsgId = null;  // nach loadChat zu dieser Nachrichten-ID scrollen
+
+// ============================================================
+// SETTINGS MODULE
+// ============================================================
+const Settings = (() => {
+    const KEY = '2l1nk_settings';
+    const DEFAULTS = {
+        accentColor: '#bc13fe', accentRgb: '188, 19, 254', accentDark: '#4b0082',
+        bgStyle: 'shapes', glow: true, bubbleSquare: false,
+        fontSize: 'normal', timestamps: false, compact: false,
+        notifSound: true, notifDesktop: false,
+    };
+    const PRESETS = [
+        { name: 'Lila',   color: '#bc13fe', rgb: '188, 19, 254', dark: '#4b0082' },
+        { name: 'Blau',   color: '#1d9bf0', rgb: '29, 155, 240', dark: '#0a3d6b' },
+        { name: 'Grün',   color: '#00c853', rgb: '0, 200, 83',   dark: '#005723' },
+        { name: 'Rot',    color: '#f44336', rgb: '244, 67, 54',  dark: '#7f0000' },
+        { name: 'Orange', color: '#ff6d00', rgb: '255, 109, 0',  dark: '#7f3400' },
+        { name: 'Cyan',   color: '#00bcd4', rgb: '0, 188, 212',  dark: '#006064' },
+    ];
+
+    function load() {
+        try {
+            const s = localStorage.getItem(KEY);
+            return s ? { ...DEFAULTS, ...JSON.parse(s) } : { ...DEFAULTS };
+        } catch { return { ...DEFAULTS }; }
+    }
+
+    function save(s) { localStorage.setItem(KEY, JSON.stringify(s)); }
+
+    function apply(s) {
+        const r = document.documentElement;
+        r.style.setProperty('--accent', s.accentColor);
+        r.style.setProperty('--accent-rgb', s.accentRgb);
+        r.style.setProperty('--accent-dark', s.accentDark);
+        const b = document.body;
+        b.classList.remove('bg-shapes', 'bg-grid', 'bg-gradient', 'bg-none');
+        b.classList.add(`bg-${s.bgStyle}`);
+        b.classList.toggle('no-glow', !s.glow);
+        b.classList.toggle('bubble-square', s.bubbleSquare);
+        b.classList.remove('font-sm', 'font-lg');
+        if (s.fontSize !== 'normal') b.classList.add(`font-${s.fontSize}`);
+        b.classList.toggle('show-timestamps', s.timestamps);
+        b.classList.toggle('compact', s.compact);
+    }
+
+    return { load, save, apply, PRESETS, DEFAULTS };
+})();
+
+function setSetting(key, value) {
+    const s = Settings.load();
+    if (key === 'notifDesktop' && value) {
+        Notification.requestPermission().then(perm => {
+            const tog = document.getElementById('tog-desktop');
+            if (perm !== 'granted') { if (tog) tog.checked = false; return; }
+            s[key] = true;
+            Settings.save(s);
+            Settings.apply(s);
+            syncSettingsUI(s);
+        });
+        return;
+    }
+    s[key] = value;
+    Settings.save(s);
+    Settings.apply(s);
+    syncSettingsUI(s);
+}
+
+function syncSettingsUI(s) {
+    // Swatches
+    document.querySelectorAll('.settings-swatch').forEach(el => {
+        el.classList.toggle('active', el.dataset.color === s.accentColor);
+    });
+    // Segmented controls
+    [['seg-bg', 'bgStyle', v => v], ['seg-bubble', 'bubbleSquare', v => v ? 'square' : 'round'], ['seg-fontsize', 'fontSize', v => v]].forEach(([id, key, mapFn]) => {
+        const seg = document.getElementById(id);
+        if (!seg) return;
+        const cur = mapFn(s[key]);
+        seg.querySelectorAll('button').forEach(btn => btn.classList.toggle('active', btn.dataset.val === String(cur)));
+    });
+    // Toggles
+    [['tog-glow', 'glow'], ['tog-timestamps', 'timestamps'], ['tog-compact', 'compact'], ['tog-sound', 'notifSound'], ['tog-desktop', 'notifDesktop']].forEach(([id, key]) => {
+        const el = document.getElementById(id);
+        if (el) el.checked = !!s[key];
+    });
+}
+
+function playNotifSound() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(660, ctx.currentTime + 0.15);
+        gain.gain.setValueAtTime(0.25, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.35);
+    } catch {}
+}
+
+function showDesktopNotif(roomName, text) {
+    if (Notification.permission === 'granted') {
+        try { new Notification(`2L1nk — ${roomName}`, { body: text || 'Neue Nachricht' }); } catch {}
+    }
+}
+
+function copySettingsValue(sessionKey, btnId) {
+    const val = sessionStorage.getItem(sessionKey) ?? '';
+    if (!val) return;
+    navigator.clipboard.writeText(val).then(() => {
+        const btn = document.getElementById(btnId);
+        if (!btn) return;
+        btn.classList.add('copied');
+        const orig = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-check"></i> Kopiert';
+        setTimeout(() => { btn.innerHTML = orig; btn.classList.remove('copied'); }, 1800);
+    }).catch(() => {});
+}
+
+function formatTime(unixSeconds) {
+    const d = new Date(unixSeconds * 1000);
+    const h = d.getHours().toString().padStart(2, '0');
+    const m = d.getMinutes().toString().padStart(2, '0');
+    return `${h}:${m}`;
+}
 
 // ============================================================
 // VOICE CHAT STATE
@@ -259,10 +389,20 @@ function connectLocalChat() {
                 return;
             }
 
-            // nur anzeigen wenn dieser Raum gerade offen ist
-            if (payload.room_id !== currentRoomId) return;
+            // Raum nicht offen → unread zählen, Sound/Desktop, abbrechen
+            if (payload.room_id !== currentRoomId) {
+                unreadCounts.set(payload.room_id, (unreadCounts.get(payload.room_id) ?? 0) + 1);
+                updateUnreadUI(payload.room_id);
+                const cfg = Settings.load();
+                if (cfg.notifSound) playNotifSound();
+                if (cfg.notifDesktop) {
+                    const room = roomList.find(r => r.room_id === payload.room_id);
+                    showDesktopNotif(room?.name ?? 'Neue Nachricht', null);
+                }
+                return;
+            }
             const text = decryptText(payload.ciphertext, payload.room_id, payload.epoch);
-            if (!text) return; // leer oder nicht entschlüsselbar → nicht anzeigen
+            if (!text) return;
             const chatEl = document.getElementById('chat');
             if (!chatEl) return;
             const wrapper = document.createElement('div');
@@ -276,6 +416,10 @@ function connectLocalChat() {
             const div = document.createElement('div');
             div.className = 'bubble received';
             div.innerText = text;
+            const timeEl = document.createElement('span');
+            timeEl.className = 'msg-time';
+            timeEl.textContent = formatTime(Math.floor(Date.now() / 1000));
+            div.appendChild(timeEl);
             wrapper.appendChild(div);
             chatEl.appendChild(wrapper);
             chatEl.scrollTop = chatEl.scrollHeight;
@@ -354,6 +498,8 @@ function renderChatUserList(users) {
 function clickroom(room) {
     currentRoomId = room.room_id;
     currentRoomEpoch = room.epoch ?? 0;
+    unreadCounts.set(room.room_id, 0);
+    updateUnreadUI(room.room_id);
     // Auf Mobile: Sidebar schließen wenn ein Raum geöffnet wird
     if (window.innerWidth <= 768) closeSidebar();
 
@@ -422,6 +568,25 @@ async function loadChat(room) {
     if (room.host) fpToName[room.host.fingerprint] = room.host.username;
     (room.users ?? []).forEach(u => { fpToName[u.fingerprint] = u.username; });
 
+    // Key Slots laden damit gespeicherte Nachrichten entschlüsselt werden können
+    try {
+        const slotsRes = await authFetch('GET', `/api/rooms/${room.room_id}/key-slots`);
+        if (slotsRes.ok) {
+            const slotsData = await slotsRes.json();
+            for (const slot of (slotsData.key_slots ?? [])) {
+                try {
+                    const keyData = JSON.parse(atob(slot.encrypted_key));
+                    const roomKey = AppCrypto.decryptRoomKey(keyData);
+                    roomKeys.set(`${slot.room_id}:${slot.epoch}`, roomKey);
+                } catch (e) {
+                    console.error('Fehler beim Laden des Key Slots:', e);
+                }
+            }
+        }
+    } catch (e) {
+        console.error('Fehler beim Laden der Key Slots:', e);
+    }
+
     try {
         const response = await authFetch('GET', `/api/rooms/${room.room_id}/messages`);
         if (!response.ok) throw new Error(`HTTP-Fehler: ${response.status}`);
@@ -442,15 +607,21 @@ async function loadChat(room) {
         messages.forEach(msg => {
             const isMine = msg.sender_fp === myFP;
             const text = decryptText(msg.ciphertext, room.room_id, msg.epoch);
-            if (!text) return; // leer oder nicht entschlüsselbar → überspringen
+            if (!text) return;
+            const timeEl = document.createElement('span');
+            timeEl.className = 'msg-time';
+            timeEl.textContent = msg.created_at ? formatTime(msg.created_at) : '';
             if (isMine) {
                 const div = document.createElement('div');
                 div.className = 'bubble sent';
+                div.dataset.msgId = msg.id;
                 div.innerText = text;
+                div.appendChild(timeEl);
                 chatEl.appendChild(div);
             } else {
                 const wrapper = document.createElement('div');
                 wrapper.className = 'msg-wrapper';
+                wrapper.dataset.msgId = msg.id;
                 const label = document.createElement('div');
                 label.className = 'msg-label';
                 label.textContent = fpToName[msg.sender_fp] ?? (msg.sender_fp.slice(0, 8) + '…');
@@ -458,12 +629,25 @@ async function loadChat(room) {
                 const div = document.createElement('div');
                 div.className = 'bubble received';
                 div.innerText = text;
+                div.appendChild(timeEl);
                 wrapper.appendChild(div);
                 chatEl.appendChild(wrapper);
             }
         });
 
-        chatEl.scrollTop = chatEl.scrollHeight;
+        if (pendingScrollMsgId) {
+            const target = chatEl.querySelector(`[data-msg-id="${pendingScrollMsgId}"]`);
+            pendingScrollMsgId = null;
+            if (target) {
+                target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                target.classList.add('msg-highlight');
+                setTimeout(() => target.classList.remove('msg-highlight'), 2000);
+            } else {
+                chatEl.scrollTop = chatEl.scrollHeight;
+            }
+        } else {
+            chatEl.scrollTop = chatEl.scrollHeight;
+        }
     } catch (err) {
         console.error("Fehler beim Laden der Nachrichten:", err);
     }
@@ -480,11 +664,13 @@ function renderFunc(RenderList) {
             const isHost = room.host?.fingerprint === myFP;
             const div = document.createElement('div');
             div.className = 'chat-item';
+            div.setAttribute('data-room-id', room.room_id);
 
             div.innerHTML = `
                 <div class="chat-item-row">
                     <div style="flex:1;cursor:pointer;" class="room-info">
                         <div style="font-weight:bold;">👤${room.name}</div>
+                        <span class="unread-badge" style="display:none"></span>
                     </div>
                     ${isHost ? `<span class="room-menu-btn" title="Mitglieder verwalten">llll</span>` : ''}
                 </div>`;
@@ -499,6 +685,11 @@ function renderFunc(RenderList) {
             }
 
             container.appendChild(div);
+        });
+
+        // Badges nach Re-Render wiederherstellen
+        unreadCounts.forEach((count, roomId) => {
+            if (count > 0) updateUnreadUI(roomId);
         });
     } else {
         container.innerHTML = '<i class="fas fa-users" style="font-size: 2rem; margin-bottom: 10px;"></i><p>Keine aktiven Chats</p>';
@@ -1093,6 +1284,7 @@ function updateVoiceUI() {
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
+    Settings.apply(Settings.load());
     await whoAmI();
     connectLocalChat();
     fetchRooms();
@@ -1107,3 +1299,235 @@ window.addEventListener('resize', () => {
         document.body.style.overflow = '';
     }
 });
+
+// ============================================================
+// NAV PANELS — Search / Notifications / Settings
+// ============================================================
+
+function toggleNavPanel(id) {
+    const panel = document.getElementById(id);
+    const isOpen = panel.classList.contains('open');
+    // alle schließen
+    document.querySelectorAll('.nav-panel').forEach(p => p.classList.remove('open'));
+    if (!isOpen) {
+        panel.classList.add('open');
+        if (id === 'settings-panel') populateSettingsPanel();
+        if (id === 'notif-panel') populateNotifPanel();
+    }
+}
+
+function closeNavPanel(id) {
+    document.getElementById(id).classList.remove('open');
+}
+
+// Klick außerhalb schließt offene Panels
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.nav-panel-wrapper')) {
+        document.querySelectorAll('.nav-panel').forEach(p => p.classList.remove('open'));
+    }
+});
+
+function populateSettingsPanel() {
+    const s = Settings.load();
+
+    // Build color swatches once
+    const swatchContainer = document.getElementById('settings-swatches');
+    if (swatchContainer && !swatchContainer.dataset.built) {
+        swatchContainer.dataset.built = '1';
+        Settings.PRESETS.forEach(p => {
+            const sw = document.createElement('div');
+            sw.className = 'settings-swatch';
+            sw.style.background = p.color;
+            sw.title = p.name;
+            sw.dataset.color = p.color;
+            sw.onclick = () => {
+                const cur = Settings.load();
+                cur.accentColor = p.color;
+                cur.accentRgb   = p.rgb;
+                cur.accentDark  = p.dark;
+                Settings.save(cur);
+                Settings.apply(cur);
+                syncSettingsUI(cur);
+            };
+            swatchContainer.appendChild(sw);
+        });
+        // Custom color picker
+        const customWrap = document.createElement('div');
+        customWrap.className = 'settings-swatch-custom';
+        customWrap.title = 'Eigene Farbe';
+        customWrap.style.position = 'relative';
+        customWrap.innerHTML = '<i class="fas fa-plus" style="pointer-events:none;font-size:0.65rem"></i>';
+        const colorInput = document.createElement('input');
+        colorInput.type = 'color';
+        colorInput.style.cssText = 'position:absolute;width:200%;height:200%;opacity:0;cursor:pointer;top:-50%;left:-50%;';
+        colorInput.oninput = (e) => {
+            const hex = e.target.value;
+            const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+            const cur = Settings.load();
+            cur.accentColor = hex;
+            cur.accentRgb   = `${r}, ${g}, ${b}`;
+            cur.accentDark  = `#${Math.round(r*0.4).toString(16).padStart(2,'0')}${Math.round(g*0.4).toString(16).padStart(2,'0')}${Math.round(b*0.4).toString(16).padStart(2,'0')}`;
+            Settings.save(cur);
+            Settings.apply(cur);
+            syncSettingsUI(cur);
+        };
+        customWrap.appendChild(colorInput);
+        swatchContainer.appendChild(customWrap);
+    }
+
+    // Account info
+    const fp = sessionStorage.getItem('my_fingerprint') ?? '–';
+    const fpEl = document.getElementById('settings-fp');
+    if (fpEl) { fpEl.textContent = fp.length > 16 ? fp.slice(0, 8) + '…' + fp.slice(-8) : fp; fpEl.title = fp; }
+    const modeEl = document.getElementById('settings-mode');
+    if (modeEl) modeEl.textContent = sessionStorage.getItem('my_mode') ?? '–';
+
+    syncSettingsUI(s);
+}
+
+let _searchTimer = null;
+
+function globalSearch(event) {
+    clearTimeout(_searchTimer);
+    const query = event.target.value.trim();
+    const resultsEl = document.getElementById('global-search-results');
+    if (!resultsEl) return;
+
+    if (!query) {
+        resultsEl.innerHTML = '';
+        return;
+    }
+
+    resultsEl.innerHTML = '<div class="nav-panel-empty search-loading"><i class="fas fa-circle-notch fa-spin"></i> Suche…</div>';
+    _searchTimer = setTimeout(() => _runMessageSearch(query, resultsEl), 350);
+}
+
+async function _runMessageSearch(query, resultsEl) {
+    const q = query.toLowerCase();
+    const results = []; // { room, msgId, excerpt, roomLabel }
+
+    // Räume nach Namen filtern (sofort)
+    roomList.forEach(room => {
+        if (room.name?.toLowerCase().includes(q)) {
+            results.push({ type: 'room', room });
+        }
+    });
+
+    // Nachrichten in allen Räumen durchsuchen (parallel)
+    await Promise.all(roomList.map(async room => {
+        try {
+            // Key Slots sicherstellen
+            const slotsRes = await authFetch('GET', `/api/rooms/${room.room_id}/key-slots`);
+            if (slotsRes.ok) {
+                const slotsData = await slotsRes.json();
+                for (const slot of (slotsData.key_slots ?? [])) {
+                    try {
+                        const keyData = JSON.parse(atob(slot.encrypted_key));
+                        roomKeys.set(`${slot.room_id}:${slot.epoch}`, AppCrypto.decryptRoomKey(keyData));
+                    } catch {}
+                }
+            }
+
+            const res = await authFetch('GET', `/api/rooms/${room.room_id}/messages?limit=100`);
+            if (!res.ok) return;
+            const data = await res.json();
+            for (const msg of (data.messages ?? [])) {
+                if (!msg.ciphertext) continue;
+                const text = decryptText(msg.ciphertext, room.room_id, msg.epoch);
+                if (!text) continue;
+                if (text.toLowerCase().includes(q)) {
+                    const start = Math.max(0, text.toLowerCase().indexOf(q) - 30);
+                    const excerpt = (start > 0 ? '…' : '') + text.slice(start, start + 80) + (text.length > start + 80 ? '…' : '');
+                    results.push({ type: 'message', room, msgId: msg.id, excerpt });
+                }
+            }
+        } catch {}
+    }));
+
+    if (results.length === 0) {
+        resultsEl.innerHTML = '<div class="nav-panel-empty">Keine Ergebnisse</div>';
+        return;
+    }
+
+    resultsEl.innerHTML = '';
+
+    results.forEach(r => {
+        const item = document.createElement('div');
+        item.className = 'nav-panel-result-item';
+
+        if (r.type === 'room') {
+            item.innerHTML = `<i class="fas fa-comments"></i><span>${r.room.name}</span>`;
+            item.onclick = () => {
+                closeNavPanel('search-panel');
+                document.getElementById('global-search-input').value = '';
+                resultsEl.innerHTML = '';
+                clickroom(r.room);
+            };
+        } else {
+            item.classList.add('search-msg-result');
+            item.innerHTML = `
+                <i class="fas fa-comment-dots"></i>
+                <div class="search-msg-content">
+                    <div class="search-msg-room">${r.room.name}</div>
+                    <div class="search-msg-excerpt">${r.excerpt}</div>
+                </div>`;
+            item.onclick = () => {
+                closeNavPanel('search-panel');
+                document.getElementById('global-search-input').value = '';
+                resultsEl.innerHTML = '';
+                pendingScrollMsgId = r.msgId;
+                clickroom(r.room);
+            };
+        }
+
+        resultsEl.appendChild(item);
+    });
+}
+
+function updateUnreadUI(roomId) {
+    const count = unreadCounts.get(roomId) ?? 0;
+
+    // Badge am Raum-Item in der Sidebar
+    const badge = document.querySelector(`.chat-item[data-room-id="${roomId}"] .unread-badge`);
+    if (badge) {
+        badge.textContent = count > 99 ? '99+' : count;
+        badge.style.display = count > 0 ? 'flex' : 'none';
+    }
+
+    // Badge am Bell-Icon (Gesamtanzahl)
+    const total = [...unreadCounts.values()].reduce((a, b) => a + b, 0);
+    const bellBadge = document.getElementById('bell-badge');
+    if (bellBadge) {
+        bellBadge.textContent = total > 99 ? '99+' : total;
+        bellBadge.style.display = total > 0 ? 'flex' : 'none';
+    }
+
+    // Notification-Panel aktualisieren wenn offen
+    if (document.getElementById('notif-panel')?.classList.contains('open')) {
+        populateNotifPanel();
+    }
+}
+
+function populateNotifPanel() {
+    const list = document.getElementById('notif-list');
+    if (!list) return;
+
+    const rooms = roomList.filter(r => (unreadCounts.get(r.room_id) ?? 0) > 0);
+    if (rooms.length === 0) {
+        list.innerHTML = '<div class="nav-panel-empty">Keine neuen Benachrichtigungen</div>';
+        return;
+    }
+
+    list.innerHTML = '';
+    rooms.forEach(room => {
+        const count = unreadCounts.get(room.room_id);
+        const item = document.createElement('div');
+        item.className = 'nav-panel-result-item';
+        item.innerHTML = `<i class="fas fa-comments"></i><span style="flex:1">${room.name}</span><span class="notif-count">${count > 99 ? '99+' : count}</span>`;
+        item.onclick = () => {
+            closeNavPanel('notif-panel');
+            clickroom(room);
+        };
+        list.appendChild(item);
+    });
+}

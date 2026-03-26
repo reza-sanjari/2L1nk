@@ -21,9 +21,144 @@
             <i class="fas fa-bars"></i>
         </button>
         <div class="top-bar-actions">
-            <i class="fas fa-search nav-icon" title="Global Search"></i>
-            <i class="fas fa-bell nav-icon" title="Notifications"></i>
-            <i class="fas fa-cog nav-icon" title="Settings"></i>
+            <!-- Search Panel -->
+            <div class="nav-panel-wrapper">
+                <i class="fas fa-search nav-icon" title="Global Search" onclick="toggleNavPanel('search-panel')"></i>
+                <div class="nav-panel" id="search-panel">
+                    <button class="nav-panel-close" onclick="closeNavPanel('search-panel')"><i class="fas fa-times"></i></button>
+                    <div class="nav-panel-title">Suche</div>
+                    <div class="nav-panel-search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="global-search-input" placeholder="Nutzer oder Raum suchen..." oninput="globalSearch(event)">
+                    </div>
+                    <div id="global-search-results" class="nav-panel-list"></div>
+                </div>
+            </div>
+
+            <!-- Notifications Panel -->
+            <div class="nav-panel-wrapper">
+                <span style="position:relative;display:inline-flex">
+                    <i class="fas fa-bell nav-icon" title="Notifications" onclick="toggleNavPanel('notif-panel')"></i>
+                    <span class="nav-badge" id="bell-badge" style="display:none"></span>
+                </span>
+                <div class="nav-panel" id="notif-panel">
+                    <button class="nav-panel-close" onclick="closeNavPanel('notif-panel')"><i class="fas fa-times"></i></button>
+                    <div class="nav-panel-title">Benachrichtigungen</div>
+                    <div id="notif-list" class="nav-panel-list">
+                        <div class="nav-panel-empty">Keine neuen Benachrichtigungen</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Panel -->
+            <div class="nav-panel-wrapper">
+                <i class="fas fa-cog nav-icon" title="Settings" onclick="toggleNavPanel('settings-panel')"></i>
+                <div class="nav-panel nav-panel--wide" id="settings-panel">
+                    <button class="nav-panel-close" onclick="closeNavPanel('settings-panel')"><i class="fas fa-times"></i></button>
+                    <div class="nav-panel-title">Einstellungen</div>
+
+                    <!-- AUSSEHEN -->
+                    <div class="settings-section">
+                        <div class="settings-section-title">Aussehen</div>
+                        <div class="settings-row settings-row-col">
+                            <span class="settings-label">Akzentfarbe</span>
+                            <div class="settings-swatches" id="settings-swatches"></div>
+                        </div>
+                        <div class="settings-row settings-row-col">
+                            <span class="settings-label">Hintergrund</span>
+                            <div class="settings-seg" id="seg-bg">
+                                <button data-val="shapes" onclick="setSetting('bgStyle','shapes')">Shapes</button>
+                                <button data-val="grid"   onclick="setSetting('bgStyle','grid')">Grid</button>
+                                <button data-val="gradient" onclick="setSetting('bgStyle','gradient')">Gradient</button>
+                                <button data-val="none"  onclick="setSetting('bgStyle','none')">Keiner</button>
+                            </div>
+                        </div>
+                        <div class="settings-row">
+                            <span class="settings-label">Glow-Effekte</span>
+                            <label class="settings-toggle">
+                                <input type="checkbox" id="tog-glow" onchange="setSetting('glow', this.checked)">
+                                <span class="settings-toggle-track"></span>
+                            </label>
+                        </div>
+                        <div class="settings-row settings-row-col">
+                            <span class="settings-label">Chat-Bubbles</span>
+                            <div class="settings-seg" id="seg-bubble">
+                                <button data-val="round"  onclick="setSetting('bubbleSquare', false)">Abgerundet</button>
+                                <button data-val="square" onclick="setSetting('bubbleSquare', true)">Eckig</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- LESBARKEIT -->
+                    <div class="settings-section">
+                        <div class="settings-section-title">Lesbarkeit</div>
+                        <div class="settings-row settings-row-col">
+                            <span class="settings-label">Schriftgröße</span>
+                            <div class="settings-seg" id="seg-fontsize">
+                                <button data-val="sm"     onclick="setSetting('fontSize','sm')">Klein</button>
+                                <button data-val="normal" onclick="setSetting('fontSize','normal')">Normal</button>
+                                <button data-val="lg"     onclick="setSetting('fontSize','lg')">Groß</button>
+                            </div>
+                        </div>
+                        <div class="settings-row">
+                            <span class="settings-label">Zeitstempel anzeigen</span>
+                            <label class="settings-toggle">
+                                <input type="checkbox" id="tog-timestamps" onchange="setSetting('timestamps', this.checked)">
+                                <span class="settings-toggle-track"></span>
+                            </label>
+                        </div>
+                        <div class="settings-row">
+                            <span class="settings-label">Kompakt-Modus</span>
+                            <label class="settings-toggle">
+                                <input type="checkbox" id="tog-compact" onchange="setSetting('compact', this.checked)">
+                                <span class="settings-toggle-track"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- BENACHRICHTIGUNGEN -->
+                    <div class="settings-section">
+                        <div class="settings-section-title">Benachrichtigungen</div>
+                        <div class="settings-row">
+                            <span class="settings-label">Ton bei neuer Nachricht</span>
+                            <label class="settings-toggle">
+                                <input type="checkbox" id="tog-sound" onchange="setSetting('notifSound', this.checked)">
+                                <span class="settings-toggle-track"></span>
+                            </label>
+                        </div>
+                        <div class="settings-row">
+                            <span class="settings-label">Desktop-Benachrichtigung</span>
+                            <label class="settings-toggle">
+                                <input type="checkbox" id="tog-desktop" onchange="setSetting('notifDesktop', this.checked)">
+                                <span class="settings-toggle-track"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- KONTO -->
+                    <div class="settings-section">
+                        <div class="settings-section-title">Konto</div>
+                        <div class="settings-row">
+                            <span class="settings-label">Gateway Key</span>
+                            <button class="settings-copy-btn" id="copy-gateway" onclick="copySettingsValue('gatewayKey', 'copy-gateway')"><i class="fas fa-copy"></i> Kopieren</button>
+                        </div>
+                        <div class="settings-row">
+                            <span class="settings-label">Fingerprint</span>
+                            <div style="display:flex;align-items:center;gap:6px;min-width:0">
+                                <span class="settings-value" id="settings-fp" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="">–</span>
+                                <button class="settings-copy-btn" id="copy-fp" onclick="copySettingsValue('my_fingerprint', 'copy-fp')"><i class="fas fa-copy"></i></button>
+                            </div>
+                        </div>
+                        <div class="settings-row">
+                            <span class="settings-label">Modus</span>
+                            <span class="settings-value" id="settings-mode">–</span>
+                        </div>
+                        <div class="settings-row settings-row-btn">
+                            <button class="settings-btn-danger" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Abmelden</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <div class="avatar-group">
                 <div style="text-align: right; line-height: 1;">
                     <div style="font-size: 0.85rem; font-weight: bold;" id="username"></div>
