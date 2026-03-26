@@ -16,6 +16,7 @@ const Settings = (() => {
     const KEY = '2l1nk_settings';
     const DEFAULTS = {
         accentColor: '#bc13fe', accentRgb: '188, 19, 254', accentDark: '#4b0082',
+        bgFrom: '#1a0525', bgTo: '#310a5d', shapeColor: '#4b0082',
         bgStyle: 'shapes', glow: true, bubbleSquare: false,
         fontSize: 'normal', timestamps: false, compact: false,
         notifSound: true, notifDesktop: false,
@@ -43,6 +44,9 @@ const Settings = (() => {
         r.style.setProperty('--accent', s.accentColor);
         r.style.setProperty('--accent-rgb', s.accentRgb);
         r.style.setProperty('--accent-dark', s.accentDark);
+        r.style.setProperty('--bg-from', s.bgFrom);
+        r.style.setProperty('--bg-to', s.bgTo);
+        r.style.setProperty('--shape-color', s.shapeColor);
         const b = document.body;
         b.classList.remove('bg-shapes', 'bg-grid', 'bg-gradient', 'bg-none');
         b.classList.add(`bg-${s.bgStyle}`);
@@ -87,6 +91,11 @@ function syncSettingsUI(s) {
         if (!seg) return;
         const cur = mapFn(s[key]);
         seg.querySelectorAll('button').forEach(btn => btn.classList.toggle('active', btn.dataset.val === String(cur)));
+    });
+    // Color pickers
+    [['bg-from-picker', 'bgFrom'], ['bg-to-picker', 'bgTo'], ['shape-color-picker', 'shapeColor']].forEach(([id, key]) => {
+        const el = document.getElementById(id);
+        if (el) el.value = s[key];
     });
     // Toggles
     [['tog-glow', 'glow'], ['tog-timestamps', 'timestamps'], ['tog-compact', 'compact'], ['tog-sound', 'notifSound'], ['tog-desktop', 'notifDesktop']].forEach(([id, key]) => {
@@ -538,8 +547,12 @@ function clickroom(room) {
                 <div class="chat-messages" id="chat">
                 </div>
                 <div class="chat-input">
-                    <input type="text" id="schreibnachricht" placeholder="Nachricht schreiben...">
-                    <button onclick="sendMessage('${room.room_id}')">Senden</button>
+                    <div class="input-bar">
+                        <input type="text" id="schreibnachricht" placeholder="Nachricht schreiben...">
+                        <button class="send-btn" onclick="sendMessage('${room.room_id}')" title="Senden">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
                 </div>
             `;
     document.getElementById('schreibnachricht').addEventListener('keydown', (e) => {
@@ -772,16 +785,20 @@ async function openRoomMenu(room) {
     document.body.appendChild(overlay);
     activeMemberModal = overlay;
 
-    function makeRow(username, btnClass, btnText, onClick) {
+    function makeRow(username, btnClass, btnText, isOnline, onClick) {
         const row = document.createElement('div');
         row.className = 'member-row';
-        const name = document.createElement('span');
-        name.textContent = username;
+        const nameWrap = document.createElement('span');
+        nameWrap.className = 'member-row-name';
+        const dot = document.createElement('span');
+        const nameText = document.createElement('span');
+        nameText.textContent = username;
+        nameWrap.appendChild(nameText);
         const btn = document.createElement('button');
         btn.className = btnClass;
         btn.textContent = btnText;
         btn.onclick = onClick;
-        row.appendChild(name);
+        row.appendChild(nameWrap);
         row.appendChild(btn);
         return row;
     }
@@ -791,13 +808,14 @@ async function openRoomMenu(room) {
     rightList.innerHTML = '<div class="member-col-empty">Lädt...</div>';
 
     const myFP    = sessionStorage.getItem('my_fingerprint');
-    const allResp = await authFetch('GET', '/api/users').catch(() => null);
-    const allUsers = allResp?.ok ? (await allResp.json()) : [];
-    const onlineUsers = Array.isArray(allUsers) ? allUsers : [];
+    const allResp    = await authFetch('GET', '/api/users').catch(() => null);
+    const allUsersRaw = allResp?.ok ? (await allResp.json()) : [];
+    const allUsers    = Array.isArray(allUsersRaw) ? allUsersRaw : [];
 
+    const onlineFPs  = new Set(allUsers.filter(u => u.online).map(u => u.fingerprint));
     const memberFPs  = new Set((room.users ?? []).map(u => u.fingerprint));
     const removable  = (room.users ?? []).filter(u => u.fingerprint !== myFP);
-    const addable    = onlineUsers.filter(u => !memberFPs.has(u.fingerprint) && u.fingerprint !== myFP);
+    const addable    = allUsers.filter(u => u.online && !memberFPs.has(u.fingerprint) && u.fingerprint !== myFP);
 
     // Mitglieder-Liste befüllen
     leftList.innerHTML = '';
@@ -805,17 +823,17 @@ async function openRoomMenu(room) {
         leftList.innerHTML = '<div class="member-col-empty">Keine weiteren Mitglieder</div>';
     } else {
         removable.forEach(u => leftList.appendChild(
-            makeRow(u.username, 'rem-btn', '– Entfernen', () => removeMember(room.room_id, u.fingerprint))
+            makeRow(u.username, 'rem-btn', '– Entfernen', onlineFPs.has(u.fingerprint), () => removeMember(room.room_id, u.fingerprint))
         ));
     }
 
-    // Hinzufügen-Liste befüllen
+    // Hinzufügen-Liste befüllen (nur online)
     rightList.innerHTML = '';
     if (addable.length === 0) {
         rightList.innerHTML = '<div class="member-col-empty">Keine online User verfügbar</div>';
     } else {
         addable.forEach(u => rightList.appendChild(
-            makeRow(u.username, 'add-btn', '+ Hinzufügen', () => addMember(room.room_id, u))
+            makeRow(u.username, 'add-btn', '+ Hinzufügen', true, () => addMember(room.room_id, u))
         ));
     }
 }
@@ -922,6 +940,10 @@ function send(ciphertext) {
     const msg = document.createElement('div');
     msg.className = 'bubble sent';
     msg.innerText = ciphertext;
+    const timeEl = document.createElement('span');
+    timeEl.className = 'msg-time';
+    timeEl.textContent = formatTime(Math.floor(Date.now() / 1000));
+    msg.appendChild(timeEl);
     chatEl.appendChild(msg);
     chatEl.scrollTop = chatEl.scrollHeight;
 }
