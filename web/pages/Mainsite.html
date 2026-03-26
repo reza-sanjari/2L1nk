@@ -187,7 +187,8 @@
         </div>
     </header>
 
-    <div class="nav-overlay" id="nav-overlay" onclick="closeSidebar()"></div>
+    <div class="nav-overlay" id="nav-overlay" onclick="closeSidebar(); closeMobilePanel();"></div>
+    <div id="mobile-panel-root"></div>
 
     <dialog id="newChatModal" style="background: #1a0525; color: white; border: 1px solid #bc13fe; border-radius: 15px; padding: 25px; width: 320px; box-shadow: 0 0 30px rgba(188, 19, 254, 0.3);">
         <h3 style="margin-top: 0; color: #bc13fe;">Neuer Chat erstellen</h3>

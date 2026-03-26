@@ -1326,26 +1326,81 @@ window.addEventListener('resize', () => {
 // NAV PANELS — Search / Notifications / Settings
 // ============================================================
 
+// Speichert den Original-Parent jedes Panels für Rückmigration
+const _panelOrigins = new Map();
+
+function _isMobile() { return window.innerWidth <= 768; }
+
+function _movePanelToBody(panel) {
+    if (!_panelOrigins.has(panel.id)) {
+        _panelOrigins.set(panel.id, panel.parentElement);
+    }
+    const root = document.getElementById('mobile-panel-root');
+    if (panel.parentElement !== root) root.appendChild(panel);
+}
+
+function _movePanelBack(panel) {
+    const origin = _panelOrigins.get(panel.id);
+    if (origin && panel.parentElement !== origin) origin.appendChild(panel);
+}
+
+function _openOverlay() {
+    const ov = document.getElementById('nav-overlay');
+    ov.classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+function _closeOverlay() {
+    const ov = document.getElementById('nav-overlay');
+    ov.classList.remove('active');
+    document.body.style.overflow = '';
+}
+
+function closeMobilePanel() {
+    document.querySelectorAll('#mobile-panel-root .nav-panel').forEach(p => {
+        p.classList.remove('open');
+        _movePanelBack(p);
+    });
+    _closeOverlay();
+}
+
 function toggleNavPanel(id) {
     const panel = document.getElementById(id);
     const isOpen = panel.classList.contains('open');
-    // alle schließen
-    document.querySelectorAll('.nav-panel').forEach(p => p.classList.remove('open'));
+
+    // Alle Panels schließen und ggf. zurückbewegen
+    document.querySelectorAll('.nav-panel').forEach(p => {
+        p.classList.remove('open');
+        if (_isMobile()) _movePanelBack(p);
+    });
+    _closeOverlay();
+
     if (!isOpen) {
+        if (_isMobile()) _movePanelToBody(panel);
         panel.classList.add('open');
         if (id === 'settings-panel') populateSettingsPanel();
         if (id === 'notif-panel') populateNotifPanel();
+        if (_isMobile()) _openOverlay();
     }
 }
 
 function closeNavPanel(id) {
-    document.getElementById(id).classList.remove('open');
+    const panel = document.getElementById(id);
+    panel.classList.remove('open');
+    if (_isMobile()) {
+        _movePanelBack(panel);
+        _closeOverlay();
+    }
 }
 
 // Klick außerhalb schließt offene Panels
 document.addEventListener('click', (e) => {
-    if (!e.target.closest('.nav-panel-wrapper')) {
-        document.querySelectorAll('.nav-panel').forEach(p => p.classList.remove('open'));
+    if (!e.target.closest('.nav-panel-wrapper') && !e.target.closest('#mobile-panel-root')) {
+        document.querySelectorAll('.nav-panel').forEach(p => {
+            p.classList.remove('open');
+            if (_isMobile()) _movePanelBack(p);
+        });
+        _closeOverlay();
     }
 });
 
