@@ -34,6 +34,11 @@
                     <button class="btn btn-primary" onclick="connectToGateway()">Beitreten</button>
                 </div>
 
+                <div id="fast-login-section" class="fast-login-section" style="display:none">
+                    <div class="fast-login-title"><i class="fas fa-bolt"></i> Schnell-Login</div>
+                    <div id="fast-login-list" class="fast-login-list"></div>
+                </div>
+
                 <!--<div class="glass-card">
                     <h3><i class="fas fa-lock"></i> Account Login</h3>
                     <p>Verwalte deine verschlüsselten Daten.</p>
@@ -96,6 +101,61 @@
 </body>
 </html>
 <script>
+    const SAVED_KEY = '2l1nk_saved_logins';
+
+    function getSavedLogins() {
+        try { return JSON.parse(localStorage.getItem(SAVED_KEY)) ?? []; }
+        catch { return []; }
+    }
+
+    function saveLogin(username, gatewayKey) {
+        const logins = getSavedLogins().filter(l => l.username !== username);
+        logins.unshift({ username, gatewayKey });
+        localStorage.setItem(SAVED_KEY, JSON.stringify(logins.slice(0, 5)));
+    }
+
+    function removeLogin(username) {
+        const logins = getSavedLogins().filter(l => l.username !== username);
+        localStorage.setItem(SAVED_KEY, JSON.stringify(logins));
+        renderFastLogins();
+    }
+
+    function renderFastLogins() {
+        const logins = getSavedLogins();
+        const section = document.getElementById('fast-login-section');
+        const list = document.getElementById('fast-login-list');
+        if (logins.length === 0) { section.style.display = 'none'; return; }
+        section.style.display = 'flex';
+        list.innerHTML = '';
+        logins.forEach(l => {
+            const card = document.createElement('div');
+            card.className = 'fast-login-card';
+            card.innerHTML = `
+                <div class="fast-login-avatar">${l.username.charAt(0).toUpperCase()}</div>
+                <div class="fast-login-info">
+                    <div class="fast-login-name">${l.username}</div>
+                </div>
+                <button class="fast-login-go" onclick="quickLogin('${escHtml(l.username)}','${escHtml(l.gatewayKey)}')" title="Einloggen">
+                    <i class="fas fa-sign-in-alt"></i>
+                </button>
+                <button class="fast-login-remove" onclick="removeLogin('${escHtml(l.username)}')" title="Entfernen">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+            list.appendChild(card);
+        });
+    }
+
+    function escHtml(str) {
+        return str.replace(/'/g, "\\'");
+    }
+
+    async function quickLogin(username, gatewayKey) {
+        document.getElementById('gateway').value = gatewayKey;
+        document.getElementById('loginname').value = username;
+        await connectToGateway();
+    }
+
     function b64(bytes) {
         return btoa(String.fromCharCode(...bytes));
     }
@@ -143,6 +203,7 @@
                 throw new Error(`Server antwortete mit ${response.status}: ${errorData}`);
             }
 
+            saveLogin(loginName, gateKey);
             sessionStorage.setItem('username', loginName);
             sessionStorage.setItem('gatewayKey', gateKey);
             sessionStorage.setItem('my_mode', 'Persistent');
@@ -153,4 +214,6 @@
             alert("❌ Fehler beim Gateway-Check:\n" + err.message);
         }
     }
+
+    document.addEventListener('DOMContentLoaded', renderFastLogins);
 </script>

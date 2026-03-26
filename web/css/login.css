@@ -224,6 +224,123 @@ input {
         background: rgba(188, 19, 254, 0.15);
     }
 
+/* --- FAST LOGIN --- */
+.fast-login-section {
+    display: flex;
+    flex-direction: column;
+    background: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(188, 19, 254, 0.2);
+    border-radius: 20px;
+    padding: 24px 28px;
+    gap: 14px;
+}
+
+.fast-login-title {
+    font-size: 0.75rem;
+    font-weight: bold;
+    letter-spacing: 2px;
+    color: #bc13fe;
+    text-transform: uppercase;
+}
+
+.fast-login-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.fast-login-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 10px 12px;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.fast-login-card:hover {
+    border-color: rgba(188, 19, 254, 0.4);
+    background: rgba(188, 19, 254, 0.07);
+}
+
+.fast-login-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #bc13fe, #4b0082);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.fast-login-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.fast-login-name {
+    font-weight: bold;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fast-login-key {
+    font-size: 0.68rem;
+    opacity: 0.4;
+    font-family: monospace;
+    margin-top: 2px;
+}
+
+.fast-login-go {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: #bc13fe;
+    border: none;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    padding: 0;
+    flex-shrink: 0;
+    transition: opacity 0.15s, transform 0.1s;
+}
+
+.fast-login-go:hover  { opacity: 0.85; transform: scale(1.06); }
+.fast-login-go:active { transform: scale(0.93); }
+
+.fast-login-remove {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.4);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    padding: 0;
+    flex-shrink: 0;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.fast-login-remove:hover {
+    color: #f87171;
+    border-color: #f87171;
+}
+
 h2 {
     color: #bc13fe;
     font-size: 2.5rem;
