@@ -29,7 +29,7 @@
                 <div class="glass-card">
                     <h3><i class="fas fa-door-open"></i> Gateway</h3>
                     <p>Schnellzugriff auf öffentliche Räume.</p>
-                    <input type="text" id="gateway" value="13427c268aee9c1ceb9c0973aa21484da3c1a05a354759a5f5b72f2bd6a24bc6" placeholder="Gateway Code eingeben...">
+                    <input type="text" id="gateway" value="509f02dc6043a2ff9ca28b8604decf1d08545e237506aa2e5ee0f0bd824c3efd" placeholder="Gateway Code eingeben...">
                     <input type="text" id="loginname" placeholder="Username" onkeydown="if(event.key==='Enter')connectToGateway()">
                     <button class="btn btn-primary" onclick="connectToGateway()">Beitreten</button>
                 </div>
@@ -145,6 +145,7 @@
 
             sessionStorage.setItem('username', loginName);
             sessionStorage.setItem('gatewayKey', gateKey);
+            sessionStorage.setItem('my_mode', 'Persistent');
             const data = await response.json();
             sessionStorage.setItem('sessionId', data.sessionId);
             window.location.href = "Mainsite";
