@@ -55,6 +55,7 @@ type Room struct {
 	MemberPublicKeys map[string]string          // fingerprint → base64 X25519 public key (all known members)
 	MemberModes      map[string]models.UserMode // fingerprint → mode (all known members)
 	PendingRotation  *PendingRotation           // non-nil while waiting for key creator to submit keys
+	VoiceUsers       map[string]struct{}        // FPs of users currently in voice; lazily initialized
 }
 
 func New(s *session.Store, logg *logger.Logger) *Hub {
