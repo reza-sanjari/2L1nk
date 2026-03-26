@@ -538,4 +538,65 @@ h2 {
     .triangle { width: 140px; height: 140px; }
     .square  { width: 100px; height: 100px; }
     .small-circle { width: 80px; height: 80px; }
+
+    /* ---- Info Header ---- */
+    .info-header {
+        gap: 14px;
+        margin-bottom: 36px;
+    }
+
+    .info-section h2 {
+        font-size: 1.8rem;
+    }
+
+    .info-badge {
+        font-size: 0.65rem;
+        padding: 5px 12px;
+    }
+
+    .info-desc {
+        font-size: 0.88rem;
+    }
+
+    /* ---- Feature Cards ---- */
+    .feature-list {
+        grid-template-columns: 1fr;
+        gap: 14px;
+    }
+
+    .feature-item {
+        padding: 22px 20px;
+    }
+
+    .feature-item:hover {
+        transform: none;
+    }
+
+    /* ---- Fast Login ---- */
+    .fast-login-section {
+        padding: 20px 18px;
+        gap: 12px;
+    }
+
+    .fast-login-card {
+        padding: 9px 10px;
+        gap: 10px;
+    }
+
+    .fast-login-avatar {
+        width: 34px;
+        height: 34px;
+        font-size: 0.9rem;
+    }
+
+    .fast-login-go {
+        width: 30px;
+        height: 30px;
+        font-size: 0.8rem;
+    }
+
+    .fast-login-remove {
+        width: 26px;
+        height: 26px;
+    }
 }
