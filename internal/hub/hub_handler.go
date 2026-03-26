@@ -19,6 +19,12 @@ func (h *Hub) handleInboundMessage(msg WSMessageEnvelope) {
 		h.handleReAuth(msg)
 	case models.KeyRotationUpdate:
 		h.handleKeyRotationUpdate(msg)
+	case models.Signal:
+		h.handleSignal(msg)
+	case models.VoiceJoined:
+		h.handleVoiceJoined(msg)
+	case models.VoiceLeft:
+		h.handleVoiceLeft(msg)
 	default:
 		h.logg.Debug("ignoring unhandled inbound envelope type",
 			zap.String("type", string(msg.Type)),
@@ -162,6 +168,15 @@ func (h *Hub) handleUnregisterUser(user *User) {
 		delete(room.Users, user.Fingerprint)
 		delete(room.MemberPublicKeys, user.Fingerprint)
 		delete(room.MemberModes, user.Fingerprint)
+
+		// Voice cleanup: auto-broadcast voice_left if disconnecting user was in voice.
+		// Must run before the room-offline check; sendMessageToRoom needs room.Users.
+		if room.VoiceUsers != nil {
+			if _, wasInVoice := room.VoiceUsers[user.Fingerprint]; wasInVoice {
+				delete(room.VoiceUsers, user.Fingerprint)
+				h.broadcastVoiceLeft(room, user.Fingerprint)
+			}
+		}
 
 		if len(room.Users) == 0 {
 			delete(h.Rooms, room.RoomID)
@@ -595,6 +610,176 @@ func (h *Hub) handleEpochKeysSubmitted(req EpochKeysSubmittedRequest) {
 		delivered++
 	}
 	h.logg.Debug("epoch key slots delivered to online members", zap.String("roomID", req.RoomID), zap.Int64("epoch", req.Epoch), zap.Int("delivered", delivered), zap.Int("total", len(req.Keys)))
+}
+
+// handleSignal forwards a WebRTC signaling message (offer/answer/ICE) from one peer to another.
+// Both sender and target must be members of the same room.
+func (h *Hub) handleSignal(msg WSMessageEnvelope) {
+	var payload SignalPayloadInbound
+	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+		h.logg.Debug("handleSignal: failed to unmarshal payload", zap.Error(err))
+		return
+	}
+
+	room := h.getRoom(payload.RoomID)
+	if room == nil {
+		h.logg.Debug("handleSignal: room not in hub", zap.String("roomID", payload.RoomID))
+		return
+	}
+	if !h.isUserInRoom(msg.Sender, room) {
+		h.logg.Warn("handleSignal: sender not in room", zap.String("roomID", payload.RoomID), zap.String("senderFP", msg.Sender.Fingerprint))
+		return
+	}
+	target := h.getUser(payload.TargetFP)
+	if target == nil {
+		h.logg.Debug("handleSignal: target not online", zap.String("targetFP", payload.TargetFP))
+		return
+	}
+	if !h.isUserInRoom(target, room) {
+		h.logg.Warn("handleSignal: target not in same room", zap.String("roomID", payload.RoomID), zap.String("targetFP", payload.TargetFP))
+		return
+	}
+
+	outPayload, err := json.Marshal(SignalPayloadOutbound{
+		RoomID: payload.RoomID,
+		FromFP: msg.Sender.Fingerprint,
+		Signal: payload.Signal,
+	})
+	if err != nil {
+		h.logg.Error("handleSignal: failed to marshal outbound payload", zap.Error(err))
+		return
+	}
+	envelope, err := json.Marshal(WSMessageEnvelope{
+		Type:    models.Signal,
+		Payload: json.RawMessage(outPayload),
+	})
+	if err != nil {
+		h.logg.Error("handleSignal: failed to marshal envelope", zap.Error(err))
+		return
+	}
+	h.sendToUser(target, envelope)
+	h.logg.Debug("signal forwarded", zap.String("roomID", payload.RoomID), zap.String("from", msg.Sender.Fingerprint), zap.String("to", payload.TargetFP))
+}
+
+// handleVoiceJoined tracks a user joining voice, replies with current voice participants,
+// and broadcasts the join to all other room members.
+func (h *Hub) handleVoiceJoined(msg WSMessageEnvelope) {
+	var payload VoiceJoinedPayloadInbound
+	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+		h.logg.Debug("handleVoiceJoined: failed to unmarshal payload", zap.Error(err))
+		return
+	}
+
+	room := h.getRoom(payload.RoomID)
+	if room == nil {
+		h.logg.Debug("handleVoiceJoined: room not in hub", zap.String("roomID", payload.RoomID))
+		return
+	}
+	if !h.isUserInRoom(msg.Sender, room) {
+		h.logg.Warn("handleVoiceJoined: sender not in room", zap.String("roomID", payload.RoomID), zap.String("senderFP", msg.Sender.Fingerprint))
+		return
+	}
+
+	if room.VoiceUsers == nil {
+		room.VoiceUsers = make(map[string]struct{})
+	}
+
+	// Collect existing voice FPs before adding the new joiner.
+	existingFPs := make([]string, 0, len(room.VoiceUsers))
+	for fp := range room.VoiceUsers {
+		existingFPs = append(existingFPs, fp)
+	}
+	room.VoiceUsers[msg.Sender.Fingerprint] = struct{}{}
+
+	// Reply to the joiner with the list of existing voice participants.
+	joinerPayload, err := json.Marshal(VoiceJoinedPayloadOutbound{
+		RoomID:      payload.RoomID,
+		Fingerprint: msg.Sender.Fingerprint,
+		VoiceUsers:  existingFPs,
+	})
+	if err != nil {
+		h.logg.Error("handleVoiceJoined: failed to marshal joiner payload", zap.Error(err))
+		return
+	}
+	joinerEnvelope, err := json.Marshal(WSMessageEnvelope{
+		Type:    models.VoiceJoined,
+		Payload: json.RawMessage(joinerPayload),
+	})
+	if err != nil {
+		h.logg.Error("handleVoiceJoined: failed to marshal joiner envelope", zap.Error(err))
+		return
+	}
+	h.sendToUser(msg.Sender, joinerEnvelope)
+
+	// Broadcast to all other room members (no voice_users field).
+	broadcastPayload, err := json.Marshal(VoiceJoinedPayloadOutbound{
+		RoomID:      payload.RoomID,
+		Fingerprint: msg.Sender.Fingerprint,
+	})
+	if err != nil {
+		h.logg.Error("handleVoiceJoined: failed to marshal broadcast payload", zap.Error(err))
+		return
+	}
+	broadcastEnvelope, err := json.Marshal(WSMessageEnvelope{
+		Type:    models.VoiceJoined,
+		Payload: json.RawMessage(broadcastPayload),
+	})
+	if err != nil {
+		h.logg.Error("handleVoiceJoined: failed to marshal broadcast envelope", zap.Error(err))
+		return
+	}
+	for fp, u := range room.Users {
+		if fp == msg.Sender.Fingerprint {
+			continue
+		}
+		h.sendToUser(u, broadcastEnvelope)
+	}
+
+	h.logg.Info("voice joined", zap.String("roomID", payload.RoomID), zap.String("userFP", msg.Sender.Fingerprint), zap.Int("existingVoiceUsers", len(existingFPs)))
+}
+
+// handleVoiceLeft removes a user from voice state and broadcasts the leave to the room.
+func (h *Hub) handleVoiceLeft(msg WSMessageEnvelope) {
+	var payload VoiceLeftPayloadInbound
+	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+		h.logg.Debug("handleVoiceLeft: failed to unmarshal payload", zap.Error(err))
+		return
+	}
+
+	room := h.getRoom(payload.RoomID)
+	if room == nil {
+		h.logg.Debug("handleVoiceLeft: room not in hub", zap.String("roomID", payload.RoomID))
+		return
+	}
+	if !h.isUserInRoom(msg.Sender, room) {
+		h.logg.Warn("handleVoiceLeft: sender not in room", zap.String("roomID", payload.RoomID), zap.String("senderFP", msg.Sender.Fingerprint))
+		return
+	}
+	if room.VoiceUsers == nil {
+		return
+	}
+	if _, wasInVoice := room.VoiceUsers[msg.Sender.Fingerprint]; !wasInVoice {
+		return
+	}
+
+	delete(room.VoiceUsers, msg.Sender.Fingerprint)
+	h.broadcastVoiceLeft(room, msg.Sender.Fingerprint)
+	h.logg.Info("voice left", zap.String("roomID", payload.RoomID), zap.String("userFP", msg.Sender.Fingerprint))
+}
+
+// broadcastVoiceLeft notifies all online room members that a user has left voice.
+func (h *Hub) broadcastVoiceLeft(room *Room, fp string) {
+	payload, err := json.Marshal(VoiceLeftPayloadOutbound{RoomID: room.RoomID, Fingerprint: fp})
+	if err != nil {
+		h.logg.Error("broadcastVoiceLeft: failed to marshal payload", zap.Error(err))
+		return
+	}
+	envelope, err := json.Marshal(WSMessageEnvelope{Type: models.VoiceLeft, Payload: json.RawMessage(payload)})
+	if err != nil {
+		h.logg.Error("broadcastVoiceLeft: failed to marshal envelope", zap.Error(err))
+		return
+	}
+	h.sendMessageToRoom(room, envelope)
 }
 
 // sendToUser delivers a message to a specific user's outgoing channel non-blocking.
