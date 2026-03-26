@@ -1,9 +1,12 @@
 
 /* --- CSS CUSTOM PROPERTIES (Theme) --- */
 :root {
-    --accent:     var(--accent);
-    --accent-dark: var(--accent-dark);
-    --accent-rgb:  188, 19, 254;
+    --accent:       #bc13fe;
+    --accent-dark:  #4b0082;
+    --accent-rgb:   188, 19, 254;
+    --bg-from:      #1a0525;
+    --bg-to:        #310a5d;
+    --shape-color:  #4b0082;
 }
 
 /* --- BACKGROUND DESIGN --- */
@@ -25,7 +28,7 @@ body {
     margin: 0;
     padding: 0;
     font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    background: linear-gradient(-45deg, #0a0a0a, #1a0525, #310a5d, #000000);
+    background: linear-gradient(-45deg, #0a0a0a, var(--bg-from), var(--bg-to), #000000);
     background-size: 400% 400%;
     animation: fluidBG 15s ease infinite;
     height: 100vh;
@@ -38,11 +41,11 @@ body {
 
 /* --- GEOMETRISCHE FORMEN --- */
 .shape {
-    position: absolute;
+    position: fixed;
     z-index: 0;
-    opacity: 0.3;
+    opacity: 0.4;
     animation: floatShape 20s infinite ease-in-out;
-    background: linear-gradient(135deg, var(--accent) 0%, #000000 100%);
+    pointer-events: none;
 }
 
 @keyframes floatShape {
@@ -56,30 +59,44 @@ body {
 }
 
 .circle {
-    width: 300px;
-    height: 300px;
+    width: 250px;
+    height: 250px;
     border-radius: 50%;
-    top: -50px;
-    left: 10%;
-    filter: blur(40px);
+    top: 10%;
+    left: 15%;
+    background: linear-gradient(135deg, var(--shape-color), #000);
+    box-shadow: 0 0 40px rgba(var(--accent-rgb), 0.3);
 }
 
 .triangle {
-    width: 250px;
-    height: 250px;
+    width: 200px;
+    height: 200px;
+    bottom: 15%;
+    left: 40%;
     clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
-    bottom: 10%;
-    left: 30%;
+    background: linear-gradient(135deg, var(--shape-color), #000);
     animation-delay: -5s;
 }
 
 .square {
-    width: 180px;
-    height: 180px;
+    width: 150px;
+    height: 150px;
     top: 20%;
-    right: 10%;
+    right: 20%;
+    background: linear-gradient(45deg, var(--shape-color), #000);
     transform: rotate(45deg);
     animation-delay: -2s;
+}
+
+.small-circle {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    bottom: 20%;
+    right: 10%;
+    background: linear-gradient(135deg, var(--shape-color), #000);
+    box-shadow: 0 0 40px rgba(var(--accent-rgb), 0.3);
+    animation-delay: -8s;
 }
 
 /* --- TOP NAVIGATION BAR --- */
@@ -738,14 +755,65 @@ dialog[open] {
 }
 
 .chat-input {
-    padding: 20px;
-    background: rgba(0, 0, 0, 0.7);
-    display: flex;
-    gap: 10px;
+    padding: 12px 20px 16px;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(20px);
+    border-top: 1px solid rgba(var(--accent-rgb), 0.12);
 }
 
+.input-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 30px;
+    padding: 5px 5px 5px 18px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.input-bar:focus-within {
+    border-color: rgba(var(--accent-rgb), 0.5);
+    box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.08);
+}
+
+.input-bar input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    padding: 8px 0;
+    color: white;
+    outline: none;
+    font-size: 0.9rem;
+    min-width: 0;
+}
+
+.input-bar input::placeholder {
+    color: rgba(255, 255, 255, 0.3);
+}
+
+.send-btn {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: none;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    font-weight: normal;
+    padding: 0;
+    transition: opacity 0.15s, transform 0.1s;
+}
+
+.send-btn:hover  { opacity: 0.85; transform: scale(1.06); }
+.send-btn:active { transform: scale(0.93); }
+
 input {
-    flex-grow: 1;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid #444;
     padding: 12px 20px;
@@ -906,6 +974,24 @@ button {
 .member-row:hover {
     background: rgba(var(--accent-rgb), 0.08);
 }
+
+.member-row-name {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex: 1;
+    min-width: 0;
+    font-size: 0.88rem;
+}
+
+.member-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.member-dot.online  { background: #4ade80; }
+.member-dot.offline { background: rgba(255,255,255,0.2); }
 
 .member-row span {
     font-size: 0.88rem;
@@ -1316,6 +1402,11 @@ button {
    ============================================================ */
 
 /* Background styles */
+body.bg-shapes {
+    background: linear-gradient(-45deg, #0a0a0a, var(--bg-from), var(--bg-to), #000000);
+    background-size: 400% 400%;
+    animation: fluidBG 15s ease infinite;
+}
 body.bg-grid {
     background: #06000e;
     background-image:
@@ -1325,7 +1416,7 @@ body.bg-grid {
     animation: none;
 }
 body.bg-gradient {
-    background: linear-gradient(135deg, #06000e, #160320);
+    background: linear-gradient(135deg, var(--bg-from), var(--bg-to));
     animation: none;
 }
 body.bg-none {
@@ -1545,6 +1636,34 @@ body.show-timestamps .msg-time { display: block; }
 .settings-copy-btn.copied {
     color: #4ade80;
     border-color: #4ade80;
+}
+
+/* Color pair picker (Hintergrund Farben / Form Farbe) */
+.settings-color-pair {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+.settings-color-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+}
+.settings-color-label {
+    font-size: 0.62rem;
+    opacity: 0.55;
+    letter-spacing: 0.03em;
+}
+.settings-color-item input[type="color"],
+.settings-row input[type="color"] {
+    width: 36px;
+    height: 28px;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+    padding: 2px;
 }
 
 

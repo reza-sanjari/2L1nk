@@ -15,6 +15,7 @@
     <div class="shape circle"></div>
     <div class="shape triangle"></div>
     <div class="shape square"></div>
+    <div class="shape small-circle"></div>
 
     <header class="top-bar">
         <button class="nav-toggle" onclick="document.querySelector('nav').classList.contains('open') ? closeSidebar() : openSidebar()" aria-label="Menü öffnen">
@@ -67,11 +68,28 @@
                         <div class="settings-row settings-row-col">
                             <span class="settings-label">Hintergrund</span>
                             <div class="settings-seg" id="seg-bg">
-                                <button data-val="shapes" onclick="setSetting('bgStyle','shapes')">Shapes</button>
+                                <button data-val="shapes" onclick="setSetting('bgStyle','shapes')">Standard</button>
                                 <button data-val="grid"   onclick="setSetting('bgStyle','grid')">Grid</button>
                                 <button data-val="gradient" onclick="setSetting('bgStyle','gradient')">Gradient</button>
                                 <button data-val="none"  onclick="setSetting('bgStyle','none')">Keiner</button>
                             </div>
+                        </div>
+                        <div class="settings-row">
+                            <span class="settings-label">Hintergrund Farben</span>
+                            <div class="settings-color-pair">
+                                <div class="settings-color-item">
+                                    <span class="settings-color-label">Von</span>
+                                    <input type="color" id="bg-from-picker" value="#1a0525" oninput="setSetting('bgFrom', this.value)">
+                                </div>
+                                <div class="settings-color-item">
+                                    <span class="settings-color-label">Bis</span>
+                                    <input type="color" id="bg-to-picker" value="#310a5d" oninput="setSetting('bgTo', this.value)">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="settings-row">
+                            <span class="settings-label">Form Farbe</span>
+                            <input type="color" id="shape-color-picker" value="#4b0082" oninput="setSetting('shapeColor', this.value)">
                         </div>
                         <div class="settings-row">
                             <span class="settings-label">Glow-Effekte</span>
