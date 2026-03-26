@@ -58,10 +58,6 @@ func (s *GateService) Authorize(req GateRequest) (*GateResult, error) {
 		return nil, ErrInvalidGateKey
 	}
 
-	if s.store.UsernameExists(req.Username) {
-		return nil, ErrUsernameTaken
-	}
-
 	fp := utils.FingerprintEd25519(req.PublicKey)
 
 	if req.Mode == models.UserModePersistent {
@@ -70,6 +66,10 @@ func (s *GateService) Authorize(req GateRequest) (*GateResult, error) {
 			return nil, err
 		}
 		if existing == nil {
+			// New persistent user: enforce username uniqueness and create DB record.
+			if s.store.UsernameExists(req.Username) {
+				return nil, ErrUsernameTaken
+			}
 			if err := s.userRepo.Create(&infradb.UserRecord{
 				Fingerprint:     fp,
 				PublicKey:       base64.StdEncoding.EncodeToString(req.PublicKey),
@@ -80,9 +80,15 @@ func (s *GateService) Authorize(req GateRequest) (*GateResult, error) {
 				return nil, err
 			}
 		} else {
+			// Returning persistent user: re-issue session, update username if changed.
 			if err := s.userRepo.UpdateUsername(fp, req.Username); err != nil {
 				return nil, err
 			}
+		}
+	} else {
+		// Ephemeral user: no DB record, enforce username uniqueness in-session.
+		if s.store.UsernameExists(req.Username) {
+			return nil, ErrUsernameTaken
 		}
 	}
 
