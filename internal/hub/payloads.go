@@ -130,6 +130,45 @@ type KeySlotEntry struct {
 	EncryptedKey []byte // decoded from base64 at the HTTP handler
 }
 
+// SignalPayloadInbound is the payload of a "signal" WS message from a client.
+type SignalPayloadInbound struct {
+	RoomID   string          `json:"room_id"`
+	TargetFP string          `json:"target_fp"`
+	Signal   json.RawMessage `json:"signal"` // opaque: offer, answer, or ice candidate
+}
+
+// SignalPayloadOutbound is the payload forwarded to the signal target.
+// FromFP is injected by the server so the recipient knows who sent the signal.
+type SignalPayloadOutbound struct {
+	RoomID string          `json:"room_id"`
+	FromFP string          `json:"from_fp"`
+	Signal json.RawMessage `json:"signal"`
+}
+
+// VoiceJoinedPayloadInbound is the payload of a "voice_joined" message from a client.
+type VoiceJoinedPayloadInbound struct {
+	RoomID string `json:"room_id"`
+}
+
+// VoiceJoinedPayloadOutbound is sent back to the joiner (VoiceUsers populated) and
+// broadcast to all other room members (VoiceUsers omitted).
+type VoiceJoinedPayloadOutbound struct {
+	RoomID      string   `json:"room_id"`
+	Fingerprint string   `json:"fingerprint"`
+	VoiceUsers  []string `json:"voice_users,omitempty"`
+}
+
+// VoiceLeftPayloadInbound is the payload of a "voice_left" message from a client.
+type VoiceLeftPayloadInbound struct {
+	RoomID string `json:"room_id"`
+}
+
+// VoiceLeftPayloadOutbound is broadcast to all room members when someone leaves voice.
+type VoiceLeftPayloadOutbound struct {
+	RoomID      string `json:"room_id"`
+	Fingerprint string `json:"fingerprint"`
+}
+
 // EpochKeysSubmittedRequest is sent to the hub after the key creator POSTs epoch keys.
 type EpochKeysSubmittedRequest struct {
 	RoomID string
