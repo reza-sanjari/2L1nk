@@ -32,7 +32,7 @@ func New(cfg *config.Config, h *handlers.Handler, s *session.Store) *Server {
 
 	// Root page
 	e.GET("/", func(c echo.Context) error {
-		return c.File("web/pages/login.html")
+		return c.File("web/pages/Login.html")
 	})
 
 	// Catch-all: map clean URLs to HTML files under web/pages/
