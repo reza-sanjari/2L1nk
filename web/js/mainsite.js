@@ -61,6 +61,12 @@ const Settings = (() => {
     return { load, save, apply, PRESETS, DEFAULTS };
 })();
 
+function resetSettings() {
+    Settings.save({ ...Settings.DEFAULTS });
+    Settings.apply(Settings.DEFAULTS);
+    syncSettingsUI(Settings.DEFAULTS);
+}
+
 function setSetting(key, value) {
     const s = Settings.load();
     if (key === 'notifDesktop' && value) {
