@@ -12,7 +12,7 @@ type Config struct {
 
 func Load() (*Config, error) {
 	return &Config{
-		Port:   getEnvInt("PORT", 8080),
+		Port:   getEnvInt("PORT", 3847),
 		DBPath: getEnvStr("DB_PATH", "2L1nk.db"),
 	}, nil
 }
