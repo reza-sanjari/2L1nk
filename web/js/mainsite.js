@@ -22,12 +22,12 @@ const Settings = (() => {
         notifSound: true, notifDesktop: false,
     };
     const PRESETS = [
-        { name: 'Lila',   color: '#bc13fe', rgb: '188, 19, 254', dark: '#4b0082' },
-        { name: 'Blau',   color: '#1d9bf0', rgb: '29, 155, 240', dark: '#0a3d6b' },
-        { name: 'Grün',   color: '#00c853', rgb: '0, 200, 83',   dark: '#005723' },
-        { name: 'Rot',    color: '#f44336', rgb: '244, 67, 54',  dark: '#7f0000' },
-        { name: 'Orange', color: '#ff6d00', rgb: '255, 109, 0',  dark: '#7f3400' },
-        { name: 'Cyan',   color: '#00bcd4', rgb: '0, 188, 212',  dark: '#006064' },
+        { name: 'Lila', color: '#bc13fe', rgb: '188, 19, 254', dark: '#4b0082' },
+        { name: 'Blau', color: '#1d9bf0', rgb: '29, 155, 240', dark: '#0a3d6b' },
+        { name: 'Grün', color: '#00c853', rgb: '0, 200, 83', dark: '#005723' },
+        { name: 'Rot', color: '#f44336', rgb: '244, 67, 54', dark: '#7f0000' },
+        { name: 'Orange', color: '#ff6d00', rgb: '255, 109, 0', dark: '#7f3400' },
+        { name: 'Cyan', color: '#00bcd4', rgb: '0, 188, 212', dark: '#006064' },
     ];
 
     function load() {
@@ -117,12 +117,12 @@ function playNotifSound() {
         gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
         osc.start(ctx.currentTime);
         osc.stop(ctx.currentTime + 0.35);
-    } catch {}
+    } catch { }
 }
 
 function showDesktopNotif(roomName, text) {
     if (Notification.permission === 'granted') {
-        try { new Notification(`2L1nk — ${roomName}`, { body: text || 'Neue Nachricht' }); } catch {}
+        try { new Notification(`2L1nk — ${roomName}`, { body: text || 'Neue Nachricht' }); } catch { }
     }
 }
 
@@ -136,7 +136,7 @@ function copySettingsValue(sessionKey, btnId) {
         const orig = btn.innerHTML;
         btn.innerHTML = '<i class="fas fa-check"></i> Kopiert';
         setTimeout(() => { btn.innerHTML = orig; btn.classList.remove('copied'); }, 1800);
-    }).catch(() => {});
+    }).catch(() => { });
 }
 
 function formatTime(unixSeconds) {
@@ -152,6 +152,7 @@ function formatTime(unixSeconds) {
 let voiceRoomId = null;
 let localStream = null;
 const peerConnections = new Map(); // FP → RTCPeerConnection
+const pendingIceCandidates = new Map(); // FP → RTCIceCandidate[] (queued before remoteDescription is set)
 let isMuted = false;
 const voiceParticipants = new Set(); // FP von Usern aktuell in Voice
 
@@ -185,26 +186,26 @@ const AppCrypto = (() => {
 
     function generateIdentity() {
         const signingKP = nacl.sign.keyPair();   // Ed25519
-        const dhKP      = nacl.box.keyPair();    // X25519
+        const dhKP = nacl.box.keyPair();    // X25519
 
         sessionStorage.setItem('ed25519_secret', bufToB64(signingKP.secretKey));
         sessionStorage.setItem('ed25519_public', bufToB64(signingKP.publicKey));
-        sessionStorage.setItem('x25519_secret',  bufToB64(dhKP.secretKey));
-        sessionStorage.setItem('x25519_public',  bufToB64(dhKP.publicKey));
+        sessionStorage.setItem('x25519_secret', bufToB64(dhKP.secretKey));
+        sessionStorage.setItem('x25519_public', bufToB64(dhKP.publicKey));
 
         return {
             signingPublicKey: bufToB64(signingKP.publicKey),
-            dhPublicKey:      bufToB64(dhKP.publicKey)
+            dhPublicKey: bufToB64(dhKP.publicKey)
         };
     }
 
     function loadIdentity() {
         const edSec = sessionStorage.getItem('ed25519_secret');
-        const xSec  = sessionStorage.getItem('x25519_secret');
+        const xSec = sessionStorage.getItem('x25519_secret');
         if (!edSec || !xSec) return null;
         return {
             signingSecretKey: b64ToBuf(edSec),
-            dhSecretKey:      b64ToBuf(xSec)
+            dhSecretKey: b64ToBuf(xSec)
         };
     }
 
@@ -231,13 +232,13 @@ const AppCrypto = (() => {
     // Gibt { ephemeralPub, nonce, ciphertext } (alles Base64) zurück.
     function encryptRoomKey(roomKey, recipientDHPublicB64) {
         const ephemeral = nacl.box.keyPair();
-        const nonce     = nacl.randomBytes(nacl.box.nonceLength);
-        const key       = roomKey instanceof Uint8Array ? roomKey : new Uint8Array(roomKey);
+        const nonce = nacl.randomBytes(nacl.box.nonceLength);
+        const key = roomKey instanceof Uint8Array ? roomKey : new Uint8Array(roomKey);
         const encrypted = nacl.box(key, nonce, b64ToBuf(recipientDHPublicB64), ephemeral.secretKey);
         return {
             ephemeralPub: bufToB64(ephemeral.publicKey),
-            nonce:        bufToB64(nonce),
-            ciphertext:   bufToB64(encrypted)
+            nonce: bufToB64(nonce),
+            ciphertext: bufToB64(encrypted)
         };
     }
 
@@ -257,7 +258,7 @@ const AppCrypto = (() => {
 
     function encryptMessage(plaintext, roomKey) {
         const nonce = nacl.randomBytes(nacl.secretbox.nonceLength);
-        const key   = roomKey instanceof Uint8Array ? roomKey : new Uint8Array(roomKey);
+        const key = roomKey instanceof Uint8Array ? roomKey : new Uint8Array(roomKey);
         const encrypted = nacl.secretbox(strToBytes(plaintext), nonce, key);
         return { nonce: bufToB64(nonce), ciphertext: bufToB64(encrypted) };
     }
@@ -391,7 +392,7 @@ function connectLocalChat() {
             const payload = envelope.payload;
 
             // eigene Echo-Nachricht ignorieren
-            const myFP    = sessionStorage.getItem('my_fingerprint');
+            const myFP = sessionStorage.getItem('my_fingerprint');
             const sentKey = `${payload.room_id}:${payload.ciphertext}`;
             if (envelope.sender_fp === myFP || pendingSent.has(sentKey)) {
                 pendingSent.delete(sentKey);
@@ -436,7 +437,7 @@ function connectLocalChat() {
     };
 
     socket.onerror = (err) => console.error("WebSocket Fehler:", err);
-    socket.onclose = ()  => console.warn("WebSocket geschlossen");
+    socket.onclose = () => console.warn("WebSocket geschlossen");
 }
 async function fetchRooms() {
 
@@ -452,8 +453,8 @@ async function fetchRooms() {
             method: 'GET',
             headers: {
                 'Chat-Session-ID': sessionStorage.getItem('sessionId'),
-                'Chat-Timestamp':  timestamp,
-                'Chat-Signature':  signature
+                'Chat-Timestamp': timestamp,
+                'Chat-Signature': signature
             }
         });
 
@@ -575,7 +576,7 @@ function toggleVoicePanel() {
 }
 async function loadChat(room) {
     const chatEl = document.getElementById('chat');
-    const myFP   = sessionStorage.getItem('my_fingerprint');
+    const myFP = sessionStorage.getItem('my_fingerprint');
 
     const fpToName = {};
     if (room.host) fpToName[room.host.fingerprint] = room.host.username;
@@ -604,7 +605,7 @@ async function loadChat(room) {
         const response = await authFetch('GET', `/api/rooms/${room.room_id}/messages`);
         if (!response.ok) throw new Error(`HTTP-Fehler: ${response.status}`);
 
-        const data     = await response.json();
+        const data = await response.json();
         const messages = (data.messages ?? []).filter(m => m.ciphertext && m.ciphertext.trim() !== '').reverse();
 
         chatEl.innerHTML = '';
@@ -804,18 +805,18 @@ async function openRoomMenu(room) {
     }
 
     // Placeholder während Laden
-    leftList.innerHTML  = '<div class="member-col-empty">Lädt...</div>';
+    leftList.innerHTML = '<div class="member-col-empty">Lädt...</div>';
     rightList.innerHTML = '<div class="member-col-empty">Lädt...</div>';
 
-    const myFP    = sessionStorage.getItem('my_fingerprint');
-    const allResp    = await authFetch('GET', '/api/users').catch(() => null);
+    const myFP = sessionStorage.getItem('my_fingerprint');
+    const allResp = await authFetch('GET', '/api/users').catch(() => null);
     const allUsersRaw = allResp?.ok ? (await allResp.json()) : [];
-    const allUsers    = Array.isArray(allUsersRaw) ? allUsersRaw : [];
+    const allUsers = Array.isArray(allUsersRaw) ? allUsersRaw : [];
 
-    const onlineFPs  = new Set(allUsers.filter(u => u.online).map(u => u.fingerprint));
-    const memberFPs  = new Set((room.users ?? []).map(u => u.fingerprint));
-    const removable  = (room.users ?? []).filter(u => u.fingerprint !== myFP);
-    const addable    = allUsers.filter(u => u.online && !memberFPs.has(u.fingerprint) && u.fingerprint !== myFP);
+    const onlineFPs = new Set(allUsers.filter(u => u.online).map(u => u.fingerprint));
+    const memberFPs = new Set((room.users ?? []).map(u => u.fingerprint));
+    const removable = (room.users ?? []).filter(u => u.fingerprint !== myFP);
+    const addable = allUsers.filter(u => u.online && !memberFPs.has(u.fingerprint) && u.fingerprint !== myFP);
 
     // Mitglieder-Liste befüllen
     leftList.innerHTML = '';
@@ -840,8 +841,8 @@ async function openRoomMenu(room) {
 
 async function authFetch(method, path, body = null) {
     const bodyString = body ? JSON.stringify(body) : null;
-    const timestamp  = Math.floor(Date.now() / 1000);
-    const bodyHash   = bodyString
+    const timestamp = Math.floor(Date.now() / 1000);
+    const bodyHash = bodyString
         ? await hashBody(bodyString)
         : 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
     const canonical = `${method}\n${path}\n${timestamp}\n${bodyHash}`;
@@ -851,8 +852,8 @@ async function authFetch(method, path, body = null) {
         method,
         headers: {
             'Chat-Session-ID': sessionStorage.getItem('sessionId'),
-            'Chat-Timestamp':  timestamp,
-            'Chat-Signature':  signature,
+            'Chat-Timestamp': timestamp,
+            'Chat-Signature': signature,
         }
     };
     if (bodyString) {
@@ -948,7 +949,7 @@ function send(ciphertext) {
     chatEl.scrollTop = chatEl.scrollHeight;
 }
 async function whoAmI() {
-    const username  = sessionStorage.getItem('username');
+    const username = sessionStorage.getItem('username');
     const sessionId = sessionStorage.getItem('sessionId');
 
     if (!username || !sessionId) {
@@ -1026,7 +1027,7 @@ async function newChat(groupName) {
         // 3. Signatur erzeugen
         const signature = AppCrypto.sign(canonical);
 
-       
+
 
         const response = await fetch(`${path}`, {
             method: 'POST',
@@ -1120,6 +1121,7 @@ function leaveVoice() {
     if (!voiceRoomId) return;
     const roomId = voiceRoomId;
 
+    peerConnections.forEach((_, fp) => pendingIceCandidates.delete(fp));
     peerConnections.forEach((pc) => pc.close());
     peerConnections.clear();
 
@@ -1153,6 +1155,17 @@ function toggleMute() {
     updateVoiceUI();
 }
 
+async function flushPendingIceCandidates(fp) {
+    const candidates = pendingIceCandidates.get(fp);
+    if (!candidates) return;
+    pendingIceCandidates.delete(fp);
+    const pc = peerConnections.get(fp);
+    if (!pc) return;
+    for (const candidate of candidates) {
+        try { await pc.addIceCandidate(candidate); } catch (e) { /* stale candidate, ignore */ }
+    }
+}
+
 async function createPeerConnection(targetFP, roomId, isInitiator) {
     if (peerConnections.has(targetFP)) {
         peerConnections.get(targetFP).close();
@@ -1174,6 +1187,7 @@ async function createPeerConnection(targetFP, roomId, isInitiator) {
             document.body.appendChild(audio);
         }
         audio.srcObject = event.streams[0];
+        audio.play().catch(e => console.warn('Audio autoplay blocked:', e));
     };
 
     pc.onicecandidate = (event) => {
@@ -1210,15 +1224,25 @@ async function handleSignalMessage(payload) {
         if (sig.type === 'offer') {
             const pc = await createPeerConnection(fromFP, voiceRoomId, false);
             await pc.setRemoteDescription({ type: 'offer', sdp: sig.sdp });
+            await flushPendingIceCandidates(fromFP);
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
             sendSignal(voiceRoomId, fromFP, { type: 'answer', sdp: answer.sdp });
         } else if (sig.type === 'answer') {
             const pc = peerConnections.get(fromFP);
-            if (pc) await pc.setRemoteDescription({ type: 'answer', sdp: sig.sdp });
+            if (pc) {
+                await pc.setRemoteDescription({ type: 'answer', sdp: sig.sdp });
+                await flushPendingIceCandidates(fromFP);
+            }
         } else if (sig.type === 'ice') {
             const pc = peerConnections.get(fromFP);
-            if (pc && sig.candidate) await pc.addIceCandidate(sig.candidate);
+            if (!pc) return;
+            if (!pc.remoteDescription) {
+                if (!pendingIceCandidates.has(fromFP)) pendingIceCandidates.set(fromFP, []);
+                pendingIceCandidates.get(fromFP).push(sig.candidate);
+            } else {
+                try { await pc.addIceCandidate(sig.candidate); } catch (e) { console.warn('ICE error:', e); }
+            }
         }
     } catch (e) {
         console.error('WebRTC signal error:', e);
@@ -1247,6 +1271,7 @@ function handleVoiceLeft(payload) {
     // payload: { room_id, fingerprint }
     voiceParticipants.delete(payload.fingerprint);
 
+    pendingIceCandidates.delete(payload.fingerprint);
     const pc = peerConnections.get(payload.fingerprint);
     if (pc) {
         pc.close();
@@ -1420,8 +1445,8 @@ function populateSettingsPanel() {
             sw.onclick = () => {
                 const cur = Settings.load();
                 cur.accentColor = p.color;
-                cur.accentRgb   = p.rgb;
-                cur.accentDark  = p.dark;
+                cur.accentRgb = p.rgb;
+                cur.accentDark = p.dark;
                 Settings.save(cur);
                 Settings.apply(cur);
                 syncSettingsUI(cur);
@@ -1439,11 +1464,11 @@ function populateSettingsPanel() {
         colorInput.style.cssText = 'position:absolute;width:200%;height:200%;opacity:0;cursor:pointer;top:-50%;left:-50%;';
         colorInput.oninput = (e) => {
             const hex = e.target.value;
-            const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+            const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
             const cur = Settings.load();
             cur.accentColor = hex;
-            cur.accentRgb   = `${r}, ${g}, ${b}`;
-            cur.accentDark  = `#${Math.round(r*0.4).toString(16).padStart(2,'0')}${Math.round(g*0.4).toString(16).padStart(2,'0')}${Math.round(b*0.4).toString(16).padStart(2,'0')}`;
+            cur.accentRgb = `${r}, ${g}, ${b}`;
+            cur.accentDark = `#${Math.round(r * 0.4).toString(16).padStart(2, '0')}${Math.round(g * 0.4).toString(16).padStart(2, '0')}${Math.round(b * 0.4).toString(16).padStart(2, '0')}`;
             Settings.save(cur);
             Settings.apply(cur);
             syncSettingsUI(cur);
@@ -1501,7 +1526,7 @@ async function _runMessageSearch(query, resultsEl) {
                     try {
                         const keyData = JSON.parse(atob(slot.encrypted_key));
                         roomKeys.set(`${slot.room_id}:${slot.epoch}`, AppCrypto.decryptRoomKey(keyData));
-                    } catch {}
+                    } catch { }
                 }
             }
 
@@ -1518,7 +1543,7 @@ async function _runMessageSearch(query, resultsEl) {
                     results.push({ type: 'message', room, msgId: msg.id, excerpt });
                 }
             }
-        } catch {}
+        } catch { }
     }));
 
     if (results.length === 0) {
