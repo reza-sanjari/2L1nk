@@ -20,13 +20,16 @@ func tickCmd() tea.Cmd {
 
 type logsDoneMsg struct{}
 
+var logLevels = []string{"ALL", "DEBUG", "INFO", "WARN", "ERROR"}
+
 type logsModel struct {
-	vp       viewport.Model
-	logPath  string
-	width    int
-	height   int
-	atBottom bool
-	lineCount int
+	vp         viewport.Model
+	logPath    string
+	width      int
+	height     int
+	atBottom   bool
+	lineCount  int
+	filterIdx  int
 }
 
 func newLogsModel(logPath string, width, height int) logsModel {
@@ -58,6 +61,17 @@ func (m *logsModel) refresh() {
 	if len(lines) > 500 {
 		lines = lines[len(lines)-500:]
 	}
+
+	if level := logLevels[m.filterIdx]; level != "ALL" {
+		filtered := lines[:0]
+		for _, l := range lines {
+			if strings.Contains(l, level) {
+				filtered = append(filtered, l)
+			}
+		}
+		lines = filtered
+	}
+
 	m.lineCount = len(lines)
 	m.vp.SetContent(strings.Join(lines, "\n"))
 
@@ -75,6 +89,10 @@ func (m logsModel) Update(msg tea.Msg) (logsModel, tea.Cmd) {
 		case "G":
 			m.vp.GotoBottom()
 			m.atBottom = true
+			return m, nil
+		case "f", "tab":
+			m.filterIdx = (m.filterIdx + 1) % len(logLevels)
+			m.refresh()
 			return m, nil
 		}
 		prevOffset := m.vp.YOffset
@@ -107,7 +125,9 @@ func (m logsModel) Update(msg tea.Msg) (logsModel, tea.Cmd) {
 }
 
 func (m logsModel) View() string {
-	header := styleTitle.Render(fmt.Sprintf("  Server Logs  (%d lines)", m.lineCount))
+	level := logLevels[m.filterIdx]
+	filterLabel := styleSubtle.Render("filter:") + " " + styleAccent.Render(level)
+	header := styleTitle.Render(fmt.Sprintf("  Server Logs  (%d lines)", m.lineCount)) + "  " + filterLabel
 	divider := styleDivider.Render(strings.Repeat("─", max(50, m.width-4)))
 
 	scrollHint := ""
@@ -115,7 +135,7 @@ func (m logsModel) View() string {
 		scrollHint = styleAccent.Render("  ↓ scroll  G jump to bottom") + "\n"
 	}
 
-	help := styleHelp.Render("  ↑↓/pgup/pgdn scroll  G bottom  q back")
+	help := styleHelp.Render("  ↑↓/pgup/pgdn scroll  G bottom  f/tab filter  q back")
 
 	return header + "\n" + divider + "\n" + m.vp.View() + "\n" + scrollHint + help + "\n"
 }
