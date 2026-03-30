@@ -294,7 +294,6 @@ func (m *model) cmdStartServer() tea.Cmd {
 	logPath := m.logPath
 	port := m.cfg.Port
 	noLogs := m.opts.NoLogs
-	gateKey := m.g.Key()
 
 	return func() tea.Msg {
 		exe, err := os.Executable()
@@ -307,7 +306,7 @@ func (m *model) cmdStartServer() tea.Cmd {
 		if noLogs {
 			cmd.Stdout = io.Discard
 			cmd.Stderr = io.Discard
-			cmd.Env = append(os.Environ(), "_2L1NK_NO_LOGS=1", "_2L1NK_GATE_KEY="+gateKey)
+			cmd.Env = append(os.Environ(), "_2L1NK_NO_LOGS=1")
 		} else {
 			logFile, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 			if err != nil {
@@ -315,7 +314,6 @@ func (m *model) cmdStartServer() tea.Cmd {
 			}
 			cmd.Stdout = logFile
 			cmd.Stderr = logFile
-			cmd.Env = append(os.Environ(), "_2L1NK_GATE_KEY="+gateKey)
 			defer logFile.Close()
 		}
 
