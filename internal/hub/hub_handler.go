@@ -234,6 +234,7 @@ func (h *Hub) handleJoinRoom(req RoomMembersChangeRequest) {
 	// Broadcast rotation WS; DB already updated so no event emission.
 	h.broadcastRotation(room, false)
 	// Notify all online members that a new member has joined.
+	// The added user is already in room.Users at this point, so they receive this too.
 	h.broadcastMemberJoined(room, req.UserFP, req.UserMode)
 }
 
@@ -392,6 +393,9 @@ func (h *Hub) handleRemoveFromRoom(req RemoveFromRoomRequest) {
 		return
 	}
 
+	// Notify all online members (including the removed user) before evicting them.
+	h.broadcastMemberLeft(room, req.MemberFP)
+
 	delete(room.Users, req.MemberFP)
 	delete(room.MemberPublicKeys, req.MemberFP)
 	delete(room.MemberModes, req.MemberFP)
@@ -425,8 +429,6 @@ func (h *Hub) handleRemoveFromRoom(req RemoveFromRoomRequest) {
 
 	// Broadcast rotation WS; DB already updated so no event emission.
 	h.broadcastRotation(room, false)
-	// Notify remaining online members that a member has been removed.
-	h.broadcastMemberLeft(room, req.MemberFP)
 }
 
 // selectNextByLex picks the next host or key creator using the priority:
