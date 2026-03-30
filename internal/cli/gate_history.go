@@ -22,7 +22,7 @@ type gateHistoryModel struct {
 }
 
 func newGateHistoryModel(repo gate.GateRepository, width, height int) gateHistoryModel {
-	vp := viewport.New(width, height-6)
+	vp := viewport.New(width, height-4)
 	vp.Style = styleApp
 
 	m := gateHistoryModel{
@@ -47,22 +47,35 @@ func (m *gateHistoryModel) loadAndRender() {
 }
 
 func (m *gateHistoryModel) renderTable() string {
-	if len(m.records) == 0 {
-		return styleSubtle.Render("  No gate tokens recorded yet.")
-	}
+	colToken := 20
+	colMaxUses := 9
+	colUseCount := 9
+	colStatus := 8
+	colCreated := 16
 
-	header := fmt.Sprintf("  %-12s  %-9s  %-9s  %-8s  %s",
-		"Token", "Max Uses", "Use Count", "Status", "Created At")
-	divider := strings.Repeat("─", max(70, m.width-6))
+	headerFmt := fmt.Sprintf("  %%-%ds  %%-%ds  %%-%ds  %%-%ds  %%s",
+		colToken, colMaxUses, colUseCount, colStatus)
+	header := fmt.Sprintf(headerFmt, "Token", "Max Uses", "Use Count", "Status", "Created At")
+
+	dividerLen := max(70, m.width-4)
+	divider := strings.Repeat("─", dividerLen)
 
 	var sb strings.Builder
 	sb.WriteString(styleSubtle.Render(header) + "\n")
-	sb.WriteString(styleDivider.Render("  "+divider) + "\n")
+	sb.WriteString(styleDivider.Render(divider) + "\n")
+
+	if len(m.records) == 0 {
+		sb.WriteString(styleSubtle.Render("  No gate tokens recorded yet.") + "\n")
+		return sb.String()
+	}
+
+	rowFmt := fmt.Sprintf("  %%-%ds  %%-%ds  %%-%dd  ", colToken, colMaxUses, colUseCount)
+	_ = colCreated
 
 	for _, rec := range m.records {
 		truncToken := rec.Token
-		if len(truncToken) > 10 {
-			truncToken = truncToken[:8] + "…"
+		if len(truncToken) > colToken {
+			truncToken = truncToken[:colToken-2] + "…"
 		}
 
 		maxUsesStr := "∞"
@@ -79,7 +92,7 @@ func (m *gateHistoryModel) renderTable() string {
 
 		created := time.Unix(rec.CreatedAt, 0).Format("2006-01-02 15:04")
 
-		row := fmt.Sprintf("  %-12s  %-9s  %-9d  ", truncToken, maxUsesStr, rec.UseCount)
+		row := fmt.Sprintf(rowFmt, truncToken, maxUsesStr, rec.UseCount)
 		sb.WriteString(styleNormal.Render(row))
 		sb.WriteString(statusStyle.Render(fmt.Sprintf("%-8s", statusStr)))
 		sb.WriteString(styleSubtle.Render("  " + created))
@@ -106,7 +119,7 @@ func (m gateHistoryModel) Update(msg tea.Msg) (gateHistoryModel, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.vp.Width = msg.Width
-		m.vp.Height = msg.Height - 6
+		m.vp.Height = msg.Height - 4
 		m.loadAndRender()
 		return m, nil
 	}
@@ -117,7 +130,8 @@ func (m gateHistoryModel) Update(msg tea.Msg) (gateHistoryModel, tea.Cmd) {
 }
 
 func (m gateHistoryModel) View() string {
-	title := styleTitle.Render("  Gate Key History")
+	count := len(m.records)
+	title := styleTitle.Render(fmt.Sprintf("  Gate Key History  (%d tokens)", count))
 	divider := styleDivider.Render(strings.Repeat("─", max(50, m.width-4)))
 	help := styleHelp.Render("  ↑↓/pgup/pgdn scroll  r refresh  q/esc back")
 	return title + "\n" + divider + "\n" + m.vp.View() + "\n" + help + "\n"

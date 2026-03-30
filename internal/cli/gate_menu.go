@@ -20,7 +20,7 @@ type gateMenuItem struct {
 // Static action items — rendered below the unlimited toggle and max-uses input.
 var gateMenuItems = []gateMenuItem{
 	{label: "Copy Key", id: "copy"},
-	{label: "Refresh Key", id: "refresh"},
+	{label: "Generate New Random Key", id: "refresh"},
 	{label: "Set Custom Key", id: "custom"},
 	{label: "View Past Keys", id: "history"},
 	{label: "← Back", id: "back"},
@@ -90,6 +90,14 @@ func (m gateMenuModel) effectiveItems() []string {
 func (m gateMenuModel) Update(msg tea.Msg) (gateMenuModel, tea.Cmd) {
 	// Delegate to history sub-screen when active.
 	if m.viewingHistory {
+		if _, ok := msg.(gateHistoryDoneMsg); ok {
+			m.viewingHistory = false
+			return m, nil
+		}
+		if sz, ok := msg.(tea.WindowSizeMsg); ok {
+			m.width = sz.Width
+			m.height = sz.Height
+		}
 		var cmd tea.Cmd
 		m.history, cmd = m.history.Update(msg)
 		return m, cmd
@@ -104,10 +112,6 @@ func (m gateMenuModel) Update(msg tea.Msg) (gateMenuModel, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
-	case gateHistoryDoneMsg:
-		m.viewingHistory = false
-		return m, nil
-
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "esc", "q":
