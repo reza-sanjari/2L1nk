@@ -48,6 +48,7 @@ func New(cfg *config.Config, g *gate.Gate, logFile string) *App {
 	msgRepo := infradb.NewMessageRepository(database)
 	userRepo := infradb.NewUserRepository(database)
 
+	g.SetLogger(logg.Logger)
 	logg.Info(fmt.Sprintf("gate initialized: %s unlimited", g.Key()))
 
 	healthSvc := service.NewHealthService(healthRepo, logg)

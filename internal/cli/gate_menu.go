@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/hex"
 	"fmt"
 	"strings"
 
@@ -38,8 +37,8 @@ type gateMenuModel struct {
 
 func newGateMenuModel(g *gate.Gate) gateMenuModel {
 	ti := textinput.New()
-	ti.Placeholder = "64-char hex key..."
-	ti.CharLimit = 64
+	ti.Placeholder = "custom key..."
+	ti.CharLimit = 256
 	ti.Width = 66
 
 	return gateMenuModel{
@@ -122,13 +121,8 @@ func (m gateMenuModel) updateInput(msg tea.Msg) (gateMenuModel, tea.Cmd) {
 			return m, nil
 		case "enter":
 			val := strings.TrimSpace(m.input.Value())
-			if len(val) != 64 {
-				m.msg = fmt.Sprintf("Key must be exactly 64 hex chars (got %d).", len(val))
-				m.msgIsErr = true
-				return m, nil
-			}
-			if _, err := hex.DecodeString(val); err != nil {
-				m.msg = "Invalid hex string."
+			if len(val) == 0 {
+				m.msg = "Key cannot be empty."
 				m.msgIsErr = true
 				return m, nil
 			}
@@ -165,7 +159,7 @@ func (m gateMenuModel) View() string {
 
 	// Custom input mode
 	if m.inputMode {
-		b.WriteString(styleAccent.Render("  Enter custom key (64 hex chars):") + "\n")
+		b.WriteString(styleAccent.Render("  Enter custom key:") + "\n")
 		b.WriteString("  " + m.input.View() + "\n")
 		b.WriteString("\n" + styleHelp.Render("  enter confirm  esc cancel") + "\n")
 		return b.String()
