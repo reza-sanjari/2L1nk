@@ -41,6 +41,11 @@ func New(cfg *config.Config, g *gate.Gate, logFile string) *App {
 		logg.Fatal("failed to initialize database", zap.Error(err))
 	}
 
+	gateRepo := infradb.NewGateRepository(database)
+	if err := g.SetRepo(gateRepo); err != nil {
+		logg.Fatal("failed to initialize gate repo", zap.Error(err))
+	}
+
 	sessionStore := session.NewStore()
 
 	healthRepo := infradb.NewHealthRepository(database)
@@ -49,7 +54,11 @@ func New(cfg *config.Config, g *gate.Gate, logFile string) *App {
 	userRepo := infradb.NewUserRepository(database)
 
 	g.SetLogger(logg.Logger)
-	logg.Info(fmt.Sprintf("gate initialized: %s unlimited", g.Key()))
+	maxUsesStr := "unlimited"
+	if g.MaxUses() > 0 {
+		maxUsesStr = fmt.Sprintf("max %d", g.MaxUses())
+	}
+	logg.Info("gate initialized", zap.String("key", g.Key()), zap.String("max_uses", maxUsesStr))
 
 	healthSvc := service.NewHealthService(healthRepo, logg)
 	gateSvc := service.NewGateService(g, sessionStore, userRepo, logg)

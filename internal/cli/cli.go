@@ -7,7 +7,9 @@ import (
 	"strings"
 
 	"2L1nk/internal/config"
+	"2L1nk/internal/db"
 	"2L1nk/internal/gate"
+	infradb "2L1nk/internal/infrastructure/db"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -23,6 +25,13 @@ func RunTUI() error {
 	g, err := gate.New(0)
 	if err != nil {
 		return err
+	}
+
+	// Connect CLI to the same DB so gate key changes are visible to the server.
+	// Non-fatal: gate stays in-memory mode if DB is not yet available.
+	if database, dbErr := db.Open(cfg.DBPath); dbErr == nil {
+		repo := infradb.NewGateRepository(database)
+		_ = g.SetRepo(repo)
 	}
 
 	pidPath := derivePathWithExt(cfg.DBPath, ".pid")

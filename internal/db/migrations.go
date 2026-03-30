@@ -125,7 +125,19 @@ func RunMigrations(database *sql.DB) error {
 	); err != nil {
 		return fmt.Errorf("seed host_fp from key_creator_fp: %w", err)
 	}
-	return migrateRoomsDropKeyCreatorFK(database)
+	if err := migrateRoomsDropKeyCreatorFK(database); err != nil {
+		return err
+	}
+	if err := addColumnIfNotExists(database, "gate_tokens", "max_uses",
+		"INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return err
+	}
+	if err := addColumnIfNotExists(database, "gate_tokens", "use_count",
+		"INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return err
+	}
+	return addColumnIfNotExists(database, "gate_tokens", "is_active",
+		"INTEGER NOT NULL DEFAULT 1")
 }
 
 // migrateRoomsDropKeyCreatorFK recreates the rooms table without the FK constraint on

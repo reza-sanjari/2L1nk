@@ -39,9 +39,6 @@ func runServer(tempMode bool) {
 	if err != nil {
 		log.Fatalf("failed to initialize gate: %v", err)
 	}
-	if key := os.Getenv("_2L1NK_GATE_KEY"); key != "" {
-		g.SetKey(key)
-	}
 
 	noLogs := os.Getenv("_2L1NK_NO_LOGS") == "1"
 	logPath := ""
