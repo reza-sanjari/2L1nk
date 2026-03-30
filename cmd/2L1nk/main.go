@@ -1,19 +1,23 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"2L1nk/internal/app"
 	"2L1nk/internal/cli"
 	"2L1nk/internal/config"
-	"2L1nk/internal/utils"
 	"2L1nk/internal/gate"
+	"2L1nk/internal/utils"
 )
 
 func main() {
@@ -40,9 +44,12 @@ func runServer(tempMode bool) {
 		log.Fatalf("failed to initialize gate: %v", err)
 	}
 
+	isSubprocess := os.Getenv("_2L1NK_SUBPROCESS") == "1"
 	noLogs := os.Getenv("_2L1NK_NO_LOGS") == "1"
+
+	// Only create a log file for direct --server invocations (not tempserver, not TUI subprocess).
 	logPath := ""
-	if !noLogs {
+	if !tempMode && !isSubprocess && !noLogs {
 		logPath = derivePathWithExt(cfg.DBPath, ".log")
 	}
 
@@ -59,13 +66,27 @@ func runServer(tempMode bool) {
 			_ = utils.SecureDelete(cfg.DBPath)
 			_ = utils.SecureDelete(cfg.DBPath + "-shm")
 			_ = utils.SecureDelete(cfg.DBPath + "-wal")
-			if logPath != "" {
-				_ = utils.SecureDelete(logPath)
-			}
+			_ = utils.SecureDelete(derivePathWithExt(cfg.DBPath, ".log"))
 		}
 	}()
 
-	a := app.New(cfg, g, logPath)
+	suppressStdout := tempMode && !isSubprocess
+	a := app.New(cfg, g, logPath, suppressStdout)
+
+	if !isSubprocess {
+		fmt.Printf("\n  Port : %d\n  Key  : %s\n\n", cfg.Port, g.Key())
+	}
+
+	// Handle SIGINT/SIGTERM for graceful shutdown (runs deferred cleanup).
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sigCh
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = a.Stop(ctx)
+	}()
+
 	if err := a.Start(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("application failed: %v", err)
 	}

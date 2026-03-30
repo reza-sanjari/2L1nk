@@ -23,14 +23,14 @@ type App struct {
 	logger *logger.Logger
 }
 
-// New wires up the application. logFile is an optional path for log output;
-// when non-empty, stdout logging is suppressed (server runs as a subprocess).
-func New(cfg *config.Config, g *gate.Gate, logFile string) *App {
+// New wires up the application. logFile is an optional path for log output.
+// suppressStdout silences stdout logging (used for --tempserver direct mode).
+func New(cfg *config.Config, g *gate.Gate, logFile string, suppressStdout bool) *App {
 	logg, err := logger.New(logger.Config{
 		Level:          "debug",
 		JSON:           false,
 		OutputFile:     logFile,
-		SuppressStdout: logFile != "",
+		SuppressStdout: suppressStdout,
 	})
 	if err != nil {
 		panic(err)
