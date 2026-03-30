@@ -63,6 +63,21 @@ func (g *Gate) UseCount() int {
 	return g.useCount
 }
 
+// Rotate generates a new key and resets the counter (exported).
+func (g *Gate) Rotate() error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.rotate()
+}
+
+// SetKey sets a custom key and resets the use counter.
+func (g *Gate) SetKey(key string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.key = key
+	g.useCount = 0
+}
+
 // rotate generates a new key and resets the counter.
 // Must be called with mu held.
 func (g *Gate) rotate() error {

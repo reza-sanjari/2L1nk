@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/fs"
@@ -108,4 +109,8 @@ func New(cfg *config.Config, h *handlers.Handler, s *session.Store) *Server {
 
 func (s *Server) Start() error {
 	return s.echo.Start(fmt.Sprintf(":%d", s.cfg.Port))
+}
+
+func (s *Server) Stop(ctx context.Context) error {
+	return s.echo.Shutdown(ctx)
 }

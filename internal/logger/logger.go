@@ -17,9 +17,11 @@ type Logger struct {
 }
 
 type Config struct {
-	Level      string // "debug" | "info" | "warn" | "error" | ...
-	JSON       bool   // if true -> JSON encoder
-	OutputFile string // optional
+	Level             string                // "debug" | "info" | "warn" | "error" | ...
+	JSON              bool                  // if true -> JSON encoder
+	OutputFile        string                // optional file path
+	SuppressStdout    bool                  // if true, skip writing to os.Stdout (use when logging to file only)
+	ExtraWriteSyncers []zapcore.WriteSyncer // optional extra sinks
 }
 
 func New(cfg Config) (*Logger, error) {
@@ -56,7 +58,13 @@ func New(cfg Config) (*Logger, error) {
 	}
 
 	// sinks
-	ws := []zapcore.WriteSyncer{zapcore.AddSync(os.Stdout)}
+	var ws []zapcore.WriteSyncer
+	if !cfg.SuppressStdout {
+		ws = append(ws, zapcore.AddSync(os.Stdout))
+	}
+	for _, extra := range cfg.ExtraWriteSyncers {
+		ws = append(ws, extra)
+	}
 
 	if cfg.OutputFile != "" {
 		f, err := os.OpenFile(cfg.OutputFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)

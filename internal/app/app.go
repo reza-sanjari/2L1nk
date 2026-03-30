@@ -1,6 +1,9 @@
 package app
 
 import (
+	"context"
+	"fmt"
+
 	"2L1nk/internal/api/handlers"
 	"2L1nk/internal/config"
 	"2L1nk/internal/db"
@@ -11,7 +14,6 @@ import (
 	"2L1nk/internal/server"
 	"2L1nk/internal/service"
 	"2L1nk/internal/session"
-	"fmt"
 
 	"go.uber.org/zap"
 )
@@ -21,60 +23,46 @@ type App struct {
 	logger *logger.Logger
 }
 
-func New(cfg *config.Config) *App {
-	// Logger
+// New wires up the application. logFile is an optional path for log output;
+// when non-empty, stdout logging is suppressed (server runs as a subprocess).
+func New(cfg *config.Config, g *gate.Gate, logFile string) *App {
 	logg, err := logger.New(logger.Config{
-		Level:      "debug", // debug | info | warn | error
-		JSON:       false,
-		OutputFile: "", //  file path or empty for stdout
+		Level:          "debug",
+		JSON:           false,
+		OutputFile:     logFile,
+		SuppressStdout: logFile != "",
 	})
 	if err != nil {
 		panic(err)
 	}
 
-	// Database
 	database, err := db.Setup(cfg.DBPath, logg)
 	if err != nil {
 		logg.Fatal("failed to initialize database", zap.Error(err))
 	}
 
-	// Session Store
 	sessionStore := session.NewStore()
 
-	// Infrastructure
 	healthRepo := infradb.NewHealthRepository(database)
 	roomRepo := infradb.NewRoomRepository(database)
 	msgRepo := infradb.NewMessageRepository(database)
 	userRepo := infradb.NewUserRepository(database)
 
-	// Gate
-	g, err := gate.New(0)
-	if err != nil {
-		logg.Fatal("failed to initialize gate", zap.Error(err))
-	}
+	logg.Info(fmt.Sprintf("gate initialized: %s unlimited", g.Key()))
 
-	logg.Info(fmt.Sprintf("gate initialized: %s %s", g.Key(), "unlimited"))
-
-	// Services
 	healthSvc := service.NewHealthService(healthRepo, logg)
 	gateSvc := service.NewGateService(g, sessionStore, userRepo, logg)
 	roomSvc := service.NewRoomService(roomRepo, logg)
 	msgSvc := service.NewMessageService(msgRepo, roomRepo, logg)
 
-	// Service Container
 	services := service.NewContainer(healthSvc, gateSvc, roomSvc, msgSvc)
 
-	// Hub
 	mainHub := hub.New(sessionStore, logg)
 	go mainHub.Run()
 
-	// Event consumer: wires hub events to services for DB persistence
 	startEventConsumer(mainHub, roomSvc, msgSvc, logg)
 
-	// Handler
 	handler := handlers.NewHandler(services, mainHub, sessionStore, logg)
-
-	// Server
 	srv := server.New(cfg, handler, sessionStore)
 
 	return &App{
@@ -86,4 +74,9 @@ func New(cfg *config.Config) *App {
 func (a *App) Start() error {
 	defer a.logger.Sync()
 	return a.server.Start()
+}
+
+func (a *App) Stop(ctx context.Context) error {
+	defer a.logger.Sync()
+	return a.server.Stop(ctx)
 }
