@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"sync"
+
+	"go.uber.org/zap"
 )
 
 type Gate struct {
@@ -12,6 +14,7 @@ type Gate struct {
 	key      string
 	useCount int
 	maxUses  int // 0 = unlimited
+	log      *zap.Logger
 }
 
 // New creates a Gate and generates the first key.
@@ -63,11 +66,24 @@ func (g *Gate) UseCount() int {
 	return g.useCount
 }
 
+// SetLogger attaches a zap logger to the gate for key lifecycle events.
+func (g *Gate) SetLogger(log *zap.Logger) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.log = log
+}
+
 // Rotate generates a new key and resets the counter (exported).
 func (g *Gate) Rotate() error {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	return g.rotate()
+	if err := g.rotate(); err != nil {
+		return err
+	}
+	if g.log != nil {
+		g.log.Info("gate key rotated", zap.String("new_key", g.key))
+	}
+	return nil
 }
 
 // SetKey sets a custom key and resets the use counter.
@@ -76,6 +92,9 @@ func (g *Gate) SetKey(key string) {
 	defer g.mu.Unlock()
 	g.key = key
 	g.useCount = 0
+	if g.log != nil {
+		g.log.Info("gate key set to custom value", zap.String("key", key))
+	}
 }
 
 // rotate generates a new key and resets the counter.
