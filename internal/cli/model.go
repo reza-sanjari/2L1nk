@@ -240,7 +240,11 @@ func (m model) handleMenuKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, m.cmdStopServer()
 
 		case "gate":
-			m.gateMenu = newGateMenuModel(m.g)
+			_ = m.g.RefreshFromDB()
+			gm := newGateMenuModel(m.g)
+			gm.width = m.width
+			gm.height = m.height
+			m.gateMenu = gm
 			m.screen = screenGate
 			return m, nil
 
@@ -276,6 +280,9 @@ func (m model) handleMenuKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m model) View() string {
 	switch m.screen {
 	case screenGate:
+		if m.gateMenu.viewingHistory {
+			return m.gateMenu.View()
+		}
 		return styleBorder.Width(m.width - 4).Render(m.gateMenu.View())
 	case screenLogs:
 		return m.logs.View()

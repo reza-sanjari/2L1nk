@@ -90,11 +90,32 @@ func (g *Gate) Repo() GateRepository {
 	return g.repo
 }
 
+// refreshActiveLocked syncs the active token from DB into the in-memory cache.
+// Must be called with mu held. Errors are silently ignored so callers can
+// fall back to the cached key.
+func (g *Gate) refreshActiveLocked() {
+	if g.repo == nil {
+		return
+	}
+	active, err := g.repo.GetActiveToken()
+	if err != nil || active == nil {
+		return
+	}
+	g.key = active.Token
+	g.keyID = active.ID
+	g.useCount = active.UseCount
+	g.maxUses = active.MaxUses
+}
+
 // Validate checks the provided key.
 // If valid, increments usage and rotates if the limit is reached.
 func (g *Gate) Validate(candidate string) (bool, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+
+	// Sync with DB so key changes made via the CLI take effect immediately
+	// without requiring a server restart.
+	g.refreshActiveLocked()
 
 	// TODO: remove the testing gate key for production
 	const sampleKey = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"

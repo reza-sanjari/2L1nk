@@ -89,6 +89,9 @@ func RunMigrations(database *sql.DB) error {
 		`CREATE TABLE IF NOT EXISTS gate_tokens (
 			id         INTEGER PRIMARY KEY AUTOINCREMENT,
 			token      TEXT    UNIQUE NOT NULL,
+			max_uses   INTEGER NOT NULL DEFAULT 0,
+			use_count  INTEGER NOT NULL DEFAULT 0,
+			is_active  INTEGER NOT NULL DEFAULT 1,
 			created_at INTEGER NOT NULL
 		)`,
 	}
