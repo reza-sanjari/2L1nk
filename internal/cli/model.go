@@ -2,14 +2,17 @@ package cli
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"strconv"
+	"strings"
 	"time"
 
 	"2L1nk/internal/config"
-	"2L1nk/internal/utils"
 	"2L1nk/internal/gate"
+	"2L1nk/internal/utils"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -30,7 +33,28 @@ const (
 	screenLogs
 	screenOptions
 	screenNuke
+	screenTunnels
+	screenTunnelDetail
+	screenTunnelAdd
+	screenTunnelLog
 )
+
+type tunnelStatus int
+
+const (
+	tunnelStopped  tunnelStatus = iota
+	tunnelStarting
+	tunnelRunning
+	tunnelStopping
+)
+
+type tunnelRuntime struct {
+	pid         int
+	status      tunnelStatus
+	logPath     string
+	pidPath     string
+	detectedURL string
+}
 
 type model struct {
 	screen      screen
@@ -39,6 +63,17 @@ type model struct {
 	logs        logsModel
 	optionsMenu optionsModel
 	nukeScreen  nukeModel
+
+	// Tunnel screens
+	tunnelMenu   tunnelMenuModel
+	tunnelDetail tunnelDetailModel
+	tunnelAdd    tunnelAddModel
+	tunnelLog    tunnelLogModel
+
+	// Tunnel state
+	tunnelRuntimes map[string]*tunnelRuntime
+	tunnelsConfig  TunnelsConfig
+	tunnelsPath    string
 
 	g         *gate.Gate
 	cfg       *config.Config
@@ -56,8 +91,10 @@ type model struct {
 type serverStartedMsg struct{ port, pid int }
 type serverStoppedMsg struct{ err error }
 type dbResetDoneMsg struct{ err error }
+type tunnelStartedMsg struct{ name string; pid int }
+type tunnelStoppedMsg struct{ name string; err error }
 
-func newModel(g *gate.Gate, cfg *config.Config, pidPath, logPath, optsPath string, opts Options, pid int, running bool) model {
+func newModel(g *gate.Gate, cfg *config.Config, pidPath, logPath, optsPath, tunnelsPath string, opts Options, tunnelsCfg TunnelsConfig, pid int, running bool) model {
 	srvState := stateStopped
 	if running {
 		srvState = stateRunning
@@ -67,18 +104,23 @@ func newModel(g *gate.Gate, cfg *config.Config, pidPath, logPath, optsPath strin
 	menu.port = cfg.Port
 	menu.noLogs = opts.NoLogs
 
+	runtimes := checkRunningTunnels(tunnelsCfg, cfg.DBPath)
+
 	return model{
-		screen:    screenMenu,
-		menu:      menu,
-		gateMenu:  newGateMenuModel(g),
-		g:         g,
-		cfg:       cfg,
-		opts:      opts,
-		optsPath:  optsPath,
-		pidPath:   pidPath,
-		logPath:   logPath,
-		serverPID: pid,
-		srvState:  srvState,
+		screen:         screenMenu,
+		menu:           menu,
+		gateMenu:       newGateMenuModel(g),
+		tunnelRuntimes: runtimes,
+		tunnelsConfig:  tunnelsCfg,
+		tunnelsPath:    tunnelsPath,
+		g:              g,
+		cfg:            cfg,
+		opts:           opts,
+		optsPath:       optsPath,
+		pidPath:        pidPath,
+		logPath:        logPath,
+		serverPID:      pid,
+		srvState:       srvState,
 	}
 }
 
@@ -96,9 +138,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.gateMenu.height = msg.Height
 		m.optionsMenu.width = msg.Width
 		m.optionsMenu.height = msg.Height
+		m.tunnelMenu.width = msg.Width
+		m.tunnelMenu.height = msg.Height
+		m.tunnelDetail.width = msg.Width
+		m.tunnelDetail.height = msg.Height
+		m.tunnelAdd.width = msg.Width
+		m.tunnelAdd.height = msg.Height
 		if m.screen == screenLogs {
 			updated, _ := m.logs.Update(msg)
 			m.logs = updated
+		}
+		if m.screen == screenTunnelLog {
+			updated, _ := m.tunnelLog.Update(msg)
+			m.tunnelLog = updated
 		}
 		return m, nil
 
@@ -125,6 +177,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			updated, cmd := m.nukeScreen.Update(msg)
 			m.nukeScreen = updated
 			return m, cmd
+		case screenTunnels:
+			updated, cmd := m.tunnelMenu.Update(msg)
+			m.tunnelMenu = updated
+			return m, cmd
+		case screenTunnelDetail:
+			updated, cmd := m.tunnelDetail.Update(msg)
+			m.tunnelDetail = updated
+			return m, cmd
+		case screenTunnelAdd:
+			updated, cmd := m.tunnelAdd.Update(msg)
+			m.tunnelAdd = updated
+			return m, cmd
+		case screenTunnelLog:
+			updated, cmd := m.tunnelLog.Update(msg)
+			m.tunnelLog = updated
+			return m, cmd
 		}
 
 	case serverStartedMsg:
@@ -132,7 +200,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.menu.serverState = stateRunning
 		m.menu.port = msg.port
 		m.serverPID = msg.pid
-		return m, nil
+		// Auto-start tunnels marked with auto_start
+		var cmds []tea.Cmd
+		for i := range m.tunnelsConfig.Tunnels {
+			t := m.tunnelsConfig.Tunnels[i]
+			if t.AutoStart {
+				rt := m.getOrCreateRuntime(t)
+				if rt.status == tunnelStopped {
+					rt.status = tunnelStarting
+					cmds = append(cmds, m.cmdStartTunnel(t, rt))
+				}
+			}
+		}
+		return m, tea.Batch(cmds...)
 
 	case serverStoppedMsg:
 		m.srvState = stateStopped
@@ -140,6 +220,46 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.serverPID = 0
 		if msg.err != nil {
 			m.menu.flashMsg = "Error: " + msg.err.Error()
+		}
+		return m, nil
+
+	case tunnelStartedMsg:
+		if rt, ok := m.tunnelRuntimes[msg.name]; ok {
+			rt.status = tunnelRunning
+			rt.pid = msg.pid
+		}
+		m.tunnelMenu = newTunnelMenuModel(m.tunnelsConfig.Tunnels, m.tunnelRuntimes)
+		m.tunnelMenu.width = m.width
+		m.tunnelMenu.height = m.height
+		if m.screen == screenTunnelDetail && m.tunnelDetail.entry.Name == msg.name {
+			m.tunnelDetail.runtime = m.tunnelRuntimes[msg.name]
+		}
+		return m, nil
+
+	case tunnelStoppedMsg:
+		if rt, ok := m.tunnelRuntimes[msg.name]; ok {
+			rt.status = tunnelStopped
+			rt.pid = 0
+			rt.detectedURL = ""
+		}
+		m.tunnelMenu = newTunnelMenuModel(m.tunnelsConfig.Tunnels, m.tunnelRuntimes)
+		m.tunnelMenu.width = m.width
+		m.tunnelMenu.height = m.height
+		if m.screen == screenTunnelDetail && m.tunnelDetail.entry.Name == msg.name {
+			m.tunnelDetail.runtime = m.tunnelRuntimes[msg.name]
+			if msg.err != nil {
+				m.tunnelDetail.msg = "Error: " + msg.err.Error()
+				m.tunnelDetail.msgErr = true
+			}
+		}
+		return m, nil
+
+	case tunnelURLDetectedMsg:
+		if rt, ok := m.tunnelRuntimes[msg.name]; ok {
+			rt.detectedURL = msg.url
+		}
+		if m.screen == screenTunnelDetail && m.tunnelDetail.entry.Name == msg.name {
+			m.tunnelDetail.runtime = m.tunnelRuntimes[msg.name]
 		}
 		return m, nil
 
@@ -160,6 +280,98 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case logsDoneMsg:
 		m.screen = screenMenu
+		return m, nil
+
+	case tunnelsDoneMsg:
+		m.screen = screenMenu
+		return m, nil
+
+	case tunnelSelectedMsg:
+		if msg.index >= 0 && msg.index < len(m.tunnelsConfig.Tunnels) {
+			entry := m.tunnelsConfig.Tunnels[msg.index]
+			rt := m.getOrCreateRuntime(entry)
+			m.tunnelDetail = newTunnelDetailModel(entry, rt)
+			m.tunnelDetail.width = m.width
+			m.tunnelDetail.height = m.height
+			m.screen = screenTunnelDetail
+		}
+		return m, nil
+
+	case tunnelAddRequestMsg:
+		m.tunnelAdd = newTunnelAddModel()
+		m.tunnelAdd.width = m.width
+		m.tunnelAdd.height = m.height
+		m.screen = screenTunnelAdd
+		return m, nil
+
+	case tunnelAddDoneMsg:
+		// Check for duplicate name
+		for _, t := range m.tunnelsConfig.Tunnels {
+			if t.Name == msg.entry.Name {
+				m.tunnelMenu.msg = fmt.Sprintf("Tunnel \"%s\" already exists.", msg.entry.Name)
+				m.screen = screenTunnels
+				return m, nil
+			}
+		}
+		m.tunnelsConfig.Tunnels = append(m.tunnelsConfig.Tunnels, msg.entry)
+		_ = saveTunnels(m.tunnelsPath, m.tunnelsConfig)
+		m.tunnelMenu = newTunnelMenuModel(m.tunnelsConfig.Tunnels, m.tunnelRuntimes)
+		m.tunnelMenu.width = m.width
+		m.tunnelMenu.height = m.height
+		m.tunnelMenu.cursor = len(m.tunnelsConfig.Tunnels) - 1
+		m.screen = screenTunnels
+		return m, nil
+
+	case tunnelAddCancelMsg:
+		m.screen = screenTunnels
+		return m, nil
+
+	case tunnelDetailDoneMsg:
+		m.tunnelMenu = newTunnelMenuModel(m.tunnelsConfig.Tunnels, m.tunnelRuntimes)
+		m.tunnelMenu.width = m.width
+		m.tunnelMenu.height = m.height
+		m.screen = screenTunnels
+		return m, nil
+
+	case tunnelDetailStartMsg:
+		if rt, ok := m.tunnelRuntimes[msg.name]; ok && rt.status == tunnelStopped {
+			rt.status = tunnelStarting
+			entry := m.findTunnel(msg.name)
+			if entry != nil {
+				return m, m.cmdStartTunnel(*entry, rt)
+			}
+		}
+		return m, nil
+
+	case tunnelDetailStopMsg:
+		if rt, ok := m.tunnelRuntimes[msg.name]; ok && rt.status == tunnelRunning {
+			rt.status = tunnelStopping
+			return m, cmdStopTunnel(msg.name, rt)
+		}
+		return m, nil
+
+	case tunnelDetailDeleteMsg:
+		m.deleteTunnel(msg.name)
+		m.tunnelMenu = newTunnelMenuModel(m.tunnelsConfig.Tunnels, m.tunnelRuntimes)
+		m.tunnelMenu.width = m.width
+		m.tunnelMenu.height = m.height
+		m.screen = screenTunnels
+		return m, nil
+
+	case tunnelDetailLogsMsg:
+		rt := m.tunnelRuntimes[msg.name]
+		logPath := ""
+		if rt != nil {
+			logPath = rt.logPath
+		} else if entry := m.findTunnel(msg.name); entry != nil {
+			logPath = tunnelLogPath(m.cfg.DBPath, entry.Name)
+		}
+		m.tunnelLog = newTunnelLogModel(msg.name, logPath, m.width, m.height)
+		m.screen = screenTunnelLog
+		return m, tickCmd()
+
+	case tunnelLogDoneMsg:
+		m.screen = screenTunnelDetail
 		return m, nil
 
 	case optionsDoneMsg:
@@ -191,6 +403,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.logs = updated
 			return m, cmd
 		}
+		if m.screen == screenTunnelLog {
+			updated, cmd := m.tunnelLog.Update(msg)
+			m.tunnelLog = updated
+			return m, cmd
+		}
 		return m, nil
 	}
 
@@ -211,6 +428,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case screenNuke:
 		updated, cmd := m.nukeScreen.Update(msg)
 		m.nukeScreen = updated
+		return m, cmd
+	case screenTunnels:
+		updated, cmd := m.tunnelMenu.Update(msg)
+		m.tunnelMenu = updated
+		return m, cmd
+	case screenTunnelDetail:
+		updated, cmd := m.tunnelDetail.Update(msg)
+		m.tunnelDetail = updated
+		return m, cmd
+	case screenTunnelAdd:
+		updated, cmd := m.tunnelAdd.Update(msg)
+		m.tunnelAdd = updated
+		return m, cmd
+	case screenTunnelLog:
+		updated, cmd := m.tunnelLog.Update(msg)
+		m.tunnelLog = updated
 		return m, cmd
 	}
 
@@ -264,8 +497,15 @@ func (m model) handleMenuKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.screen = screenOptions
 			return m, nil
 
+		case "tunnels":
+			m.tunnelMenu = newTunnelMenuModel(m.tunnelsConfig.Tunnels, m.tunnelRuntimes)
+			m.tunnelMenu.width = m.width
+			m.tunnelMenu.height = m.height
+			m.screen = screenTunnels
+			return m, nil
+
 		case "nuke":
-			m.nukeScreen = newNukeModel(m.cfg.DBPath, m.logPath, m.pidPath, m.optsPath, m.serverPID, m.srvState, m.g.Close)
+			m.nukeScreen = newNukeModel(m.cfg.DBPath, m.logPath, m.pidPath, m.optsPath, m.tunnelsPath, m.serverPID, m.srvState, m.g.Close)
 			m.screen = screenNuke
 			return m, nil
 		}
@@ -290,6 +530,14 @@ func (m model) View() string {
 		return styleBorder.Width(m.width - 4).Render(m.optionsMenu.View())
 	case screenNuke:
 		return styleBorder.Width(m.width - 4).Render(m.nukeScreen.View())
+	case screenTunnels:
+		return styleBorder.Width(m.width - 4).Render(m.tunnelMenu.View())
+	case screenTunnelDetail:
+		return styleBorder.Width(m.width - 4).Render(m.tunnelDetail.View())
+	case screenTunnelAdd:
+		return styleBorder.Width(m.width - 4).Render(m.tunnelAdd.View())
+	case screenTunnelLog:
+		return m.tunnelLog.View()
 	default:
 		return styleBorder.Width(m.width - 4).Render(m.menu.View())
 	}
@@ -371,6 +619,132 @@ func (m *model) cmdStopServer() tea.Cmd {
 
 		return serverStoppedMsg{}
 	}
+}
+
+// getOrCreateRuntime returns the existing runtime for a tunnel or creates a new stopped one.
+func (m *model) getOrCreateRuntime(entry TunnelEntry) *tunnelRuntime {
+	if m.tunnelRuntimes == nil {
+		m.tunnelRuntimes = make(map[string]*tunnelRuntime)
+	}
+	if rt, ok := m.tunnelRuntimes[entry.Name]; ok {
+		return rt
+	}
+	rt := &tunnelRuntime{
+		status:  tunnelStopped,
+		logPath: tunnelLogPath(m.cfg.DBPath, entry.Name),
+		pidPath: tunnelPIDPath(m.cfg.DBPath, entry.Name),
+	}
+	m.tunnelRuntimes[entry.Name] = rt
+	return rt
+}
+
+// findTunnel returns a pointer to the TunnelEntry with the given name, or nil.
+func (m *model) findTunnel(name string) *TunnelEntry {
+	for i := range m.tunnelsConfig.Tunnels {
+		if m.tunnelsConfig.Tunnels[i].Name == name {
+			return &m.tunnelsConfig.Tunnels[i]
+		}
+	}
+	return nil
+}
+
+// deleteTunnel removes a tunnel from config and stops it if running.
+func (m *model) deleteTunnel(name string) {
+	if rt, ok := m.tunnelRuntimes[name]; ok && (rt.status == tunnelRunning || rt.status == tunnelStarting) {
+		// Best-effort kill
+		if rt.pid != 0 {
+			if proc, err := os.FindProcess(rt.pid); err == nil {
+				_ = proc.Kill()
+			}
+			_ = os.Remove(rt.pidPath)
+		}
+		delete(m.tunnelRuntimes, name)
+	}
+	tunnels := m.tunnelsConfig.Tunnels[:0]
+	for _, t := range m.tunnelsConfig.Tunnels {
+		if t.Name != name {
+			tunnels = append(tunnels, t)
+		}
+	}
+	m.tunnelsConfig.Tunnels = tunnels
+	_ = saveTunnels(m.tunnelsPath, m.tunnelsConfig)
+}
+
+// cmdStartTunnel spawns the tunnel command as a detached background process.
+func (m *model) cmdStartTunnel(entry TunnelEntry, rt *tunnelRuntime) tea.Cmd {
+	name := entry.Name
+	command := resolveCommand(entry.Command, entry.Port)
+	logPath := rt.logPath
+	pidPath := rt.pidPath
+
+	return func() tea.Msg {
+		parts := strings.Fields(command)
+		if len(parts) == 0 {
+			return tunnelStoppedMsg{name: name, err: errors.New("empty command")}
+		}
+
+		logFile, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			return tunnelStoppedMsg{name: name, err: err}
+		}
+		defer logFile.Close()
+
+		cmd := exec.Command(parts[0], parts[1:]...)
+		cmd.Stdout = logFile
+		cmd.Stderr = logFile
+		detachProcess(cmd)
+
+		if err := cmd.Start(); err != nil {
+			return tunnelStoppedMsg{name: name, err: err}
+		}
+
+		pid := cmd.Process.Pid
+		if err := os.WriteFile(pidPath, []byte(strconv.Itoa(pid)), 0644); err != nil {
+			// Non-fatal: tunnel is running but we can't persist PID
+			_ = err
+		}
+
+		return tunnelStartedMsg{name: name, pid: pid}
+	}
+}
+
+// cmdStopTunnel kills a running tunnel process.
+func cmdStopTunnel(name string, rt *tunnelRuntime) tea.Cmd {
+	pid := rt.pid
+	pidPath := rt.pidPath
+
+	return func() tea.Msg {
+		if pid != 0 {
+			if proc, err := os.FindProcess(pid); err == nil {
+				_ = proc.Kill()
+			}
+		}
+		_ = os.Remove(pidPath)
+		return tunnelStoppedMsg{name: name}
+	}
+}
+
+// checkRunningTunnels reads PID files for all configured tunnels and returns
+// a runtime map with any that are still alive.
+func checkRunningTunnels(cfg TunnelsConfig, dbPath string) map[string]*tunnelRuntime {
+	runtimes := make(map[string]*tunnelRuntime)
+	for _, t := range cfg.Tunnels {
+		lp := tunnelLogPath(dbPath, t.Name)
+		pp := tunnelPIDPath(dbPath, t.Name)
+		rt := &tunnelRuntime{
+			status:  tunnelStopped,
+			logPath: lp,
+			pidPath: pp,
+		}
+		if data, err := os.ReadFile(pp); err == nil {
+			if pid, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil && isProcessAlive(pid) {
+				rt.status = tunnelRunning
+				rt.pid = pid
+			}
+		}
+		runtimes[t.Name] = rt
+	}
+	return runtimes
 }
 
 // cmdResetDB stops the server (if running), deletes the DB file, and re-runs migrations.

@@ -16,10 +16,11 @@ type nukeModel struct {
 	done      bool
 	err       error
 
-	dbPath   string
-	logPath  string
-	pidPath  string
-	optsPath string
+	dbPath      string
+	logPath     string
+	pidPath     string
+	optsPath    string
+	tunnelsPath string
 
 	serverPID int
 	srvState  serverState
@@ -33,15 +34,16 @@ type nukeModel struct {
 type nukeDoneMsg struct{ err error }
 type nukeCancelMsg struct{}
 
-func newNukeModel(dbPath, logPath, pidPath, optsPath string, serverPID int, srvState serverState, closeDB func() error) nukeModel {
+func newNukeModel(dbPath, logPath, pidPath, optsPath, tunnelsPath string, serverPID int, srvState serverState, closeDB func() error) nukeModel {
 	return nukeModel{
-		dbPath:    dbPath,
-		logPath:   logPath,
-		pidPath:   pidPath,
-		optsPath:  optsPath,
-		serverPID: serverPID,
-		srvState:  srvState,
-		closeDB:   closeDB,
+		dbPath:      dbPath,
+		logPath:     logPath,
+		pidPath:     pidPath,
+		optsPath:    optsPath,
+		tunnelsPath: tunnelsPath,
+		serverPID:   serverPID,
+		srvState:    srvState,
+		closeDB:     closeDB,
 	}
 }
 
@@ -76,6 +78,7 @@ func (m nukeModel) cmdNuke() tea.Cmd {
 	logPath := m.logPath
 	pidPath := m.pidPath
 	optsPath := m.optsPath
+	tunnelsPath := m.tunnelsPath
 	closeDB := m.closeDB
 
 	return func() tea.Msg {
@@ -106,7 +109,7 @@ func (m nukeModel) cmdNuke() tea.Cmd {
 		}
 
 		// 4. SecureDelete non-DB files (logs may contain plaintext server data).
-		for _, path := range []string{logPath, pidPath, optsPath} {
+		for _, path := range []string{logPath, pidPath, optsPath, tunnelsPath} {
 			if err := utils.SecureDelete(path); err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", path, err))
 			}
@@ -151,6 +154,7 @@ func (m nukeModel) View() string {
 		{m.logPath, "server logs"},
 		{m.pidPath, "process file"},
 		{m.optsPath, "options"},
+		{m.tunnelsPath, "tunnel config"},
 	}
 	for _, f := range files {
 		b.WriteString(styleSubtle.Render(fmt.Sprintf("    • %-20s %s", f.path, f.desc)) + "\n")
