@@ -12,7 +12,7 @@ import (
 // TunnelEntry holds the configuration for a single outbound tunnel.
 type TunnelEntry struct {
 	Name        string `json:"name"`
-	Command     string `json:"command"`              // may contain {PORT} placeholder
+	Command     string `json:"command"` // may contain {PORT} placeholder
 	Description string `json:"description,omitempty"`
 	Port        int    `json:"port,omitempty"`
 	AutoStart   bool   `json:"auto_start,omitempty"`
@@ -29,6 +29,30 @@ var tunnelPresets = []TunnelEntry{
 		Name:        "Cloudflare",
 		Command:     "cloudflared tunnel --url http://localhost:{PORT}",
 		Description: "Cloudflare quick tunnel (cloudflared required)",
+		Port:        3847,
+	},
+	{
+		Name:        "localhost.run",
+		Command:     "ssh -R 80:localhost:{PORT} ssh.localhost.run",
+		Description: "Public URL via localhost.run (pure SSH, no login)",
+		Port:        3847,
+	},
+	{
+		Name:        "Serveo",
+		Command:     "ssh -R 80:localhost:{PORT} serveo.net",
+		Description: "Serveo reverse SSH tunnel (no login required)",
+		Port:        3847,
+	},
+	{
+		Name:        "Pinggy",
+		Command:     "ssh -p 443 -R0:localhost:{PORT} a.pinggy.io",
+		Description: "Pinggy tunnel over SSH (no install, no login)",
+		Port:        3847,
+	},
+	{
+		Name:        "srv.us",
+		Command:     "ssh -R 80:localhost:{PORT} srv.us",
+		Description: "srv.us SSH tunnel (hostname from SSH key)",
 		Port:        3847,
 	},
 }
