@@ -37,11 +37,13 @@ func RunTUI() error {
 	pidPath := derivePathWithExt(cfg.DBPath, ".pid")
 	logPath := derivePathWithExt(cfg.DBPath, ".log")
 	optsPath := derivePathWithExt(cfg.DBPath, ".opts")
+	tunnelsPath := tunnelsConfigPath(cfg.DBPath)
 
 	opts := loadOptions(optsPath)
+	tunnelsCfg := loadTunnels(tunnelsPath)
 	pid, running := checkRunningServer(pidPath)
 
-	m := newModel(g, cfg, pidPath, logPath, optsPath, opts, pid, running)
+	m := newModel(g, cfg, pidPath, logPath, optsPath, tunnelsPath, opts, tunnelsCfg, pid, running)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	_, err = p.Run()
 	return err

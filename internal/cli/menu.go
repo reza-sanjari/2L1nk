@@ -17,6 +17,7 @@ var menuItems = []menuItem{
 	{label: "Stop Server", id: "stop"},
 	{label: "Gate Key", id: "gate"},
 	{label: "View Logs", id: "logs"},
+	{label: "Outbound Tunnels", id: "tunnels"},
 	{label: "Reset Database", id: "reset"},
 	{label: "Options", id: "options"},
 	{label: "☢  Nuke", id: "nuke"},
@@ -91,7 +92,7 @@ func (m menuModel) View() string {
 
 		label := item.label
 		switch item.id {
-		case "gate", "options":
+		case "gate", "options", "tunnels":
 			label += "  →"
 		}
 
