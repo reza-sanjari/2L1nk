@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"2L1nk/internal/utils"
 
@@ -25,6 +24,8 @@ type nukeModel struct {
 	serverPID int
 	srvState  serverState
 
+	closeDB func() error // closes CLI's own DB connection before deletion
+
 	width  int
 	height int
 }
@@ -32,7 +33,7 @@ type nukeModel struct {
 type nukeDoneMsg struct{ err error }
 type nukeCancelMsg struct{}
 
-func newNukeModel(dbPath, logPath, pidPath, optsPath string, serverPID int, srvState serverState) nukeModel {
+func newNukeModel(dbPath, logPath, pidPath, optsPath string, serverPID int, srvState serverState, closeDB func() error) nukeModel {
 	return nukeModel{
 		dbPath:    dbPath,
 		logPath:   logPath,
@@ -40,6 +41,7 @@ func newNukeModel(dbPath, logPath, pidPath, optsPath string, serverPID int, srvS
 		optsPath:  optsPath,
 		serverPID: serverPID,
 		srvState:  srvState,
+		closeDB:   closeDB,
 	}
 }
 
@@ -74,28 +76,44 @@ func (m nukeModel) cmdNuke() tea.Cmd {
 	logPath := m.logPath
 	pidPath := m.pidPath
 	optsPath := m.optsPath
+	closeDB := m.closeDB
 
 	return func() tea.Msg {
-		// Stop server first
+		// 1. Kill server and wait for the OS to fully release its file handles.
+		//    On Windows this uses WaitForSingleObject (not a poll loop).
+		//    On Unix it is a no-op — SIGKILL releases handles immediately.
 		if srvRunning {
 			if process, err := os.FindProcess(pid); err == nil {
 				_ = process.Kill()
 			}
-			time.Sleep(200 * time.Millisecond)
+			waitForProcessExit(pid)
 		}
 
+		// 2. Close the CLI's own DB connection, releasing the final file lock.
+		_ = closeDB()
+
 		var errs []string
-		for _, path := range []string{
-			dbPath, dbPath + "-shm", dbPath + "-wal",
-			logPath, pidPath, optsPath,
-		} {
+
+		// 3. Delete SQLite files with os.Remove, not SecureDelete.
+		//    SecureDelete overwrites content before deleting; if the delete then
+		//    fails (unexpected lock) it leaves a corrupted file. os.Remove either
+		//    succeeds or fails cleanly. DB content is E2E-encrypted so byte-wiping
+		//    provides no additional security over deletion.
+		for _, path := range []string{dbPath + "-wal", dbPath + "-shm", dbPath} {
+			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+				errs = append(errs, fmt.Sprintf("%s: %v", path, err))
+			}
+		}
+
+		// 4. SecureDelete non-DB files (logs may contain plaintext server data).
+		for _, path := range []string{logPath, pidPath, optsPath} {
 			if err := utils.SecureDelete(path); err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", path, err))
 			}
 		}
 
 		if len(errs) > 0 {
-			return nukeDoneMsg{err: fmt.Errorf(strings.Join(errs, "; "))}
+			return nukeDoneMsg{err: fmt.Errorf("%s", strings.Join(errs, "; "))}
 		}
 		return nukeDoneMsg{}
 	}

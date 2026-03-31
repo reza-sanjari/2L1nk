@@ -265,7 +265,7 @@ func (m model) handleMenuKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case "nuke":
-			m.nukeScreen = newNukeModel(m.cfg.DBPath, m.logPath, m.pidPath, m.optsPath, m.serverPID, m.srvState)
+			m.nukeScreen = newNukeModel(m.cfg.DBPath, m.logPath, m.pidPath, m.optsPath, m.serverPID, m.srvState, m.g.Close)
 			m.screen = screenNuke
 			return m, nil
 		}
@@ -351,6 +351,7 @@ func (m *model) cmdStopServer() tea.Cmd {
 	tempServer := m.opts.TempServer
 	dbPath := m.cfg.DBPath
 	logPath := m.logPath
+	closeDB := m.g.Close
 
 	return func() tea.Msg {
 		process, err := os.FindProcess(pid)
@@ -360,10 +361,11 @@ func (m *model) cmdStopServer() tea.Cmd {
 		_ = os.Remove(pidPath)
 
 		if tempServer {
-			time.Sleep(150 * time.Millisecond)
-			_ = utils.SecureDelete(dbPath)
-			_ = utils.SecureDelete(dbPath + "-shm")
-			_ = utils.SecureDelete(dbPath + "-wal")
+			waitForProcessExit(pid)
+			_ = closeDB()
+			_ = os.Remove(dbPath + "-wal")
+			_ = os.Remove(dbPath + "-shm")
+			_ = os.Remove(dbPath)
 			_ = utils.SecureDelete(logPath)
 		}
 
@@ -377,6 +379,7 @@ func (m *model) cmdResetDB() tea.Cmd {
 	pidPath := m.pidPath
 	dbPath := m.cfg.DBPath
 	srvRunning := m.srvState == stateRunning
+	closeDB := m.g.Close
 
 	if srvRunning {
 		m.srvState = stateStopping
@@ -389,9 +392,15 @@ func (m *model) cmdResetDB() tea.Cmd {
 				_ = process.Kill()
 			}
 			_ = os.Remove(pidPath)
-			time.Sleep(200 * time.Millisecond)
+			waitForProcessExit(pid)
 		}
 
+		// Release the CLI's own DB connection before deletion.
+		_ = closeDB()
+
+		// Remove WAL/SHM first, then the main DB file.
+		_ = os.Remove(dbPath + "-wal")
+		_ = os.Remove(dbPath + "-shm")
 		if err := os.Remove(dbPath); err != nil && !os.IsNotExist(err) {
 			return dbResetDoneMsg{err: err}
 		}

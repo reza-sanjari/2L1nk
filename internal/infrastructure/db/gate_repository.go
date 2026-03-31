@@ -99,6 +99,11 @@ func (r *GateRepository) UpdateMaxUses(id int64, maxUses int) error {
 	return nil
 }
 
+// Close releases the underlying database connection.
+func (r *GateRepository) Close() error {
+	return r.db.Close()
+}
+
 // GetAllTokens returns all tokens ordered by created_at DESC.
 func (r *GateRepository) GetAllTokens() ([]gate.GateTokenRecord, error) {
 	rows, err := r.db.Query(
