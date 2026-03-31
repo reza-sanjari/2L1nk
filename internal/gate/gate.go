@@ -32,6 +32,8 @@ type GateRepository interface {
 	UpdateMaxUses(id int64, maxUses int) error
 	// GetAllTokens returns all tokens ordered by created_at DESC.
 	GetAllTokens() ([]GateTokenRecord, error)
+	// Close releases the underlying database connection.
+	Close() error
 }
 
 type Gate struct {
@@ -270,6 +272,19 @@ func (g *Gate) rotate() error {
 	g.key = key
 	g.useCount = 0
 	return nil
+}
+
+// Close releases the underlying repository's database connection and reverts
+// the gate to in-memory mode. Safe to call if no repo is set.
+func (g *Gate) Close() error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.repo == nil {
+		return nil
+	}
+	err := g.repo.Close()
+	g.repo = nil
+	return err
 }
 
 // generateSecureKey creates a cryptographically random hex string.
