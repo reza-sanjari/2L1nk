@@ -3,7 +3,6 @@
 package cli
 
 import (
-	"os"
 	"os/exec"
 	"syscall"
 )
@@ -14,11 +13,19 @@ func detachProcess(cmd *exec.Cmd) {
 	}
 }
 
+// isProcessAlive checks whether a process is still running on Windows.
+// Signal(0) is a Unix concept and always fails on Windows, so we use
+// OpenProcess + GetExitCodeProcess instead. STILL_ACTIVE (259) means running.
 func isProcessAlive(pid int) bool {
-	process, err := os.FindProcess(pid)
+	const processQueryLimitedInformation = 0x1000
+	handle, err := syscall.OpenProcess(processQueryLimitedInformation, false, uint32(pid))
 	if err != nil {
 		return false
 	}
-	err = process.Signal(syscall.Signal(0))
-	return err == nil
+	defer syscall.CloseHandle(handle)
+	var exitCode uint32
+	if err := syscall.GetExitCodeProcess(handle, &exitCode); err != nil {
+		return false
+	}
+	return exitCode == 259 // STILL_ACTIVE
 }
