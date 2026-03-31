@@ -16,6 +16,9 @@ func resetDatabase(dbPath string) error {
 	}
 	defer logg.Sync()
 
-	_, err = db.Setup(dbPath, logg)
-	return err
+	database, err := db.Setup(dbPath, logg)
+	if err != nil {
+		return err
+	}
+	return database.Close()
 }
