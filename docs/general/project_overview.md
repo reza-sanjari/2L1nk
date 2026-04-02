@@ -16,23 +16,32 @@ The server acts strictly as a **transport and coordination layer** and is **neve
 
 ## 2. High-Level Architecture
 
-The system consists of three major components:
+The system consists of four major components:
 
 1. **Backend server**
 
     * Written in Go
-    * Single statically compiled binary
+    * Single statically compiled binary (frontend embedded via `go:embed`)
     * Uses Echo for HTTP and WebSocket handling
     * SQLite database for persistence (always required — server cannot start without it)
+    * Invoked via `--server` or `--tempserver` flags, or managed by the TUI
 
-2. **Client**
+2. **CLI / TUI**
 
-    * Pure JavaScript frontend
+    * Interactive terminal UI (BubbleTea) bundled in the same binary
+    * Default mode when running the binary without flags
+    * Manages the server subprocess via PID file (start / stop / status)
+    * Screens: gate key management, tunnel management, options, live log viewer, reset DB, nuke
+    * Gate changes made in the TUI take effect immediately without server restart (shared DB)
+
+3. **Client**
+
+    * Pure JavaScript frontend, served from the binary's embedded assets
     * Runs entirely in the browser
     * Handles all cryptographic operations
-    * Communicates via WebSockets and WebRTC
+    * Communicates via WebSockets and REST
 
-3. **Transport**
+4. **Transport**
 
     * WebSockets for chat signaling and message delivery
     * WebRTC for peer-to-peer voice calls within rooms
@@ -84,7 +93,10 @@ The system consists of three major components:
 * Access to the web interface requires knowledge of this token
 * Prevents unauthorized users from connecting
 * The gate key is not used for encryption, only access control
-* Can be rotated by restarting the server
+* Gate tokens are persisted in the database; the active token survives restarts
+* Supports **max-uses**: the token auto-rotates after N successful authentications
+* Can be rotated, customized, or configured via the CLI Gate menu — changes take effect immediately without restarting the server
+* Token history is stored in the DB and visible in the TUI gate history screen
 
 ---
 
@@ -210,12 +222,25 @@ Security is based on:
 
 ## 13. Lightweight Design Constraints
 
-* Single Go binary
+* Single Go binary (frontend, TUI, and server all in one)
+* Frontend embedded via `go:embed` — no separate static file server
 * Minimal memory footprint
 * No heavy dependencies
 * Browser-native APIs
 * Designed to run on low-power machines (e.g. Raspberry Pi)
 * Protocol simple enough to be reimplemented on embedded clients
+
+---
+
+## 16. Operational Modes
+
+| Mode | Invocation | Behavior |
+|------|-----------|----------|
+| TUI (default) | `./2L1nk` | BubbleTea management UI; spawns server as subprocess |
+| Server | `./2L1nk --server` | Runs server directly; writes PID + log file |
+| Temp server | `./2L1nk --tempserver` | Ephemeral server; securely deletes DB on exit |
+
+**Tunnel management** is built into the TUI. Operators can configure outbound tunnels (Cloudflare, SSH-based via localhost.run, Serveo, Pinggy, srv.us, or custom) that expose the local server to the internet. Tunnel processes are managed independently and their logs can be tailed live from the TUI.
 
 ---
 
