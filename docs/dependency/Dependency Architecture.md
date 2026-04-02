@@ -12,14 +12,17 @@ internal/app/app.go
 
 No other layer is allowed to construct cross-layer dependencies.
 
-The system has **four major pillars**:
+The system has **five major pillars**:
 
 1. **Logger** (cross-cutting concern)
 2. **Service Layer** (business logic)
 3. **Hub Layer** (runtime WebSocket coordination)
 4. **Session Layer** (connected user state)
+5. **CLI/TUI Layer** (operator management — runs outside the server process)
 
 Handlers act as the bridge between the Service layer and the Hub layer.
+
+The Event Consumer bridges Hub and Services for DB persistence without violating the dependency rules.
 
 ---
 
@@ -27,17 +30,20 @@ Handlers act as the bridge between the Service layer and the Hub layer.
 
 ```txt
 main
-  ↓
-app (composition root)
-  ├── logger (cross-cutting)
-  ├── session (runtime identity store)
-  ├── infrastructure (repos/adapters)
-  ├── gate (access control primitive)
-  ├── services (business logic)
-  ├── service container (bundles services)
-  ├── hub (runtime coordination)
-  ├── handlers (transport orchestration)
-  └── server (Echo lifecycle + middleware)
+  ├── [default]  → cli (TUI process)
+  │                   └── gate (shared DB, in-memory cache)
+  │
+  └── [--server] → app (composition root)
+                      ├── logger (cross-cutting)
+                      ├── session (runtime identity store)
+                      ├── infrastructure (repos/adapters)
+                      ├── gate (access control primitive, passed from main)
+                      ├── services (business logic)
+                      ├── service container (bundles services)
+                      ├── hub (runtime coordination)
+                      ├── event consumer (hub.Events → services → DB)
+                      ├── handlers (transport orchestration)
+                      └── server (Echo lifecycle + middleware + embedded assets)
 ```
 
 Important:
@@ -45,6 +51,8 @@ Important:
 - Services do NOT depend on Hub
 - Hub does NOT depend on Services
 - Handler is the only layer allowed to talk to both
+- Event Consumer reads hub.Events and calls services — it is the only sanctioned path from hub to DB
+- Gate is constructed in `main` and passed into `app.New()` so the CLI and server share the same token
 - Logger may be used across layers (as a cross-cutting dependency)
 
 ---
@@ -144,6 +152,7 @@ Responsibilities:
 - Handle join/leave
 - Broadcast messages
 - React to disconnect events
+- Emit `HubEvent`s for DB-side persistence (consumed by Event Consumer)
 
 Hub receives:
 
@@ -155,6 +164,22 @@ Hub does NOT:
 - Access database
 - Enforce business rules
 - Validate permissions
+
+---
+
+## Event Consumer (`internal/app/event_consumer.go`)
+
+A goroutine that reads `hub.Events` (a buffered channel) and persists state changes to the database via services.
+
+Responsibilities:
+
+- Persist new rooms (`HubEventRoomCreated`)
+- Persist messages (`HubEventMessageCreated`)
+- Handle offline-room delivery: fetch room from DB and re-inject into hub (`HubEventRoomOffline`)
+- Persist epoch/key-creator updates after hub-internal key rotation (`HubEventKeyRotationTriggered`)
+- Persist epoch key slots (`HubEventEpochKeysSubmitted`)
+
+This is the only path where hub activity reaches the database. It satisfies the "Hub does not depend on Services" rule by inverting the call direction via a channel.
 
 ---
 
@@ -279,41 +304,44 @@ The composition root.
 
 This is the only place where dependencies are constructed and wired.
 
+`Gate` is constructed in `main` (before calling `app.New`) so both the TUI and the server share state through the same DB-backed gate token.
+
 Current wiring order (as of the latest `app.go`):
 
 1. Logger
 2. Database
-3. Session Store
-4. Infrastructure
-5. Gate
+3. Gate repo attached to the pre-constructed Gate (syncs with DB)
+4. Session Store
+5. Infrastructure (healthRepo, roomRepo, msgRepo, userRepo)
 6. Services (inject infrastructure + logger; gate service also gets session store + userRepo)
 7. Service Container
 8. Hub (receives Session Store + Logger)
-9. Event Consumer (wires hub events to services for DB persistence)
+9. Event Consumer (goroutine: hub.Events → services → DB)
 10. Handler (receives Container + Hub + Session Store + Logger)
-11. Server (receives Handler + Session Store)
+11. Server (receives Config + Handler + Session Store; serves embedded assets)
 
 Current `app.go` wiring sketch:
 
 ```go
-func New(cfg *config.Config) *App {
+func New(cfg *config.Config, g *gate.Gate, logFile string, suppressStdout bool) *App {
     // 1. Logger
-    logg, _ := logger.New(...)
+    logg, _ := logger.New(logger.Config{..., OutputFile: logFile, SuppressStdout: suppressStdout})
 
     // 2. Database
     database, _ := db.Setup(cfg.DBPath, logg)
 
-    // 3. Session
+    // 3. Gate repo
+    gateRepo := infradb.NewGateRepository(database)
+    _ = g.SetRepo(gateRepo)
+
+    // 4. Session
     sessionStore := session.NewStore()
 
-    // 4. Infrastructure
+    // 5. Infrastructure
     healthRepo := infradb.NewHealthRepository(database)
     roomRepo   := infradb.NewRoomRepository(database)
     msgRepo    := infradb.NewMessageRepository(database)
     userRepo   := infradb.NewUserRepository(database)
-
-    // 5. Gate
-    g, _ := gate.New(0)
 
     // 6. Services
     healthSvc := service.NewHealthService(healthRepo, logg)
@@ -343,7 +371,8 @@ func New(cfg *config.Config) *App {
 
 Shutdown behavior:
 
-- `App.Start()` defers `logger.Sync()` before starting the server.
+- `App.Start()` and `App.Stop()` both defer `logger.Sync()`
+- Signal handling (SIGINT/SIGTERM) is done in `main`, not `app`
 
 ---
 
@@ -354,10 +383,14 @@ Shutdown behavior:
 ```txt
 Handler → Service
 Handler → Hub
+Handler → Session
 Service → Infrastructure
+Service → Gate
 Hub → Session
+Hub →(events chan)→ EventConsumer → Service
 Server → Handler
 Server → Session (middleware only)
+CLI → Gate (shared DB)
 (Logger) → can be injected into any layer as a cross-cutting concern
 ```
 
@@ -366,7 +399,7 @@ Server → Session (middleware only)
 ```txt
 Service → Hub
 Service → Echo
-Hub → Service
+Hub → Service          (use Events channel + EventConsumer instead)
 Infrastructure → Service
 Session → Service
 ```
@@ -375,17 +408,20 @@ Session → Service
 
 # Summary Table
 
-| Layer          | Receives                             | Provides                     | Injected? |
-|---------------|--------------------------------------|------------------------------|-----------|
-| Logger        | Config                               | Structured logging           | Yes       |
-| Infrastructure| External connections                  | Repo implementations         | Yes       |
-| Session       | —                                    | Connected user registry      | Yes       |
-| Hub           | Session store                         | Runtime coordination         | Yes       |
-| Service       | Repos, Gate, (optional) session, log | Business logic               | Yes       |
-| Container     | All services                          | Bundled service access       | Yes       |
-| Handler       | Container + Hub                       | Transport orchestration      | Yes       |
-| Server        | Handler + Session (middleware)        | HTTP lifecycle               | No        |
-| App           | Everything                            | Dependency wiring            | —         |
+| Layer           | Receives                                        | Provides                          | Injected? |
+|----------------|-------------------------------------------------|-----------------------------------|-----------|
+| Logger         | Config                                          | Structured logging                | Yes       |
+| Infrastructure | DB connection                                   | Repo implementations              | Yes       |
+| Session        | —                                               | Connected user registry           | Yes       |
+| Gate           | Repo (optional), Logger                         | Token validation & rotation       | Yes       |
+| Hub            | Session store, Logger                           | Runtime WS coordination + Events  | Yes       |
+| EventConsumer  | Hub (Events chan), RoomSvc, MsgSvc, Logger      | Hub→DB persistence bridge         | No        |
+| Service        | Repos, Gate, (optional) session, Logger         | Business logic                    | Yes       |
+| Container      | All services                                    | Bundled service access            | Yes       |
+| Handler        | Container + Hub + Session + Logger              | Transport orchestration           | Yes       |
+| Server         | Config + Handler + Session (middleware)         | HTTP lifecycle + static assets    | No        |
+| App            | Config + Gate + log path                        | Dependency wiring                 | —         |
+| CLI            | Config + Gate (shared DB)                       | Operator management TUI           | —         |
 
 ---
 
