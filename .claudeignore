@@ -1,22 +1,21 @@
 # Compiled binaries
 bin/
 
-# Runtime database (binary, not useful as context)
-2L1nk.db
+# Runtime files
+*.db
 *.db-shm
 *.db-wal
+*.pid
+*.log
+*.tunnels.json
+*.opts
 
-# Node modules
-node_modules/
-
-# Go test artifacts
+# Go artifacts
 *.out
 coverage.html
-
-# Go dependency checksums (not useful for code context)
 go.sum
 
-# Postman files (not relevant for code tasks)
+# Test data
 tests/postman/
 
 # OS files
