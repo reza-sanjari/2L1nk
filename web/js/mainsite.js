@@ -169,7 +169,19 @@ let isMuted = false;
 const voiceParticipants = new Set(); // FP von Usern aktuell in Voice
 
 const ICE_CONFIG = {
-    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+    iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        {
+            urls: [
+                'turn:openrelay.metered.ca:80',
+                'turn:openrelay.metered.ca:443',
+                'turn:openrelay.metered.ca:443?transport=tcp'
+            ],
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        }
+    ]
 };
 
 // ============================================================
@@ -333,11 +345,25 @@ async function submitRoomKey(roomId, epoch, members) {
     }
 }
 
+let wsReconnectAttempts = 0;
+let wsReconnectTimeout = null;
+
+function scheduleWsReconnect() {
+    if (wsReconnectTimeout) return;
+    const delay = Math.min(1000 * Math.pow(2, wsReconnectAttempts), 30000);
+    wsReconnectAttempts++;
+    wsReconnectTimeout = setTimeout(() => {
+        wsReconnectTimeout = null;
+        connectLocalChat();
+    }, delay);
+}
+
 function connectLocalChat() {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     socket = new WebSocket(`${wsProtocol}//${window.location.host}/api/ws`);
 
     socket.onopen = () => {
+        wsReconnectAttempts = 0;
         const sessionId = sessionStorage.getItem('sessionId');
         const timestamp = Math.floor(Date.now() / 1000);
         const canonical = `WS\n${sessionId}\n${timestamp}`;
@@ -460,7 +486,10 @@ function connectLocalChat() {
     };
 
     socket.onerror = (err) => console.error("WebSocket Fehler:", err);
-    socket.onclose = () => console.warn("WebSocket geschlossen");
+    socket.onclose = () => {
+        console.warn("WebSocket geschlossen, reconnect in Kürze...");
+        if (sessionStorage.getItem('sessionId')) scheduleWsReconnect();
+    };
 }
 async function fetchRooms() {
 
