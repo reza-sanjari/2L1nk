@@ -15,21 +15,21 @@ flowchart LR
         OptionsMenu["Options Menu"]
         LogsView["Logs View"]
         NukeReset["Nuke / Reset"]
-        ProcManager["Process Manager\n(PID file, start/stop)"]
+        ProcManager["Process Manager"]
     end
 
     %% ========= TRANSPORT =========
     subgraph Transport
         Server["Echo Server"]
-        StaticFiles["Embedded Static Files\n(web/pages, css, js)"]
-        Middleware["Middleware\n(RequestID, Secure,\nRateLimit, Timeout)"]
+        StaticFiles["Embedded Static Files"]
+        Middleware["Middleware"]
         AuthMiddleware["Auth Middleware"]
         Routes["Routes"]
     end
 
     %% ========= API =========
     subgraph API_Layer
-        HttpHandler["HTTP Handlers\n(health, gate, rooms,\nusers, epoch-keys,\nkey-slots, messages)"]
+        HttpHandler["HTTP Handlers)"]
         WSHandler["WebSocket Handler"]
     end
 
@@ -40,13 +40,13 @@ flowchart LR
         GateSvc["Gate Service"]
         RoomSvc["Room Service"]
         MsgSvc["Message Service"]
-        Gate["Gate\n(token rotate,\nvalidate, max-uses)"]
+        Gate["Gate"]
     end
 
     %% ========= RUNTIME =========
     subgraph Runtime_Layer
-        Hub["Hub\n(single goroutine,\nchannel-based)"]
-        EventConsumer["Event Consumer\n(hub.Events → DB)"]
+        Hub["Hub"]
+        EventConsumer["Event Consumer\n(Hub Events → DB)"]
         Session["Session Store"]
     end
 
@@ -64,7 +64,7 @@ flowchart LR
     subgraph CrossCutting["Cross-Cutting"]
         Logger["Logger (Zap)"]
         Config["Config\n(PORT, DB_PATH)"]
-        Utils["Utils\n(crypto, secure_delete)"]
+        Utils["Utils"]
     end
 
     %% ========= HTTP FLOW =========
