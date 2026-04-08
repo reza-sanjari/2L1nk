@@ -7,8 +7,93 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="../css/login.css">
     <script src="https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl-fast.min.js"></script>
+    <style>
+        /* ── Mode Selection Modal ─────────────────────────── */
+        .mode-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.75);
+            backdrop-filter: blur(6px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .mode-overlay.open { display: flex; }
+        .mode-card {
+            background: #1a0a2e;
+            border: 1px solid rgba(188,19,254,0.4);
+            border-radius: 16px;
+            padding: 36px 32px 28px;
+            max-width: 480px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 0 60px rgba(188,19,254,0.2);
+        }
+        .mode-card h3 {
+            font-size: 1.3rem;
+            margin-bottom: 8px;
+            color: #fff;
+        }
+        .mode-card p {
+            font-size: 0.85rem;
+            color: rgba(255,255,255,0.5);
+            margin-bottom: 28px;
+        }
+        .mode-options {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        .mode-btn {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 12px;
+            padding: 22px 16px;
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
+            color: #fff;
+            text-align: center;
+        }
+        .mode-btn:hover { border-color: #bc13fe; background: rgba(188,19,254,0.08); }
+        .mode-btn .mode-icon { font-size: 2rem; margin-bottom: 10px; }
+        .mode-btn .mode-title { font-weight: 700; font-size: 1rem; margin-bottom: 6px; }
+        .mode-btn .mode-desc { font-size: 0.78rem; color: rgba(255,255,255,0.5); line-height: 1.4; }
+        .mode-btn.ephemeral:hover { border-color: #aaa; }
+        .mode-cancel {
+            background: none;
+            border: none;
+            color: rgba(255,255,255,0.35);
+            cursor: pointer;
+            font-size: 0.85rem;
+            padding: 8px;
+        }
+        .mode-cancel:hover { color: rgba(255,255,255,0.7); }
+    </style>
 </head>
 <body>
+
+    <!-- Mode Selection Modal -->
+    <div id="mode-overlay" class="mode-overlay" onclick="if(event.target===this)closeModeModal()">
+        <div class="mode-card">
+            <h3>Wie möchtest du beitreten?</h3>
+            <p>Wähle, ob deine Identität gespeichert werden soll.</p>
+            <div class="mode-options">
+                <button class="mode-btn ephemeral" onclick="connectToGateway(0)">
+                    <div class="mode-icon">👻</div>
+                    <div class="mode-title">Temporär</div>
+                    <div class="mode-desc">Identität und Verlauf werden nicht gespeichert. Beim Schließen des Tabs gelöscht.</div>
+                </button>
+                <button class="mode-btn persistent" onclick="connectToGateway(1)">
+                    <div class="mode-icon">🔑</div>
+                    <div class="mode-title">Dauerhaft</div>
+                    <div class="mode-desc">Identität lokal gespeichert. Nachrichten-Verlauf bleibt erhalten.</div>
+                </button>
+            </div>
+            <button class="mode-cancel" onclick="closeModeModal()">Abbrechen</button>
+        </div>
+    </div>
 
     <div class="shape circle"></div>
     <div class="shape triangle"></div>
@@ -30,8 +115,8 @@
                     <h3><i class="fas fa-door-open"></i> Gateway</h3>
                     <p>Schnellzugriff auf öffentliche Räume.</p>
                     <input type="text" id="gateway" value="" placeholder="Gateway Code eingeben...">
-                    <input type="text" id="loginname" placeholder="Username" onkeydown="if(event.key==='Enter')connectToGateway()">
-                    <button class="btn btn-primary" onclick="connectToGateway()">Beitreten</button>
+                    <input type="text" id="loginname" placeholder="Username" onkeydown="if(event.key==='Enter')showModeModal()">
+                    <button class="btn btn-primary" onclick="showModeModal()">Beitreten</button>
                 </div>
 
                 <div id="fast-login-section" class="fast-login-section" style="display:none">
@@ -189,28 +274,52 @@
         logins.forEach(l => {
             const card = document.createElement('div');
             card.className = 'fast-login-card';
-            card.innerHTML = `
-                <div class="fast-login-avatar">${l.username.charAt(0).toUpperCase()}</div>
-                <div class="fast-login-info">
-                    <div class="fast-login-name">${l.username}</div>
-                </div>
-                <button class="fast-login-go" onclick="quickLogin('${escHtml(l.username)}','${escHtml(l.gatewayKey)}')" title="Einloggen">
-                    <i class="fas fa-sign-in-alt"></i>
-                </button>
-                <button class="fast-login-remove" onclick="removeLogin('${escHtml(l.username)}')" title="Entfernen">
-                    <i class="fas fa-times"></i>
-                </button>
-            `;
+            // Use textContent / DOM API to safely display user data
+            const avatar = document.createElement('div');
+            avatar.className = 'fast-login-avatar';
+            avatar.textContent = l.username.charAt(0).toUpperCase();
+            const info = document.createElement('div');
+            info.className = 'fast-login-info';
+            const name = document.createElement('div');
+            name.className = 'fast-login-name';
+            name.textContent = l.username;
+            info.appendChild(name);
+            const goBtn = document.createElement('button');
+            goBtn.className = 'fast-login-go';
+            goBtn.title = 'Einloggen';
+            goBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i>';
+            goBtn.onclick = () => quickLogin(l.username, l.gatewayKey);
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'fast-login-remove';
+            removeBtn.title = 'Entfernen';
+            removeBtn.innerHTML = '<i class="fas fa-times"></i>';
+            removeBtn.onclick = () => removeLogin(l.username);
+            card.appendChild(avatar);
+            card.appendChild(info);
+            card.appendChild(goBtn);
+            card.appendChild(removeBtn);
             list.appendChild(card);
         });
     }
 
-    function escHtml(str) { return str.replace(/'/g, "\\'"); }
-
     async function quickLogin(username, gatewayKey) {
         document.getElementById('gateway').value   = gatewayKey;
         document.getElementById('loginname').value = username;
-        await connectToGateway();
+        // Quick login always uses persistent mode (keys are already stored)
+        await connectToGateway(1);
+    }
+
+    // ── Mode Modal ───────────────────────────────────────────────────
+    function showModeModal() {
+        const gateKey   = document.getElementById('gateway').value.trim();
+        const loginName = document.getElementById('loginname').value.trim();
+        if (!gateKey)   { alert("⚠️ Bitte gib einen Gateway-Code ein!"); return; }
+        if (!loginName) { alert("⚠️ Bitte gib einen Login-Namen ein!"); return; }
+        document.getElementById('mode-overlay').classList.add('open');
+    }
+
+    function closeModeModal() {
+        document.getElementById('mode-overlay').classList.remove('open');
     }
 
     // ── Helpers ──────────────────────────────────────────────────────
@@ -221,17 +330,25 @@
     }
 
     // ── Main Login ───────────────────────────────────────────────────
-    async function connectToGateway() {
+    // mode: 0 = ephemeral, 1 = persistent
+    async function connectToGateway(mode) {
+        closeModeModal();
+
         const gateKey   = document.getElementById('gateway').value.trim();
         const loginName = document.getElementById('loginname').value.trim();
 
         if (!gateKey)   { alert("⚠️ Bitte gib einen Gateway-Code ein!"); return; }
         if (!loginName) { alert("⚠️ Bitte gib einen Login-Namen ein!"); return; }
 
-        // 1. Keys laden (IDB) oder neu generieren
+        const isPersistent = mode === 1;
+
+        // 1. Keys laden (IDB, nur persistent) oder neu generieren
         let ed25519Secret, ed25519Public, x25519Secret, x25519Public;
 
-        const stored = await loadKeysFromIDB(loginName).catch(() => null);
+        const stored = isPersistent
+            ? await loadKeysFromIDB(loginName).catch(() => null)
+            : null;
+
         if (stored) {
             // Gespeicherte Keys wiederverwenden → gleiche Identität
             ed25519Secret = stored.ed25519_secret;
@@ -255,7 +372,7 @@
 
         // 2. Body & Canonical String bauen
         const timestamp = Math.floor(Date.now() / 1000).toString();
-        const body = JSON.stringify({ gateToken: gateKey, publicKey: ed25519Public, x25519PublicKey: x25519Public, username: loginName, mode: 1 });
+        const body = JSON.stringify({ gateToken: gateKey, publicKey: ed25519Public, x25519PublicKey: x25519Public, username: loginName, mode });
         const hashBuf  = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(body));
         const bodyHash = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
         const canonical = `POST\n/api/auth/gate\n${timestamp}\n${bodyHash}`;
@@ -276,12 +393,12 @@
             });
 
             if (!response.ok) {
-                const errorData = await response.text();
-                throw new Error(`Server antwortete mit ${response.status}: ${errorData}`);
+                const errorData = await response.json().catch(() => ({ error: response.statusText }));
+                throw new Error(errorData.error ?? `Server-Fehler ${response.status}`);
             }
 
-            // Keys in IndexedDB speichern (falls noch nicht vorhanden)
-            if (!stored) {
+            // Keys in IndexedDB speichern (nur persistent, nur wenn neu generiert)
+            if (isPersistent && !stored) {
                 await saveKeysToIDB(loginName, {
                     ed25519_secret: ed25519Secret,
                     ed25519_public: ed25519Public,
@@ -290,10 +407,14 @@
                 }).catch(() => {});
             }
 
-            saveLogin(loginName, gateKey);
+            // Schnell-Login nur für persistente Nutzer speichern
+            if (isPersistent) {
+                saveLogin(loginName, gateKey);
+            }
+
             sessionStorage.setItem('username',   loginName);
             sessionStorage.setItem('gatewayKey', gateKey);
-            sessionStorage.setItem('my_mode',    'Persistent');
+            sessionStorage.setItem('my_mode',    isPersistent ? 'Persistent' : 'Ephemeral');
             const data = await response.json();
             sessionStorage.setItem('sessionId', data.sessionId);
             window.location.href = "Mainsite";

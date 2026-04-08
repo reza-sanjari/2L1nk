@@ -1,6 +1,12 @@
 
 let socket;
 let roomList = [];
+
+function escapeHtml(str) {
+    const d = document.createElement("div");
+    d.textContent = str;
+    return d.innerHTML;
+}
 let gefilterteListe = [];
 let currentRoomId = null;
 let currentRoomEpoch = 0;
@@ -426,7 +432,14 @@ function connectLocalChat() {
             if (payload.sender_name) {
                 const label = document.createElement('div');
                 label.className = 'msg-label';
-                label.textContent = payload.sender_name;
+                if (envelope.sender_mode === 0) {
+                    const badge = document.createElement('span');
+                    badge.textContent = '👻';
+                    badge.title = 'Temporärer Nutzer';
+                    badge.style.cssText = 'margin-right:4px;font-size:0.85em;opacity:0.8;';
+                    label.appendChild(badge);
+                }
+                label.appendChild(document.createTextNode(payload.sender_name));
                 wrapper.appendChild(label);
             }
             const div = document.createElement('div');
@@ -506,7 +519,7 @@ function renderChatUserList(users) {
     (users ?? []).forEach(u => {
         const div = document.createElement('div');
         div.className = 'chat-user-entry';
-        div.innerHTML = `<span class="chat-user-dot"></span><span>${u.username}</span>`;
+        div.innerHTML = `<span class="chat-user-dot"></span><span>${escapeHtml(u.username)}</span>`;
         list.appendChild(div);
     });
 }
@@ -525,7 +538,7 @@ function clickroom(room) {
     main.style.display = 'flex';
     main.innerHTML = `
                 <div class="chat-header">
-                    <span class="chat-header-name">${room.name}</span>
+                    <span class="chat-header-name">${escapeHtml(room.name)}</span>
                     <div class="chat-header-actions">
                         <div class="voice-controls">
                             <button id="voice-join-btn" class="voice-btn" onclick="toggleVoice('${room.room_id}')">🎙️ Voice</button>
@@ -644,7 +657,15 @@ async function loadChat(room) {
                 wrapper.dataset.msgId = msg.id;
                 const label = document.createElement('div');
                 label.className = 'msg-label';
-                label.textContent = fpToName[msg.sender_fp] ?? (msg.sender_fp.slice(0, 8) + '…');
+                if (msg.is_ephemeral) {
+                    const badge = document.createElement('span');
+                    badge.textContent = '👻';
+                    badge.title = 'Temporärer Nutzer';
+                    badge.style.cssText = 'margin-right:4px;font-size:0.85em;opacity:0.8;';
+                    label.appendChild(badge);
+                }
+                const senderName = fpToName[msg.sender_fp] ?? (msg.sender_fp.slice(0, 8) + '…');
+                label.appendChild(document.createTextNode(senderName));
                 wrapper.appendChild(label);
                 const div = document.createElement('div');
                 div.className = 'bubble received';
@@ -689,7 +710,7 @@ function renderFunc(RenderList) {
             div.innerHTML = `
                 <div class="chat-item-row">
                     <div style="flex:1;cursor:pointer;" class="room-info">
-                        <div style="font-weight:bold;">👤${room.name}</div>
+                        <div style="font-weight:bold;">👤${escapeHtml(room.name)}</div>
                         <span class="unread-badge" style="display:none"></span>
                     </div>
                     ${isHost ? `<span class="room-menu-btn" title="Mitglieder verwalten">llll</span>` : ''}
@@ -1564,7 +1585,7 @@ async function _runMessageSearch(query, resultsEl) {
         item.className = 'nav-panel-result-item';
 
         if (r.type === 'room') {
-            item.innerHTML = `<i class="fas fa-comments"></i><span>${r.room.name}</span>`;
+            item.innerHTML = `<i class="fas fa-comments"></i><span>${escapeHtml(r.room.name)}</span>`;
             item.onclick = () => {
                 closeNavPanel('search-panel');
                 document.getElementById('global-search-input').value = '';
@@ -1576,8 +1597,8 @@ async function _runMessageSearch(query, resultsEl) {
             item.innerHTML = `
                 <i class="fas fa-comment-dots"></i>
                 <div class="search-msg-content">
-                    <div class="search-msg-room">${r.room.name}</div>
-                    <div class="search-msg-excerpt">${r.excerpt}</div>
+                    <div class="search-msg-room">${escapeHtml(r.room.name)}</div>
+                    <div class="search-msg-excerpt">${escapeHtml(r.excerpt)}</div>
                 </div>`;
             item.onclick = () => {
                 closeNavPanel('search-panel');
