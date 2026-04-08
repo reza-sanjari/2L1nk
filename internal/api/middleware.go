@@ -2,8 +2,14 @@ package api
 
 import (
 	"2L1nk/internal/session"
+	"2L1nk/internal/utils"
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
+	"io"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/labstack/echo/v4"
 )
@@ -28,12 +34,13 @@ func AuthMiddleware(store *session.Store) echo.MiddlewareFunc {
 				})
 			}
 
-			// sample fail case
-			if timestamp == 0 {
+			now := time.Now().Unix()
+			if timestamp < now-30 || timestamp > now+30 {
 				return c.JSON(http.StatusUnauthorized, map[string]any{
-					"error": "timestamp cannot be 0",
+					"error": "timestamp out of window",
 				})
 			}
+			// TODO: add nonce store for full replay prevention
 
 			user, ok := store.Get(sessionID)
 			if !ok {
@@ -42,7 +49,25 @@ func AuthMiddleware(store *session.Store) echo.MiddlewareFunc {
 				})
 			}
 
-			// todo: validate signature here
+			var bodyBytes []byte
+			if c.Request().Body != nil {
+				bodyBytes, err = io.ReadAll(c.Request().Body)
+				if err != nil {
+					return c.JSON(http.StatusInternalServerError, map[string]any{
+						"error": "failed to read body",
+					})
+				}
+				c.Request().Body = io.NopCloser(bytes.NewReader(bodyBytes))
+			}
+			sum := sha256.Sum256(bodyBytes)
+			bodyHash := hex.EncodeToString(sum[:])
+
+			canonical := utils.HTTPCanonical(c.Request().Method, c.Request().URL.Path, timestampRaw, bodyHash)
+			if err := utils.VerifySignature(user.PublicKey, canonical, signature); err != nil {
+				return c.JSON(http.StatusUnauthorized, map[string]any{
+					"error": "invalid signature",
+				})
+			}
 
 			c.Set("user", user)
 
