@@ -3,10 +3,13 @@ package handlers
 import (
 	"2L1nk/internal/hub"
 	"2L1nk/internal/models"
+	"2L1nk/internal/utils"
 	"encoding/base64"
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
@@ -78,7 +81,19 @@ func (h *Handler) Ws(c echo.Context) error {
 
 	h.logg.Debug("websocket authenticated", zap.String("username", activeUser.Username), zap.String("fingerprint", activeUser.PublicKeyFingerprint))
 
-	// TODO: validate timestamp + signature here
+	now := time.Now().Unix()
+	if auth.Timestamp < now-30 || auth.Timestamp > now+30 {
+		h.logg.Warn("websocket closed: timestamp out of window", zap.String("sessionId", auth.SessionID))
+		return nil
+	}
+	// TODO: add nonce store for full replay prevention
+
+	timestampStr := strconv.FormatInt(auth.Timestamp, 10)
+	canonical := utils.WSCanonical(auth.SessionID, timestampStr)
+	if err := utils.VerifySignature(activeUser.PublicKey, canonical, auth.Signature); err != nil {
+		h.logg.Warn("websocket closed: invalid signature", zap.String("sessionId", auth.SessionID), zap.Error(err))
+		return nil
+	}
 
 	x25519Key := base64.StdEncoding.EncodeToString(activeUser.X25519PublicKey)
 	newUser := hub.NewUser(activeUser.PublicKeyFingerprint, activeUser.Username, x25519Key, ws, activeUser.Mode, h.logg)
