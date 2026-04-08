@@ -8,7 +8,7 @@ flowchart LR
     end
 
     %% ========= CLI =========
-    subgraph CLI_Layer["CLI / TUI (BubbleTea)"]
+    subgraph CLI_Layer["CLI / TUI"]
         Menu["Main Menu"]
         GateMenu["Gate Menu"]
         TunnelMenu["Tunnel Menu"]
@@ -29,7 +29,7 @@ flowchart LR
 
     %% ========= API =========
     subgraph API_Layer
-        HttpHandler["HTTP Handlers)"]
+        HttpHandler["HTTP Handlers"]
         WSHandler["WebSocket Handler"]
     end
 
@@ -62,8 +62,8 @@ flowchart LR
 
     %% ========= CROSS CUTTING =========
     subgraph CrossCutting["Cross-Cutting"]
-        Logger["Logger (Zap)"]
-        Config["Config\n(PORT, DB_PATH)"]
+        Logger["Logger"]
+        Config["Config"]
         Utils["Utils"]
     end
 
