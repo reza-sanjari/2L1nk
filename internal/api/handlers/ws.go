@@ -147,6 +147,9 @@ func (h *Handler) Ws(c echo.Context) error {
 
 	// cleanup
 	h.hub.UnregisterUser <- newUser
+	if activeUser.Mode == models.UserModeEphemeral {
+		h.session.Remove(auth.SessionID)
+	}
 
 	return nil
 }
