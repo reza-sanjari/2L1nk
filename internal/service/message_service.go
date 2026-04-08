@@ -10,6 +10,7 @@ type MessageRepository interface {
 	Save(msg *infradb.MessageRecord) error
 	GetByRoom(roomID string, limit, offset int) ([]*infradb.MessageRecord, error)
 	DeleteByRoom(roomID string) error
+	DeleteBySenderFP(senderFP string) (int64, error)
 }
 
 type MessageService struct {
@@ -49,4 +50,8 @@ func (s *MessageService) GetRoomMessages(roomID string, limit, offset int) ([]*i
 
 func (s *MessageService) DeleteByRoom(roomID string) error {
 	return s.msgRepo.DeleteByRoom(roomID)
+}
+
+func (s *MessageService) PurgeUserMessages(senderFP string) (int64, error) {
+	return s.msgRepo.DeleteBySenderFP(senderFP)
 }

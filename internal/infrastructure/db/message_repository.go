@@ -44,6 +44,15 @@ func (r *MessageRepository) DeleteByRoom(roomID string) error {
 	return nil
 }
 
+// DeleteBySenderFP removes all messages by a sender and returns the deleted row count.
+func (r *MessageRepository) DeleteBySenderFP(senderFP string) (int64, error) {
+	res, err := r.db.Exec(`DELETE FROM messages WHERE sender_fp = ?`, senderFP)
+	if err != nil {
+		return 0, fmt.Errorf("delete messages by sender: %w", err)
+	}
+	return res.RowsAffected()
+}
+
 // GetByRoom returns messages for a room ordered by creation time, newest first.
 func (r *MessageRepository) GetByRoom(roomID string, limit, offset int) ([]*MessageRecord, error) {
 	rows, err := r.db.Query(

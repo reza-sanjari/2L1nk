@@ -26,6 +26,7 @@ type Hub struct {
 	LoadRoomAndDeliver chan LoadRoomAndDeliverRequest
 	SendErrorToUser    chan SendErrorRequest
 	EpochKeysSubmitted chan EpochKeysSubmittedRequest
+	PurgeUserMessages  chan PurgeRequest
 }
 
 type RoomMembersChangeRequest struct {
@@ -77,6 +78,7 @@ func New(s *session.Store, logg *logger.Logger) *Hub {
 		LoadRoomAndDeliver: make(chan LoadRoomAndDeliverRequest),
 		SendErrorToUser:    make(chan SendErrorRequest),
 		EpochKeysSubmitted: make(chan EpochKeysSubmittedRequest),
+		PurgeUserMessages:  make(chan PurgeRequest),
 	}
 }
 
@@ -128,6 +130,9 @@ func (h *Hub) Run() {
 
 		case req := <-h.EpochKeysSubmitted:
 			h.handleEpochKeysSubmitted(req)
+
+		case req := <-h.PurgeUserMessages:
+			h.handlePurgeUserMessages(req)
 		}
 	}
 }
