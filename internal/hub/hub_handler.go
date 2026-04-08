@@ -870,3 +870,29 @@ func (h *Hub) handleKeyRotationUpdate(msg WSMessageEnvelope) {
 		zap.Int("keyCount", len(entries)),
 	)
 }
+
+func (h *Hub) handlePurgeUserMessages(req PurgeRequest) {
+	for _, room := range h.Rooms {
+		if _, isMember := room.MemberPublicKeys[req.SenderFP]; !isMember {
+			continue
+		}
+		payload, err := json.Marshal(MessagesPurgedPayload{
+			SenderFP: req.SenderFP,
+			RoomID:   room.RoomID,
+		})
+		if err != nil {
+			h.logg.Error("purge: failed to marshal payload", zap.String("roomID", room.RoomID), zap.Error(err))
+			continue
+		}
+		data, err := json.Marshal(outboundEnvelope{
+			SenderFP: req.SenderFP,
+			Type:     models.MessagesPurged,
+			Payload:  payload,
+		})
+		if err != nil {
+			h.logg.Error("purge: failed to marshal envelope", zap.String("roomID", room.RoomID), zap.Error(err))
+			continue
+		}
+		h.sendMessageToRoom(room, data)
+	}
+}

@@ -43,4 +43,5 @@ func RegisterRoutes(e *echo.Echo, h *handlers.Handler, store *session.Store) {
 	protected.GET("/users/me", h.UserInfo)
 	protected.GET("/users", h.GetAllUsers)
 	protected.GET("/users/me/rooms", h.GetUserRooms)
+	protected.DELETE("/users/me/messages", h.PurgeUserMessages)
 }

@@ -22,4 +22,5 @@ const (
 	KeyRotationUpdate WSEventType = "room_key_rotation_update"
 	KeySlot           WSEventType = "room_key_slot"
 	EpochMismatch     WSEventType = "epoch_mismatch"
+	MessagesPurged    WSEventType = "messages_purged"
 )

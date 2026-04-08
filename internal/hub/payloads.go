@@ -76,6 +76,17 @@ type RemoveFromRoomRequest struct {
 	NewHostFP       string // "" if host is unchanged
 }
 
+// MessagesPurgedPayload is sent to room members when a user purges all their messages.
+type MessagesPurgedPayload struct {
+	SenderFP string `json:"sender_fp"`
+	RoomID   string `json:"room_id"`
+}
+
+// PurgeRequest asks the hub to broadcast a messages_purged event to all active rooms the user is a member of.
+type PurgeRequest struct {
+	SenderFP string
+}
+
 type LoadRoomAndDeliverRequest struct {
 	RoomID   string
 	RoomName string
