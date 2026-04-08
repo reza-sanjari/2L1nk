@@ -1,0 +1,10 @@
+{
+  "tunnels": [
+    {
+      "name": "Cloudflare",
+      "command": "cloudflared tunnel --url http://localhost:{PORT}",
+      "description": "Cloudflare quick tunnel (cloudflared required)",
+      "port": 3847
+    }
+  ]
+}
