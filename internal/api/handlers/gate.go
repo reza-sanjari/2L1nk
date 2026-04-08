@@ -75,7 +75,7 @@ func (h *Handler) GateAuthorize(c echo.Context) error {
 		})
 	}
 
-	h.logg.Info("user authorized", zap.String("username", req.Username), zap.String("sessionId", result.SessionID), zap.Int("mode", int(req.Mode)))
+	h.logg.Info("user authorized", zap.String("username", req.Username), zap.String("sessionId", result.SessionID), zap.String("mode", req.Mode.String()))
 	return c.JSON(http.StatusOK, map[string]string{
 		"sessionId": result.SessionID,
 	})

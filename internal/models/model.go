@@ -7,6 +7,13 @@ const (
 	UserModePersistent
 )
 
+func (m UserMode) String() string {
+	if m == UserModePersistent {
+		return "persistent"
+	}
+	return "ephemeral"
+}
+
 type WSEventType string
 
 const (
