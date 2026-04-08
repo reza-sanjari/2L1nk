@@ -4,6 +4,8 @@
 research
 todo.txt
 2L1nk.db*
+*.tunnels.json
+*.tunnel.pid
 ### dotenv ###
 .env
 
