@@ -664,17 +664,17 @@
                 "header": [
                   {
                     "key": "Chat-Session-ID",
-                    "value": "",
+                    "value": "{{chatSessionId}}",
                     "description": "Session ID returned by POST /api/auth/gate."
                   },
                   {
                     "key": "Chat-Timestamp",
-                    "value": "0",
+                    "value": "{{$timestamp}}",
                     "description": "Unix timestamp used as part of the canonical signing string.\n"
                   },
                   {
                     "key": "Chat-Signature",
-                    "value": "",
+                    "value": "{{$randomLoremText}}",
                     "description": "Base64-encoded signature of the canonical request string:\nMETHOD + \"\\n\" + PATH + \"\\n\" + TIMESTAMP + \"\\n\" + BODY_HASH\n"
                   },
                   {
@@ -683,7 +683,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/api/users/me/chats",
+                  "raw": "{{baseUrl}}/api/users/me/messages",
                   "host": [
                     "{{baseUrl}}"
                   ],
@@ -691,112 +691,11 @@
                     "api",
                     "users",
                     "me",
-                    "chats"
+                    "messages"
                   ]
                 }
               },
-              "response": [
-                {
-                  "name": "Chats deleted",
-                  "originalRequest": {
-                    "method": "DELETE",
-                    "header": [
-                      {
-                        "description": "Session ID returned by POST /api/auth/gate.",
-                        "key": "Chat-Session-ID",
-                        "value": ""
-                      },
-                      {
-                        "description": "Unix timestamp used as part of the canonical signing string.\n",
-                        "key": "Chat-Timestamp",
-                        "value": "0"
-                      },
-                      {
-                        "description": "Base64-encoded signature of the canonical request string:\nMETHOD + \"\\n\" + PATH + \"\\n\" + TIMESTAMP + \"\\n\" + BODY_HASH\n",
-                        "key": "Chat-Signature",
-                        "value": ""
-                      },
-                      {
-                        "key": "Accept",
-                        "value": "application/json"
-                      }
-                    ],
-                    "url": {
-                      "raw": "{{baseUrl}}/api/users/me/chats",
-                      "host": [
-                        "{{baseUrl}}"
-                      ],
-                      "path": [
-                        "api",
-                        "users",
-                        "me",
-                        "chats"
-                      ]
-                    }
-                  },
-                  "status": "OK",
-                  "code": 200,
-                  "_postman_previewlanguage": "json",
-                  "header": [
-                    {
-                      "key": "Content-Type",
-                      "value": "application/json"
-                    }
-                  ],
-                  "cookie": [],
-                  "body": "{\n  \"deleted\": false\n}"
-                },
-                {
-                  "name": "Invalid or missing session ID, or signature verification failed",
-                  "originalRequest": {
-                    "method": "DELETE",
-                    "header": [
-                      {
-                        "description": "Session ID returned by POST /api/auth/gate.",
-                        "key": "Chat-Session-ID",
-                        "value": ""
-                      },
-                      {
-                        "description": "Unix timestamp used as part of the canonical signing string.\n",
-                        "key": "Chat-Timestamp",
-                        "value": "0"
-                      },
-                      {
-                        "description": "Base64-encoded signature of the canonical request string:\nMETHOD + \"\\n\" + PATH + \"\\n\" + TIMESTAMP + \"\\n\" + BODY_HASH\n",
-                        "key": "Chat-Signature",
-                        "value": ""
-                      },
-                      {
-                        "key": "Accept",
-                        "value": "application/json"
-                      }
-                    ],
-                    "url": {
-                      "raw": "{{baseUrl}}/api/users/me/chats",
-                      "host": [
-                        "{{baseUrl}}"
-                      ],
-                      "path": [
-                        "api",
-                        "users",
-                        "me",
-                        "chats"
-                      ]
-                    }
-                  },
-                  "status": "Unauthorized",
-                  "code": 401,
-                  "_postman_previewlanguage": "json",
-                  "header": [
-                    {
-                      "key": "Content-Type",
-                      "value": "application/json"
-                    }
-                  ],
-                  "cookie": [],
-                  "body": "{\n  \"error\": \"string\"\n}"
-                }
-              ]
+              "response": []
             }
           ]
         },
