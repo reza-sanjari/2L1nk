@@ -338,12 +338,16 @@ function connectLocalChat() {
     socket = new WebSocket(`${wsProtocol}//${window.location.host}/api/ws`);
 
     socket.onopen = () => {
+        const sessionId = sessionStorage.getItem('sessionId');
+        const timestamp = Math.floor(Date.now() / 1000);
+        const canonical = `WS\n${sessionId}\n${timestamp}`;
+        const signature = AppCrypto.sign(canonical);
         const authPayload = {
             "type": "auth",
             "payload": {
-                "Chat-Session-ID": sessionStorage.getItem('sessionId'),
-                "Chat-Timestamp": Math.floor(Date.now() / 1000),
-                "Chat-Signature": "test"
+                "Chat-Session-ID": sessionId,
+                "Chat-Timestamp": timestamp,
+                "Chat-Signature": signature
             }
         };
         socket.send(JSON.stringify(authPayload));
@@ -1362,7 +1366,6 @@ window.addEventListener('DOMContentLoaded', async () => {
     await whoAmI();
     connectLocalChat();
     fetchRooms();
-    setInterval(fetchRooms, 15000);
 });
 
 // Beim Wechsel auf Desktop: Sidebar-Zustand zurücksetzen
