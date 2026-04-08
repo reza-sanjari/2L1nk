@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"2L1nk/internal/utils"
@@ -115,6 +116,14 @@ func (m nukeModel) cmdNuke() tea.Cmd {
 			}
 		}
 
+		// 5. SecureDelete all tunnel log files (*.tunnel.log in the DB directory).
+		tunnelLogs, _ := filepath.Glob(filepath.Join(filepath.Dir(dbPath), "*.tunnel.log"))
+		for _, path := range tunnelLogs {
+			if err := utils.SecureDelete(path); err != nil {
+				errs = append(errs, fmt.Sprintf("%s: %v", path, err))
+			}
+		}
+
 		if len(errs) > 0 {
 			return nukeDoneMsg{err: fmt.Errorf("%s", strings.Join(errs, "; "))}
 		}
@@ -160,6 +169,7 @@ func (m nukeModel) View() string {
 		b.WriteString(styleSubtle.Render(fmt.Sprintf("    • %-20s %s", f.path, f.desc)) + "\n")
 	}
 
+	b.WriteString(styleSubtle.Render("    • *.tunnel.log             tunnel logs (all providers)") + "\n")
 	b.WriteString("\n" + styleSubtle.Render("  Data is overwritten with random bytes before deletion.") + "\n")
 	b.WriteString(styleSubtle.Render("  Best-effort on SSDs (wear leveling may retain copies).") + "\n")
 
