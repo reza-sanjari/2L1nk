@@ -189,11 +189,13 @@ Die Migrationen laufen automatisch beim Serverstart (`internal/db/migrations.go`
 
 Der Server ist nicht öffentlich zugänglich. Jede neue Verbindung muss zunächst einen **Gate-Token** vorweisen – einen 64-stelligen zufälligen Hex-String, der beim Serverstart generiert und in der Konsole ausgegeben wird. Nur wer diesen Token kennt, kann sich registrieren.
 
+Der Gate-Endpunkt (`POST /api/auth/gate`) ist zusätzlich per IP-Adresse auf **10 Versuche pro Minute** begrenzt, um Brute-Force-Angriffe auf das Token zu verhindern.
+
 #### Session-Authentifizierung
 
-Nach erfolgreicher Gate-Authentifizierung erhält der Client eine **Session-ID**, die im In-Memory-Session-Store des Servers hinterlegt wird. Alle weiteren API-Anfragen verwenden diese Session-ID.
+Nach erfolgreicher Gate-Authentifizierung erhält der Client eine **Session-ID**, die im In-Memory-Session-Store des Servers hinterlegt wird. Alle weiteren API-Anfragen verwenden diese Session-ID. Sessions laufen nach **24 Stunden** automatisch ab; ein Hintergrundprozess bereinigt abgelaufene Sessions stündlich.
 
-#### Request-Signing
+#### Request-Signing und Replay-Schutz
 
 Jede API-Anfrage wird mit dem privaten Ed25519-Schlüssel des Nutzers signiert. Das kanonische Format der Signatur ist:
 
@@ -201,11 +203,25 @@ Jede API-Anfrage wird mit dem privaten Ed25519-Schlüssel des Nutzers signiert. 
 HTTP-Methode + "\n" + Pfad + "\n" + Timestamp + "\n" + SHA-256(Request-Body)
 ```
 
-Dadurch kann der Server sicherstellen, dass die Anfrage tatsächlich vom Besitzer des jeweiligen Schlüssels stammt und nicht manipuliert wurde.
+Der Server prüft zwei Schutzmaßnahmen gegen Replay-Angriffe:
+1. **Zeitfenster:** Anfragen mit einem Timestamp außerhalb von ±30 Sekunden werden abgelehnt.
+2. **Nonce-Store:** Jede akzeptierte Signatur wird 60 Sekunden lang gespeichert. Eine zweite Anfrage mit identischer Signatur wird mit `401 replayed request` abgelehnt, auch wenn der Timestamp noch gültig wäre.
 
 #### WebSocket-Authentifizierung
 
-Bei WebSocket-Verbindungen sendet der Client als erste Nachricht ein `type: "auth"`-Paket mit Session-ID und Signatur. Der Server validiert die Session und registriert den Benutzer im Hub.
+Bei WebSocket-Verbindungen sendet der Client als erste Nachricht ein `type: "auth"`-Paket mit Session-ID und Signatur. Der Server validiert Session, Zeitfenster und Signatur – inklusive Nonce-Prüfung. Connections von fremden Origins (Cross-Origin) werden auf Basis des `Origin`-Headers abgelehnt.
+
+#### Rate Limiting
+
+| Ebene | Geltungsbereich | Limit |
+|---|---|---|
+| Global | Alle Routen | 100 Requests/Sekunde |
+| Gate-Endpunkt | Pro IP-Adresse | 10 Requests/Minute |
+| WebSocket-Nachrichten | Pro verbundenem Nutzer | 1 Nachricht/Sekunde (Burst: 5) |
+
+#### Eingabevalidierung
+
+Benutzereinaben werden vor jeder Verarbeitung auf zulässige Längen geprüft: Benutzername maximal 50 Zeichen, Raumname 1–100 Zeichen.
 
 ---
 
@@ -260,7 +276,7 @@ Der `EventConsumer` läuft parallel und liest aus `hub.Events`, um Ereignisse (z
 
 Das Echo-Framework stellt folgende Middleware-Schicht bereit:
 
-- **Rate Limiting:** Maximal 100 Requests pro Store
+- **Rate Limiting:** Maximal 100 Requests/s global; 10 Requests/min pro IP auf dem Gate-Endpunkt; 5 Nachrichten/s pro WebSocket-Verbindung
 - **Timeout:** 10 Sekunden pro Request
 - **Security Headers:** Automatische Sicherheits-Header (XSS-Schutz, Content-Type-Options etc.)
 - **Request-ID-Tracking:** Jeder Request erhält eine eindeutige ID für das Logging
@@ -394,5 +410,5 @@ Da das Frontend via `go:embed` in die Binärdatei eingebettet ist, besteht das g
 
 | Punkt | Beschreibung |
 |---|---|
-| Request-Signaturvalidierung | Ist im Code vorbereitet, aber noch nicht serverseitig durchgesetzt (`ws.go` ~Zeile 81) |
+| Post-Auth WebSocket-Signaturen | Nach dem initialen Auth-Handshake werden eingehende WS-Nachrichten (Chatnachrichten, Signale etc.) nicht mehr einzeln signiert. Die Identität basiert auf der bereits verifizierten Session. |
 | Voice Calls | Datenbankschema (`voice_sessions`, `voice_participants`) ist bereits angelegt; die WebRTC-Logik ist noch nicht implementiert |
