@@ -444,3 +444,85 @@ The server is a **transport, routing, coordination, and storage layer**. It cann
 ## 9. Summary
 
 The system uses a single Ed25519 key pair per user. Ed25519 handles all signing and authentication. X25519 (derived from the same key) handles encrypting room keys to individual members. All rooms — regardless of member count — use the same symmetric key distribution model with epoch-based key rotation. The server stores encrypted messages and coordinates key rotation events but cannot decrypt any content. Clients maintain a local key store of epoch keys to decrypt both live and historical messages.
+
+---
+
+## 10. Transport & Operational Security
+
+This section documents server-side protections that operate at the transport, authentication, and session layer — separate from end-to-end encryption.
+
+### 10.1 Replay Attack Prevention
+
+Both the HTTP and WebSocket authentication layers include a two-layer replay defence:
+
+**Timestamp window:** Every signed request includes a Unix timestamp. The server rejects requests where the timestamp falls outside a ±30-second window of the current server time.
+
+**Nonce store (`internal/utils/nonce_store.go`):** Each accepted Ed25519 signature is recorded in an in-memory store with a 60-second TTL. A second request carrying the same signature is rejected with `401 replayed request`, even if the timestamp is still within the window. The store runs a background cleanup goroutine that evicts expired entries every 60 seconds.
+
+This applies to:
+- HTTP protected routes — checked in `AuthMiddleware` (`internal/api/middleware.go`)
+- WebSocket auth handshake — checked in `ws.go` before the connection is promoted
+
+### 10.2 WebSocket Origin Restriction
+
+The WebSocket upgrader (`internal/api/handlers/ws.go`) validates the `Origin` header on browser connections:
+
+```go
+CheckOrigin: func(r *http.Request) bool {
+    origin := r.Header.Get("Origin")
+    if origin == "" {
+        return true // non-browser clients (e.g. native apps, curl)
+    }
+    u, _ := url.Parse(origin)
+    return u.Host == r.Host // same host only
+}
+```
+
+Cross-origin WebSocket connections from other domains are rejected. This prevents a malicious website from silently opening a socket to a running server while the user is authenticated in another tab.
+
+### 10.3 Rate Limiting
+
+Three independent rate limiters are in effect:
+
+| Layer | Scope | Limit | Location |
+|-------|-------|-------|----------|
+| Global | All routes | 100 req/s across all clients | `routes.go`, Echo middleware |
+| Gate endpoint | Per client IP | 10 req/min (burst 10) | `routes.go`, `POST /api/auth/gate` only |
+| WebSocket messages | Per connected user | 5 msg/s (burst 10) | `hub/user.go`, `ReadPump` |
+
+The per-IP gate limiter uses Echo's `RateLimiterWithConfig` with `c.RealIP()` as the identifier. Requests exceeding the limit receive `429 Too Many Requests`. This prevents brute-forcing the 64-character hex gate token.
+
+The per-user message limiter (`rate.NewLimiter(1, 5)` from `golang.org/x/time/rate`) is enforced in each user's `ReadPump` goroutine. A user may send up to 5 messages in a quick burst; after that the sustained rate is capped at 1 message/second. Messages that exceed the limit are dropped and logged at WARN level; the WebSocket connection itself is not closed.
+
+### 10.4 Session Expiry
+
+Sessions are stored in an in-memory `session.Store` (`internal/session/store.go`) with a 24-hour TTL. The store tracks creation time for each session and:
+
+- Returns `false` from `Get` immediately if the session has exceeded the TTL
+- Runs a background goroutine (every hour) that evicts expired sessions and releases their associated username
+
+Sessions are also removed explicitly on user disconnect (`ws.go` cleanup path) and on ephemeral user disconnect. The 24-hour TTL acts as a safety net for sessions that were never explicitly closed (e.g. network failure, browser crash).
+
+### 10.5 Input Length Limits
+
+User-supplied string inputs are validated at the handler layer before any service or database call:
+
+| Field | Limit | Location |
+|-------|-------|----------|
+| Username | ≤ 50 characters | `handlers/gate.go` |
+| Room name | 1–100 characters | `handlers/NewRoom.go` |
+| Pagination `offset` | ≤ 1,000,000 | `handlers/getRoomMessages.go`, `handlers/getKeySlots.go` |
+
+### 10.6 Atomic Gate Token Use Count
+
+The gate token use counter (`gate_tokens.use_count`) is incremented using a single SQL statement with `RETURNING`:
+
+```sql
+UPDATE gate_tokens SET use_count = use_count + 1 WHERE id = ? RETURNING use_count
+```
+
+This replaces the prior two-query approach (UPDATE then SELECT), which had a race window where concurrent requests could read the same stale count and bypass the max-uses limit.
+
+### 10.7 Schema Migration Safety
+
+The `addColumnIfNotExists` and `dropColumnIfExists` migration helpers build `ALTER TABLE` statements using `fmt.Sprintf` with caller-supplied table and column names (SQLite does not support parameterized schema identifiers). An allowlist (`validMigrationTargets` in `internal/db/migrations.go`) enumerates every permitted table/column pair. Any call with a name outside the allowlist returns an error before any SQL is constructed.
