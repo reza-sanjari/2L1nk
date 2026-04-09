@@ -14,7 +14,7 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-func AuthMiddleware(store *session.Store) echo.MiddlewareFunc {
+func AuthMiddleware(store *session.Store, ns *utils.NonceStore) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			sessionID := c.Request().Header.Get("Chat-Session-ID")
@@ -40,7 +40,12 @@ func AuthMiddleware(store *session.Store) echo.MiddlewareFunc {
 					"error": "timestamp out of window",
 				})
 			}
-			// TODO: add nonce store for full replay prevention
+
+			if !ns.Add(signature) {
+				return c.JSON(http.StatusUnauthorized, map[string]any{
+					"error": "replayed request",
+				})
+			}
 
 			user, ok := store.Get(sessionID)
 			if !ok {

@@ -34,6 +34,14 @@ func (h *Hub) handleInboundMessage(msg WSMessageEnvelope) {
 }
 
 func (h *Hub) handleMessageEnvelope(msg WSMessageEnvelope) {
+	if !msg.Sender.msgLimiter.Allow() {
+		h.logg.Warn("chat message rate limit exceeded, dropping",
+			zap.String("username", msg.Sender.Username),
+			zap.String("fingerprint", msg.Sender.Fingerprint),
+		)
+		return
+	}
+
 	var payload MessagePayload
 	err := json.Unmarshal(msg.Payload, &payload)
 	h.logg.Debug("message received", zap.String("user", msg.Sender.Username))

@@ -21,6 +21,9 @@ func (h *Handler) NewRoom(c echo.Context) error {
 	}
 
 	groupName := req.GroupName
+	if groupName == "" || len(groupName) > 100 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "room name must be between 1 and 100 characters"})
+	}
 	caller := c.Get("user").(*session.User)
 
 	h.logg.Debug("create room request", zap.String("groupName", groupName), zap.String("callerFP", caller.PublicKeyFingerprint))

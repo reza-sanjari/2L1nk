@@ -203,8 +203,19 @@ func migrateRoomsDropKeyCreatorFK(database *sql.DB) error {
 	return nil
 }
 
+// validMigrationTargets is an allowlist of table/column pairs permitted in ALTER TABLE migrations.
+// This prevents accidental SQL injection if these helpers are ever called with non-literal arguments.
+var validMigrationTargets = map[string]map[string]bool{
+	"rooms":       {"name": true, "host_fp": true, "key_creator_fp": true},
+	"users":       {"x25519_public_key": true, "mode": true},
+	"gate_tokens": {"max_uses": true, "use_count": true, "is_active": true},
+}
+
 // addColumnIfNotExists adds a column to a table only if it doesn't already exist.
 func addColumnIfNotExists(database *sql.DB, table, column, definition string) error {
+	if cols, ok := validMigrationTargets[table]; !ok || !cols[column] {
+		return fmt.Errorf("add column: disallowed target %s.%s", table, column)
+	}
 	var count int
 	if err := database.QueryRow(
 		`SELECT COUNT(*) FROM pragma_table_info(?) WHERE name = ?`,
@@ -225,6 +236,9 @@ func addColumnIfNotExists(database *sql.DB, table, column, definition string) er
 
 // dropColumnIfExists removes a column from a table only if it exists.
 func dropColumnIfExists(database *sql.DB, table, column string) error {
+	if cols, ok := validMigrationTargets[table]; !ok || !cols[column] {
+		return fmt.Errorf("drop column: disallowed target %s.%s", table, column)
+	}
 	var count int
 	if err := database.QueryRow(
 		`SELECT COUNT(*) FROM pragma_table_info(?) WHERE name = ?`,

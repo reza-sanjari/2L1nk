@@ -75,16 +75,11 @@ func (r *GateRepository) GetActiveToken() (*gate.GateTokenRecord, error) {
 
 // IncrementUseCount atomically increments use_count for the given ID and returns the new count.
 func (r *GateRepository) IncrementUseCount(id int64) (int, error) {
-	if _, err := r.db.Exec(
-		`UPDATE gate_tokens SET use_count = use_count + 1 WHERE id = ?`, id,
-	); err != nil {
-		return 0, fmt.Errorf("increment use count: %w", err)
-	}
 	var newCount int
 	if err := r.db.QueryRow(
-		`SELECT use_count FROM gate_tokens WHERE id = ?`, id,
+		`UPDATE gate_tokens SET use_count = use_count + 1 WHERE id = ? RETURNING use_count`, id,
 	).Scan(&newCount); err != nil {
-		return 0, fmt.Errorf("increment use count: read back: %w", err)
+		return 0, fmt.Errorf("increment use count: %w", err)
 	}
 	return newCount, nil
 }

@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"time"
+
 	"2L1nk/internal/api/handlers"
 	"2L1nk/internal/config"
 	"2L1nk/internal/db"
@@ -14,6 +16,7 @@ import (
 	"2L1nk/internal/server"
 	"2L1nk/internal/service"
 	"2L1nk/internal/session"
+	"2L1nk/internal/utils"
 
 	"go.uber.org/zap"
 )
@@ -47,6 +50,7 @@ func New(cfg *config.Config, g *gate.Gate, logFile string, suppressStdout bool) 
 	}
 
 	sessionStore := session.NewStore()
+	nonceStore := utils.NewNonceStore(60 * time.Second)
 
 	healthRepo := infradb.NewHealthRepository(database)
 	roomRepo := infradb.NewRoomRepository(database)
@@ -72,8 +76,8 @@ func New(cfg *config.Config, g *gate.Gate, logFile string, suppressStdout bool) 
 
 	startEventConsumer(mainHub, roomSvc, msgSvc, logg)
 
-	handler := handlers.NewHandler(services, mainHub, sessionStore, logg)
-	srv := server.New(cfg, handler, sessionStore)
+	handler := handlers.NewHandler(services, mainHub, sessionStore, logg, nonceStore)
+	srv := server.New(cfg, handler, sessionStore, nonceStore)
 
 	return &App{
 		server: srv,

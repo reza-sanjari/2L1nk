@@ -26,7 +26,7 @@ func (h *Handler) GetRoomKeySlots(c echo.Context) error {
 
 	offset := 0
 	if o := c.QueryParam("offset"); o != "" {
-		if v, err := strconv.Atoi(o); err == nil && v >= 0 {
+		if v, err := strconv.Atoi(o); err == nil && v >= 0 && v <= 1000000 {
 			offset = v
 		}
 	}
