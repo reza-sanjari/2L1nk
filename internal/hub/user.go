@@ -8,6 +8,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
+	"golang.org/x/time/rate"
 )
 
 type User struct {
@@ -19,6 +20,7 @@ type User struct {
 	Websocket        *websocket.Conn
 	PeerMux          sync.Mutex
 	Mode             models.UserMode
+	msgLimiter       *rate.Limiter
 }
 
 func (u *User) ReadPump(inbound chan<- WSMessageEnvelope) error {
@@ -75,5 +77,6 @@ func NewUser(fingerprint string, username string, x25519PublicKey string, websoc
 		Websocket:        websocket,
 		PeerMux:          sync.Mutex{},
 		Mode:             mode,
+		msgLimiter:       rate.NewLimiter(1, 5), // 1 message/second sustained, burst of 5
 	}
 }

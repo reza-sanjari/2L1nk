@@ -16,6 +16,7 @@ import (
 	"2L1nk/internal/api/handlers"
 	"2L1nk/internal/config"
 	"2L1nk/internal/session"
+	"2L1nk/internal/utils"
 )
 
 type Server struct {
@@ -44,11 +45,11 @@ func serveFileFS(c echo.Context, file string, filesystem fs.FS) error {
 	return nil
 }
 
-func New(cfg *config.Config, h *handlers.Handler, s *session.Store) *Server {
+func New(cfg *config.Config, h *handlers.Handler, s *session.Store, ns *utils.NonceStore) *Server {
 	e := echo.New()
 
 	// Register API routes first (highest priority)
-	api.RegisterRoutes(e, h, s)
+	api.RegisterRoutes(e, h, s, ns)
 
 	// Build sub-filesystems from embedded assets
 	webFS, _ := fs.Sub(assets.WebFS, "web")

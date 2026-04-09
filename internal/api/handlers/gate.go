@@ -36,6 +36,11 @@ func (h *Handler) GateAuthorize(c echo.Context) error {
 			"error": "gateToken, publicKey, x25519PublicKey, and username are required",
 		})
 	}
+	if len(req.Username) > 50 {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "username must be 50 characters or fewer",
+		})
+	}
 	if len(req.X25519PublicKey) != 32 {
 		return c.JSON(http.StatusBadRequest, map[string]string{
 			"error": "x25519PublicKey must be 32 bytes",

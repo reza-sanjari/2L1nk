@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -24,7 +25,15 @@ type AuthPayload struct {
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
-		return true
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			return true // non-browser client
+		}
+		u, err := url.Parse(origin)
+		if err != nil {
+			return false
+		}
+		return u.Host == r.Host
 	},
 }
 
@@ -86,7 +95,11 @@ func (h *Handler) Ws(c echo.Context) error {
 		h.logg.Warn("websocket closed: timestamp out of window", zap.String("sessionId", auth.SessionID))
 		return nil
 	}
-	// TODO: add nonce store for full replay prevention
+
+	if !h.nonceStore.Add(auth.Signature) {
+		h.logg.Warn("websocket closed: replayed auth signature", zap.String("sessionId", auth.SessionID))
+		return nil
+	}
 
 	timestampStr := strconv.FormatInt(auth.Timestamp, 10)
 	canonical := utils.WSCanonical(auth.SessionID, timestampStr)
