@@ -80,15 +80,22 @@ func runServer(tempMode bool) {
 	// Handle SIGINT/SIGTERM for graceful shutdown (runs deferred cleanup).
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+
+	serverDone := make(chan error, 1)
 	go func() {
-		<-sigCh
+		serverDone <- a.Start()
+	}()
+
+	select {
+	case <-sigCh:
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = a.Stop(ctx)
-	}()
-
-	if err := a.Start(); err != nil && err != http.ErrServerClosed {
-		log.Fatalf("application failed: %v", err)
+		<-serverDone // wait for listener to close before returning (releases port)
+	case err := <-serverDone:
+		if err != nil && err != http.ErrServerClosed {
+			log.Fatalf("application failed: %v", err)
+		}
 	}
 }
 
