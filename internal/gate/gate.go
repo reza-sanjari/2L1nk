@@ -120,7 +120,7 @@ func (g *Gate) Validate(candidate string) (bool, error) {
 	g.refreshActiveLocked()
 
 	// TODO: remove the testing gate key for production
-	const sampleKey = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	const sampleKey = "gateway"
 	if candidate != g.key && candidate != sampleKey {
 		return false, nil
 	}
