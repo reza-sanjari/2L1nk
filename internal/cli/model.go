@@ -37,6 +37,8 @@ const (
 	screenTunnelDetail
 	screenTunnelAdd
 	screenTunnelLog
+	screenLinks
+	screenLinkDetail
 )
 
 type tunnelStatus int
@@ -74,6 +76,11 @@ type model struct {
 	tunnelRuntimes map[string]*tunnelRuntime
 	tunnelsConfig  TunnelsConfig
 	tunnelsPath    string
+
+	// Links screens
+	linksMenu  linksMenuModel
+	linkDetail linkDetailModel
+	globalIP   string // cached public IP; "" = not yet fetched, "error" = unavailable
 
 	g         *gate.Gate
 	cfg       *config.Config
@@ -144,6 +151,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.tunnelDetail.height = msg.Height
 		m.tunnelAdd.width = msg.Width
 		m.tunnelAdd.height = msg.Height
+		m.linksMenu.width = msg.Width
+		m.linksMenu.height = msg.Height
+		m.linkDetail.width = msg.Width
+		m.linkDetail.height = msg.Height
 		if m.screen == screenLogs {
 			updated, _ := m.logs.Update(msg)
 			m.logs = updated
@@ -192,6 +203,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case screenTunnelLog:
 			updated, cmd := m.tunnelLog.Update(msg)
 			m.tunnelLog = updated
+			return m, cmd
+		case screenLinks:
+			updated, cmd := m.linksMenu.Update(msg)
+			m.linksMenu = updated
+			return m, cmd
+		case screenLinkDetail:
+			updated, cmd := m.linkDetail.Update(msg)
+			m.linkDetail = updated
 			return m, cmd
 		}
 
@@ -261,6 +280,30 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.screen == screenTunnelDetail && m.tunnelDetail.entry.Name == msg.name {
 			m.tunnelDetail.runtime = m.tunnelRuntimes[msg.name]
 		}
+		return m, nil
+
+	case globalIPFetchedMsg:
+		if msg.ip == "" {
+			m.globalIP = "error"
+		} else {
+			m.globalIP = msg.ip
+		}
+		m.linksMenu.globalIP = m.globalIP
+		return m, nil
+
+	case linksDoneMsg:
+		m.screen = screenMenu
+		return m, nil
+
+	case linkSelectedMsg:
+		m.linkDetail = newLinkDetailModel(msg.label, msg.url)
+		m.linkDetail.width = m.width
+		m.linkDetail.height = m.height
+		m.screen = screenLinkDetail
+		return m, nil
+
+	case linkDetailDoneMsg:
+		m.screen = screenLinks
 		return m, nil
 
 	case dbResetDoneMsg:
@@ -361,12 +404,25 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tunnelDetailLogsMsg:
 		rt := m.tunnelRuntimes[msg.name]
 		logPath := ""
+		urlPattern := ""
 		if rt != nil {
 			logPath = rt.logPath
-		} else if entry := m.findTunnel(msg.name); entry != nil {
-			logPath = tunnelLogPath(m.cfg.DBPath, entry.Name)
 		}
-		m.tunnelLog = newTunnelLogModel(msg.name, logPath, m.width, m.height)
+		if entry := m.findTunnel(msg.name); entry != nil {
+			if logPath == "" {
+				logPath = tunnelLogPath(m.cfg.DBPath, entry.Name)
+			}
+			urlPattern = entry.URLPattern
+			if urlPattern == "" {
+				for _, p := range tunnelPresets {
+					if p.Name == entry.Name {
+						urlPattern = p.URLPattern
+						break
+					}
+				}
+			}
+		}
+		m.tunnelLog = newTunnelLogModel(msg.name, logPath, urlPattern, m.width, m.height)
 		m.screen = screenTunnelLog
 		return m, tickCmd()
 
@@ -445,6 +501,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		updated, cmd := m.tunnelLog.Update(msg)
 		m.tunnelLog = updated
 		return m, cmd
+	case screenLinks:
+		updated, cmd := m.linksMenu.Update(msg)
+		m.linksMenu = updated
+		return m, cmd
+	case screenLinkDetail:
+		updated, cmd := m.linkDetail.Update(msg)
+		m.linkDetail = updated
+		return m, cmd
 	}
 
 	return m, nil
@@ -504,6 +568,19 @@ func (m model) handleMenuKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.screen = screenTunnels
 			return m, nil
 
+		case "links":
+			lm := newLinksMenuModel(m.cfg.Port, m.tunnelRuntimes)
+			lm.globalIP = m.globalIP
+			lm.width = m.width
+			lm.height = m.height
+			m.linksMenu = lm
+			m.screen = screenLinks
+			var cmd tea.Cmd
+			if m.globalIP == "" {
+				cmd = cmdFetchGlobalIP()
+			}
+			return m, cmd
+
 		case "nuke":
 			m.nukeScreen = newNukeModel(m.cfg.DBPath, m.logPath, m.pidPath, m.optsPath, m.tunnelsPath, m.serverPID, m.srvState, m.g.Close)
 			m.screen = screenNuke
@@ -538,6 +615,10 @@ func (m model) View() string {
 		return styleBorder.Width(m.width - 4).Render(m.tunnelAdd.View())
 	case screenTunnelLog:
 		return m.tunnelLog.View()
+	case screenLinks:
+		return styleBorder.Width(m.width - 4).Render(m.linksMenu.View())
+	case screenLinkDetail:
+		return styleBorder.Width(m.width - 4).Render(m.linkDetail.View())
 	default:
 		return styleBorder.Width(m.width - 4).Render(m.menu.View())
 	}
