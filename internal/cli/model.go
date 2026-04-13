@@ -680,9 +680,12 @@ func (m *model) cmdStopServer() tea.Cmd {
 	tempServer := m.opts.TempServer
 	dbPath := m.cfg.DBPath
 	logPath := m.logPath
+	tunnelsPath := m.tunnelsPath
 	closeDB := m.g.Close
 
 	return func() tea.Msg {
+		killRunningTunnels(tunnelsPath, dbPath)
+
 		process, err := os.FindProcess(pid)
 		if err == nil {
 			_ = process.Kill()
@@ -833,6 +836,7 @@ func (m *model) cmdResetDB() tea.Cmd {
 	pid := m.serverPID
 	pidPath := m.pidPath
 	dbPath := m.cfg.DBPath
+	tunnelsPath := m.tunnelsPath
 	srvRunning := m.srvState == stateRunning
 	closeDB := m.g.Close
 
@@ -842,6 +846,8 @@ func (m *model) cmdResetDB() tea.Cmd {
 	}
 
 	return func() tea.Msg {
+		killRunningTunnels(tunnelsPath, dbPath)
+
 		if srvRunning {
 			if process, err := os.FindProcess(pid); err == nil {
 				_ = process.Kill()

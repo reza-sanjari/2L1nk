@@ -83,7 +83,10 @@ func (m nukeModel) cmdNuke() tea.Cmd {
 	closeDB := m.closeDB
 
 	return func() tea.Msg {
-		// 1. Kill server and wait for the OS to fully release its file handles.
+		// 1. Kill all running tunnels before wiping their PID files.
+		killRunningTunnels(tunnelsPath, dbPath)
+
+		// 2. Kill server and wait for the OS to fully release its file handles.
 		//    On Windows this uses WaitForSingleObject (not a poll loop).
 		//    On Unix it is a no-op — SIGKILL releases handles immediately.
 		if srvRunning {
@@ -93,12 +96,12 @@ func (m nukeModel) cmdNuke() tea.Cmd {
 			waitForProcessExit(pid)
 		}
 
-		// 2. Close the CLI's own DB connection, releasing the final file lock.
+		// 3. Close the CLI's own DB connection, releasing the final file lock.
 		_ = closeDB()
 
 		var errs []string
 
-		// 3. Delete SQLite files with os.Remove, not SecureDelete.
+		// 4. Delete SQLite files with os.Remove, not SecureDelete.
 		//    SecureDelete overwrites content before deleting; if the delete then
 		//    fails (unexpected lock) it leaves a corrupted file. os.Remove either
 		//    succeeds or fails cleanly. DB content is E2E-encrypted so byte-wiping
@@ -109,14 +112,14 @@ func (m nukeModel) cmdNuke() tea.Cmd {
 			}
 		}
 
-		// 4. SecureDelete non-DB files (logs may contain plaintext server data).
+		// 5. SecureDelete non-DB files (logs may contain plaintext server data).
 		for _, path := range []string{logPath, pidPath, optsPath, tunnelsPath} {
 			if err := utils.SecureDelete(path); err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", path, err))
 			}
 		}
 
-		// 5. SecureDelete all tunnel log files (*.tunnel.log in the DB directory).
+		// 6. SecureDelete all tunnel log files (*.tunnel.log in the DB directory).
 		tunnelLogs, _ := filepath.Glob(filepath.Join(filepath.Dir(dbPath), "*.tunnel.log"))
 		for _, path := range tunnelLogs {
 			if err := utils.SecureDelete(path); err != nil {

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -120,4 +121,25 @@ func resolveCommand(command string, port int) string {
 		return strings.ReplaceAll(command, "{PORT}", "")
 	}
 	return strings.ReplaceAll(command, "{PORT}", fmt.Sprintf("%d", port))
+}
+
+// killRunningTunnels reads PID files for all configured tunnels and kills any
+// alive processes, then removes the PID files.
+func killRunningTunnels(tunnelsPath, dbPath string) {
+	cfg := loadTunnels(tunnelsPath)
+	for _, t := range cfg.Tunnels {
+		pidPath := tunnelPIDPath(dbPath, t.Name)
+		data, err := os.ReadFile(pidPath)
+		if err != nil {
+			continue
+		}
+		pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+		if err != nil {
+			continue
+		}
+		if proc, err := os.FindProcess(pid); err == nil {
+			_ = proc.Kill()
+		}
+		_ = os.Remove(pidPath)
+	}
 }
