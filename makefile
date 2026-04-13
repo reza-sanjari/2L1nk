@@ -46,6 +46,7 @@ help:
 build:
 	mkdir -p $(BUILD_DIR)/linux
 	mkdir -p $(BUILD_DIR)/windows
+	mkdir -p $(BUILD_DIR)/darwin
 
 	# Linux normal build
 	GOOS=linux GOARCH=amd64 \
@@ -55,6 +56,13 @@ build:
 	GOOS=windows GOARCH=amd64 \
 	$(GO) build -o $(BUILD_DIR)/windows/$(BINARY_NAME).exe $(CMD_PATH)
 
+	# macOS normal build (Intel + Apple Silicon)
+	GOOS=darwin GOARCH=amd64 \
+	$(GO) build -o $(BUILD_DIR)/darwin/$(BINARY_NAME)-amd64 $(CMD_PATH)
+
+	GOOS=darwin GOARCH=arm64 \
+	$(GO) build -o $(BUILD_DIR)/darwin/$(BINARY_NAME)-arm64 $(CMD_PATH)
+
 # ==========================
 # Build (Static)
 # ==========================
@@ -62,6 +70,7 @@ build:
 build-static:
 	mkdir -p $(BUILD_DIR)/linux
 	mkdir -p $(BUILD_DIR)/windows
+	mkdir -p $(BUILD_DIR)/darwin
 
 	# Linux static
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
@@ -72,6 +81,15 @@ build-static:
 	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 \
 	$(GO) build -a -ldflags="-w -s" \
 	-o $(BUILD_DIR)/windows/$(BINARY_NAME)-static.exe $(CMD_PATH)
+
+	# macOS static (Intel + Apple Silicon)
+	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 \
+	$(GO) build -a -ldflags="-w -s" \
+	-o $(BUILD_DIR)/darwin/$(BINARY_NAME)-static-amd64 $(CMD_PATH)
+
+	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 \
+	$(GO) build -a -ldflags="-w -s" \
+	-o $(BUILD_DIR)/darwin/$(BINARY_NAME)-static-arm64 $(CMD_PATH)
 
 # ==========================
 # Run
