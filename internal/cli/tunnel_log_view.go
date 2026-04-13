@@ -19,6 +19,7 @@ type tunnelLogModel struct {
 	vp          viewport.Model
 	tunnelName  string
 	logPath     string
+	urlPattern  string // domain suffix to identify the tunnel URL in logs
 	width       int
 	height      int
 	atBottom    bool
@@ -26,7 +27,7 @@ type tunnelLogModel struct {
 	lastURL     string // most recently scanned URL, for deduplication
 }
 
-func newTunnelLogModel(name, logPath string, width, height int) tunnelLogModel {
+func newTunnelLogModel(name, logPath, urlPattern string, width, height int) tunnelLogModel {
 	vp := viewport.New(width, height-4)
 	vp.Style = styleApp
 
@@ -34,6 +35,7 @@ func newTunnelLogModel(name, logPath string, width, height int) tunnelLogModel {
 		vp:         vp,
 		tunnelName: name,
 		logPath:    logPath,
+		urlPattern: urlPattern,
 		width:      width,
 		height:     height,
 		atBottom:   true,
@@ -65,7 +67,8 @@ func (m *tunnelLogModel) refresh() {
 	}
 }
 
-// scanURLs scans all log lines for the most recent https:// URL.
+// scanURLs scans log lines for the tunnel's public URL.
+// If urlPattern is set, only URLs containing that pattern are considered.
 // Returns the URL if a new one is found since last scan.
 func (m *tunnelLogModel) scanURLs() (string, bool) {
 	data, err := os.ReadFile(m.logPath)
@@ -76,8 +79,15 @@ func (m *tunnelLogModel) scanURLs() (string, bool) {
 	lines := strings.Split(string(data), "\n")
 	found := ""
 	for _, line := range lines {
-		if matches := tunnelURLRegex.FindStringSubmatch(line); len(matches) > 0 {
-			found = matches[0]
+		matches := tunnelURLRegex.FindAllString(line, -1)
+		for _, u := range matches {
+			if m.urlPattern == "" || strings.Contains(u, m.urlPattern) {
+				found = u
+				break
+			}
+		}
+		if found != "" {
+			break
 		}
 	}
 
