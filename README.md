@@ -61,3 +61,7 @@
 | 12.3.2026 | 1.6.1 | 7:30 - 11:00  | 3,5     | LBS | Entwurf von Datenbankschema und -struktur           | -                         | -                                   |
 | 13.3.2026 | 1.6.1 | 10:00 - 13:00 | 3,0     | LBS | Entwurf von Schematization und -struktur            | -                         | -                                   |
 | 17.3.2026 | 1.6.2 | 7:30 - 10:00  | 2,5     | LBS | Verbindung der Datenbank mit dem Server             | -                         | -                                   |
+| 24.3.2026 | 1.7.1 | 7:30 - 10:00  | 2,5     | LBS | API unit Test (gate + session )                     | -                         | -                                   |
+| 26.3.2026 | 1.7.2 | 7:30 - 11:00  | 3,5     | LBS | API unit Test (gate + session )                     | -                         | -                                   |
+| 27.3.2026 | 1.8.1 | 10:00 - 13:00 | 3,5     | LBS | Recherche Doku Sicherheit und struktur              | -                         | -                                   |
+| 9.4.2026  | 0.0.0 | 7:30 - 11:00  | 3,5     | LBS | CLI tool                                            | -                         | -                                   |
