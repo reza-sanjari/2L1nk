@@ -634,9 +634,7 @@ main {
     width: 7px;
     height: 7px;
     border-radius: 50%;
-    background: #4ade80;
     flex-shrink: 0;
-    box-shadow: 0 0 5px rgba(74, 222, 128, 0.5);
 }
 
 .maininfo {
@@ -1172,6 +1170,51 @@ button {
     animation: voicePulse 1.5s ease-in-out infinite;
 }
 
+.voice-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: bold;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 0 6px rgba(var(--accent-rgb), 0.5);
+    animation: voicePulse 1.5s ease-in-out infinite;
+}
+
+.voice-avatars-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.voice-avatar-wrapper {
+    position: relative;
+    display: inline-flex;
+    flex-shrink: 0;
+}
+
+.voice-avatar-muted {
+    background: rgba(255, 255, 255, 0.15);
+    animation: none;
+    box-shadow: none;
+    opacity: 0.6;
+}
+
+.voice-mute-icon {
+    position: absolute;
+    bottom: -4px;
+    right: -4px;
+    font-size: 0.6rem;
+    line-height: 1;
+    pointer-events: none;
+}
+
+
 @keyframes voicePulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.4; }
@@ -1407,7 +1450,7 @@ button {
     /* Eingabefeld — font-size:16px verhindert iOS-Zoom */
     .chat-input {
         padding: 10px;
-        padding-bottom: max(10px, env(safe-area-inset-bottom));
+        padding-bottom: max(70px, env(safe-area-inset-bottom, 70px));
         gap: 7px;
     }
 
