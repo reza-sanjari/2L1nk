@@ -186,3 +186,22 @@ type EpochKeysSubmittedRequest struct {
 	Epoch  int64
 	Keys   []KeySlotEntry
 }
+
+// RoomUpdatedPayload is the WS payload for a room_updated event.
+// Structure mirrors the per-room shape returned by GET /rooms so the frontend
+// can update its state without a separate REST call.
+type RoomUpdatedPayload struct {
+	RoomID string           `json:"room_id"`
+	Name   string           `json:"name"`
+	Epoch  int64            `json:"epoch"`
+	Online bool             `json:"online"`
+	Host   *RoomMemberInfo  `json:"host,omitempty"`
+	Users  []RoomMemberInfo `json:"users,omitempty"`
+}
+
+// BroadcastToRoomRequest asks the hub to send pre-marshaled data to all online
+// members of a room. The caller is responsible for marshaling the full WS envelope.
+type BroadcastToRoomRequest struct {
+	RoomID string
+	Data   []byte
+}

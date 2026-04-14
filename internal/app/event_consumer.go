@@ -4,7 +4,9 @@ import (
 	"2L1nk/internal/hub"
 	infradb "2L1nk/internal/infrastructure/db"
 	"2L1nk/internal/logger"
+	"2L1nk/internal/models"
 	"2L1nk/internal/service"
+	"encoding/json"
 	"time"
 
 	"go.uber.org/zap"
@@ -80,6 +82,16 @@ func startEventConsumer(
 					logg.Error("event consumer: failed to update epoch and key creator", zap.Error(err))
 				}
 
+			case hub.HubEventHostTransferred:
+				payload := event.Payload.(hub.HostTransferredPayload)
+				if err := roomSvc.UpdateHostFP(payload.RoomID, payload.NewHostFP); err != nil {
+					logg.Error("event consumer: failed to update host fp", zap.String("roomID", payload.RoomID), zap.Error(err))
+				}
+
+			case hub.HubEventRoomUpdated:
+				payload := event.Payload.(hub.RoomUpdatedEventPayload)
+				broadcastRoomUpdated(payload.RoomID, mainHub, roomSvc, logg)
+
 			case hub.HubEventEpochKeysSubmitted:
 				payload := event.Payload.(hub.EpochKeysSubmittedPayload)
 				now := time.Now().Unix()
@@ -99,4 +111,72 @@ func startEventConsumer(
 			}
 		}
 	}()
+}
+
+// broadcastRoomUpdated builds a room_updated WS payload and sends it to all online
+// members of the room. Uses DB as the authoritative member source (with usernames)
+// and merges in online ephemeral members from the hub.
+// For purely ephemeral rooms (not in DB) it falls back to hub-only state.
+func broadcastRoomUpdated(roomID string, mainHub *hub.Hub, roomSvc *service.RoomService, logg *logger.Logger) {
+	liveRoom := mainHub.GetRoom(roomID)
+	if liveRoom == nil {
+		return // room is offline; no one to notify
+	}
+
+	updPayload := hub.RoomUpdatedPayload{
+		RoomID: liveRoom.RoomID,
+		Name:   liveRoom.Name,
+		Epoch:  liveRoom.Epoch,
+		Online: true,
+		Host:   &liveRoom.Host,
+	}
+
+	dbRoom, err := roomSvc.GetRoomByID(roomID)
+	if err != nil {
+		logg.Error("broadcastRoomUpdated: failed to fetch room from DB", zap.String("roomID", roomID), zap.Error(err))
+		return
+	}
+
+	if dbRoom != nil {
+		// Persistent room: DB is authoritative for the member list (includes offline persistent).
+		members, err := roomSvc.GetRoomMembersWithDetails(roomID)
+		if err != nil {
+			logg.Error("broadcastRoomUpdated: failed to fetch members", zap.String("roomID", roomID), zap.Error(err))
+			return
+		}
+		userList := make([]hub.RoomMemberInfo, 0, len(members))
+		for _, m := range members {
+			userList = append(userList, hub.RoomMemberInfo{
+				Fingerprint:     m.Fingerprint,
+				Username:        m.Username,
+				X25519PublicKey: m.X25519PublicKey,
+				Mode:            models.UserModePersistent,
+			})
+		}
+		// Add online ephemeral members that are not in the DB member list.
+		for _, u := range liveRoom.Users {
+			if u.Mode == models.UserModeEphemeral {
+				userList = append(userList, u)
+			}
+		}
+		updPayload.Users = userList
+	} else {
+		// Ephemeral room: all members are online (ephemerals are removed from hub on disconnect).
+		updPayload.Users = liveRoom.Users
+	}
+
+	payloadBytes, err := json.Marshal(updPayload)
+	if err != nil {
+		logg.Error("broadcastRoomUpdated: failed to marshal payload", zap.String("roomID", roomID), zap.Error(err))
+		return
+	}
+	envelope, err := json.Marshal(map[string]any{
+		"type":    models.RoomUpdated,
+		"payload": json.RawMessage(payloadBytes),
+	})
+	if err != nil {
+		logg.Error("broadcastRoomUpdated: failed to marshal envelope", zap.String("roomID", roomID), zap.Error(err))
+		return
+	}
+	mainHub.BroadcastToRoom <- hub.BroadcastToRoomRequest{RoomID: roomID, Data: envelope}
 }
