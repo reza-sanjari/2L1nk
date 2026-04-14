@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"2L1nk/internal/hub"
+	infradb "2L1nk/internal/infrastructure/db"
 	"2L1nk/internal/models"
 	"2L1nk/internal/service"
 	"2L1nk/internal/session"
@@ -19,25 +20,9 @@ func (h *Handler) AddUsersToRoom(c echo.Context) error {
 
 	h.logg.Debug("add user to room request", zap.String("roomID", roomID), zap.String("memberFP", memberFP), zap.String("callerFP", caller.PublicKeyFingerprint))
 
-	// Validate caller is the host.
-	roomRecord, err := h.services.Room.GetRoomByID(roomID)
-	if err != nil {
-		h.logg.Error("add user to room: failed to fetch room", zap.String("roomID", roomID), zap.Error(err))
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
-	}
-	if roomRecord == nil {
-		h.logg.Debug("add user to room: room not found", zap.String("roomID", roomID))
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "room not found"})
-	}
-	if roomRecord.HostFP != caller.PublicKeyFingerprint {
-		h.logg.Warn("add user to room: forbidden, caller is not the host", zap.String("roomID", roomID), zap.String("callerFP", caller.PublicKeyFingerprint), zap.String("hostFP", roomRecord.HostFP))
-		return c.JSON(http.StatusForbidden, map[string]string{"error": "only the host can add members"})
-	}
-
-	// Resolve the new member's X25519 key and mode.
-	// DB is the primary source: persistent users are always there.
-	// If not in DB, fall back to the hub for online ephemeral users.
-	// AddMemberDirect will silently skip the DB insert for ephemeral users (by design).
+	// Resolve the new member's X25519 key and mode first — needed to decide
+	// whether to promote an ephemeral room to DB (only on persistent member join).
+	// DB is the primary source; fall back to hub for online ephemeral users.
 	var memberX25519Key string
 	var memberMode models.UserMode
 	dbUser, err := h.services.Gate.GetUserByFingerprint(memberFP)
@@ -56,7 +41,67 @@ func (h *Handler) AddUsersToRoom(c echo.Context) error {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "user not found"})
 	}
 
-	// DB first: add member to room_members (silently skips ephemeral users by design).
+	// Resolve the room record. DB is authoritative for persistent rooms.
+	// If not in DB, fall back to the hub for ephemeral (temp-user-created) rooms.
+	roomRecord, err := h.services.Room.GetRoomByID(roomID)
+	if err != nil {
+		h.logg.Error("add user to room: failed to fetch room", zap.String("roomID", roomID), zap.Error(err))
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+	}
+
+	if roomRecord == nil {
+		// Room not in DB — check hub for a live ephemeral room.
+		liveRoomInfo := h.hub.GetRoom(roomID)
+		if liveRoomInfo == nil {
+			h.logg.Debug("add user to room: room not found", zap.String("roomID", roomID))
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "room not found"})
+		}
+		if liveRoomInfo.Host.Fingerprint != caller.PublicKeyFingerprint {
+			h.logg.Warn("add user to room: forbidden, caller is not the host", zap.String("roomID", roomID), zap.String("callerFP", caller.PublicKeyFingerprint), zap.String("hostFP", liveRoomInfo.Host.Fingerprint))
+			return c.JSON(http.StatusForbidden, map[string]string{"error": "only the host can add members"})
+		}
+
+		if memberMode == models.UserModePersistent {
+			// Promote the ephemeral room to DB so persistent data (members, messages,
+			// key slots) can be stored from this point forward.
+			if err := h.services.Room.PromoteEphemeralRoom(
+				roomID,
+				liveRoomInfo.Name,
+				liveRoomInfo.Host.Fingerprint,
+				liveRoomInfo.KeyCreatorFP,
+				liveRoomInfo.Epoch,
+				time.Now().Unix(),
+			); err != nil {
+				h.logg.Error("add user to room: failed to promote ephemeral room", zap.String("roomID", roomID), zap.Error(err))
+				return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+			}
+			h.logg.Info("ephemeral room promoted to persistent", zap.String("roomID", roomID), zap.String("hostFP", liveRoomInfo.Host.Fingerprint))
+			// Re-fetch so the rest of the handler uses the authoritative DB record.
+			roomRecord, err = h.services.Room.GetRoomByID(roomID)
+			if err != nil || roomRecord == nil {
+				h.logg.Error("add user to room: failed to fetch promoted room", zap.String("roomID", roomID), zap.Error(err))
+				return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+			}
+		} else {
+			// Adding an ephemeral user to an ephemeral room — synthesize a record from hub
+			// state so the rest of the handler can proceed without DB knowledge.
+			roomRecord = &infradb.RoomRecord{
+				ID:           liveRoomInfo.RoomID,
+				Name:         liveRoomInfo.Name,
+				CurrentEpoch: liveRoomInfo.Epoch,
+				HostFP:       liveRoomInfo.Host.Fingerprint,
+				KeyCreatorFP: liveRoomInfo.KeyCreatorFP,
+			}
+		}
+	} else {
+		// Persistent room: validate host from DB.
+		if roomRecord.HostFP != caller.PublicKeyFingerprint {
+			h.logg.Warn("add user to room: forbidden, caller is not the host", zap.String("roomID", roomID), zap.String("callerFP", caller.PublicKeyFingerprint), zap.String("hostFP", roomRecord.HostFP))
+			return c.JSON(http.StatusForbidden, map[string]string{"error": "only the host can add members"})
+		}
+	}
+
+	// DB first: add member to room_members (silently skips ephemeral users and ephemeral rooms by design).
 	if err := h.services.Room.AddMemberDirect(roomID, memberFP, time.Now().Unix()); err != nil {
 		h.logg.Error("add user to room: failed to add member to DB", zap.String("roomID", roomID), zap.String("memberFP", memberFP), zap.Error(err))
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
@@ -88,6 +133,9 @@ func (h *Handler) AddUsersToRoom(c echo.Context) error {
 
 	h.logg.Info("user added to room", zap.String("roomID", roomID), zap.String("memberFP", memberFP), zap.Int64("newEpoch", newEpoch))
 
+	liveRoom := h.hub.GetRoom(roomID)
+	h.broadcastRoomUpdated(roomID, newEpoch, liveRoom)
+
 	// Build member list from DB (authoritative, already updated) to avoid
 	// the async hub race and the hub-only-tracks-online-members limitation.
 	members, err := h.services.Room.GetRoomMembersWithDetails(roomID)
@@ -105,7 +153,6 @@ func (h *Handler) AddUsersToRoom(c echo.Context) error {
 			Mode:            models.UserModePersistent,
 		})
 	}
-	liveRoom := h.hub.GetRoom(roomID)
 	if liveRoom != nil {
 		for _, u := range liveRoom.Users {
 			if u.Mode == models.UserModeEphemeral {

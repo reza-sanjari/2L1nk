@@ -186,11 +186,46 @@ func (h *Hub) handleUnregisterUser(user *User) {
 			}
 		}
 
+		// Host transfer: elect a new host if this user was the host.
+		// Runs before the empty-room check so the event fires even when the room empties,
+		// ensuring the DB is updated before the next RestoreRoom.
+		if room.HostFP == user.Fingerprint {
+			newHostFP := h.selectNextByLex(room, user.Fingerprint)
+			room.HostFP = newHostFP
+			if newHostFP != "" {
+				if newHostPtr := h.getUser(newHostFP); newHostPtr != nil {
+					room.Host = newHostPtr
+					room.HostName = newHostPtr.Username
+				} else {
+					room.Host = nil
+					// HostName left stale; will be corrected on next RestoreRoom.
+				}
+			} else {
+				room.Host = nil
+				room.HostName = ""
+			}
+			h.emit(HubEvent{
+				Type:    HubEventHostTransferred,
+				Payload: HostTransferredPayload{RoomID: room.RoomID, NewHostFP: newHostFP},
+			})
+			h.logg.Debug("host transferred on disconnect",
+				zap.String("roomID", room.RoomID),
+				zap.String("oldHostFP", user.Fingerprint),
+				zap.String("newHostFP", newHostFP),
+			)
+		}
+
 		if len(room.Users) == 0 {
 			delete(h.Rooms, room.RoomID)
 			h.logg.Info("room went offline (last user disconnected)", zap.String("roomID", room.RoomID), zap.String("roomName", room.Name), zap.Int("activeRooms", len(h.Rooms)))
 			continue
 		}
+
+		// Notify remaining online members that the room state changed.
+		h.emit(HubEvent{
+			Type:    HubEventRoomUpdated,
+			Payload: RoomUpdatedEventPayload{RoomID: room.RoomID},
+		})
 
 		// Re-assign key creator if this user was the pending key creator.
 		if room.PendingRotation != nil && room.PendingRotation.KeyCreatorFP == user.Fingerprint {
@@ -470,6 +505,16 @@ func (h *Hub) selectNextByLex(room *Room, excludeFP string) string {
 		}
 	}
 	return ""
+}
+
+// handleBroadcastToRoom sends pre-marshaled data to all online members of a room by ID.
+// The caller is responsible for building and marshaling the full WS envelope.
+func (h *Hub) handleBroadcastToRoom(req BroadcastToRoomRequest) {
+	room := h.getRoom(req.RoomID)
+	if room == nil {
+		return
+	}
+	h.sendMessageToRoom(room, req.Data)
 }
 
 // handleBroadcast sends an arbitrary WS envelope to all online members of a room.

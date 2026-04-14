@@ -124,6 +124,8 @@ func (h *Handler) RemoveUserFromRoom(c echo.Context) error {
 
 	h.logg.Info("user removed from room", zap.String("roomID", roomID), zap.String("memberFP", memberFP), zap.Int64("newEpoch", newEpoch))
 
+	h.broadcastRoomUpdated(roomID, newEpoch, h.hub.GetRoom(roomID))
+
 	updatedRoom, err := h.services.Room.GetRoomByID(roomID)
 	if err != nil || updatedRoom == nil {
 		h.logg.Error("remove user from room: failed to fetch updated room", zap.String("roomID", roomID), zap.Error(err))

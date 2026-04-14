@@ -30,4 +30,5 @@ const (
 	KeySlot           WSEventType = "room_key_slot"
 	EpochMismatch     WSEventType = "epoch_mismatch"
 	MessagesPurged    WSEventType = "messages_purged"
+	RoomUpdated       WSEventType = "room_updated"
 )

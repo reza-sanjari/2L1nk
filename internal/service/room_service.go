@@ -55,6 +55,26 @@ func (s *RoomService) CreateRoom(p hub.RoomCreatedPayload) error {
 	return s.repo.AddMember(p.RoomID, p.CreatorFP, p.CreatedAt)
 }
 
+// PromoteEphemeralRoom persists a hub-only room to the DB for the first time.
+// Safe to call multiple times — no-op if the room is already in the DB.
+func (s *RoomService) PromoteEphemeralRoom(roomID, name, hostFP, keyCreatorFP string, epoch, createdAt int64) error {
+	existing, err := s.repo.GetByID(roomID)
+	if err != nil {
+		return err
+	}
+	if existing != nil {
+		return nil
+	}
+	return s.repo.Create(&infradb.RoomRecord{
+		ID:           roomID,
+		Name:         name,
+		CurrentEpoch: epoch,
+		HostFP:       hostFP,
+		KeyCreatorFP: keyCreatorFP,
+		CreatedAt:    createdAt,
+	})
+}
+
 // AddMemberDirect persists a member join to room_members directly (DB-first flow).
 // Skips silently if the room is not in the DB (ephemeral room).
 func (s *RoomService) AddMemberDirect(roomID, memberFP string, joinedAt int64) error {
