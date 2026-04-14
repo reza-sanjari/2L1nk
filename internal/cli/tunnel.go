@@ -46,7 +46,7 @@ var tunnelPresets = []TunnelEntry{
 		Command:     "ssh -R 80:localhost:{PORT} serveo.net",
 		Description: "Serveo reverse SSH tunnel (no login required)",
 		Port:        3847,
-		URLPattern:  "serveo.net",
+		URLPattern:  "serveousercontent.com",
 	},
 	{
 		Name:        "Pinggy",
