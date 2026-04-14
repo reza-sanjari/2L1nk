@@ -96,7 +96,18 @@ func (h *Handler) RemoveUserFromRoom(c echo.Context) error {
 			h.logg.Error("remove user from room: failed to update host", zap.String("roomID", roomID), zap.Error(err))
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		}
-		h.logg.Debug("remove user from room: host transferred", zap.String("roomID", roomID), zap.String("newHostFP", newHostFP))
+		newHostUsername := newHostFP // fallback to FP if new host is offline
+		if u := h.hub.GetOnlineUser(newHostFP); u != nil {
+			newHostUsername = u.Username
+		} else if dbUser, err := h.services.Gate.GetUserByFingerprint(newHostFP); err == nil && dbUser != nil {
+			newHostUsername = dbUser.Username
+		}
+		h.logg.Info("group owner changed",
+			zap.String("roomID", roomID),
+			zap.String("oldHostFP", memberFP),
+			zap.String("newHostFP", newHostFP),
+			zap.String("newHostUsername", newHostUsername),
+		)
 	}
 
 	// Determine new key creator.
