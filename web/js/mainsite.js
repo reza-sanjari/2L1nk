@@ -167,6 +167,8 @@ const peerConnections = new Map(); // FP → RTCPeerConnection
 const pendingIceCandidates = new Map(); // FP → RTCIceCandidate[] (queued before remoteDescription is set)
 let isMuted = false;
 const voiceParticipants = new Set(); // FP von Usern aktuell in Voice
+const mutedUsers = new Set();        // FP von Usern die aktuell gemutet sind
+
 
 const ICE_CONFIG = {
     iceServers: [
@@ -377,6 +379,10 @@ function connectLocalChat() {
             }
         };
         socket.send(JSON.stringify(authPayload));
+        // Re-fetch rooms once WS is up so the sidebar reflects online state
+        // (host field is only populated for live hub rooms, so the manage-members
+        // button would be missing if fetchRooms ran before the WS connected).
+        if (sessionId) fetchRooms();
     };
 
     socket.onmessage = (event) => {
@@ -384,6 +390,21 @@ function connectLocalChat() {
 
         if (envelope.type === "join_room" || envelope.type === "leave_room") {
             fetchRooms();
+            return;
+        }
+
+        if (envelope.type === "room_updated") {
+            const p = envelope.payload;
+            // Update the cached room entry
+            const idx = roomList.findIndex(r => r.room_id === p.room_id);
+            if (idx !== -1) {
+                roomList[idx] = { ...roomList[idx], ...p };
+            }
+            renderFunc(roomList);
+            // If this is the open room, refresh the member list too
+            if (p.room_id === currentRoomId && Array.isArray(p.users)) {
+                renderChatUserList(p.users);
+            }
             return;
         }
 
@@ -429,6 +450,7 @@ function connectLocalChat() {
             handleVoiceLeft(envelope.payload);
             return;
         }
+
 
         if (envelope.type === "message") {
             const payload = envelope.payload;
@@ -545,14 +567,31 @@ function toggleChatUserList() {
     panel.classList.toggle('open');
 }
 
-function renderChatUserList(users) {
+async function renderChatUserList(users) {
     const list = document.getElementById('chat-user-list');
     if (!list) return;
     list.innerHTML = '';
+
+    // Fetch online status from the server.
+    let onlineFPs = new Set();
+    try {
+        const r = await authFetch('GET', '/api/users');
+        if (r?.ok) {
+            const all = await r.json();
+            if (Array.isArray(all)) {
+                onlineFPs = new Set(all.filter(u => u.online).map(u => u.fingerprint));
+            }
+        }
+    } catch {}
+
     (users ?? []).forEach(u => {
+        const isOnline = onlineFPs.has(u.fingerprint);
         const div = document.createElement('div');
         div.className = 'chat-user-entry';
-        div.innerHTML = `<span class="chat-user-dot"></span><span>${escapeHtml(u.username)}</span>`;
+        const dotStyle = isOnline
+            ? 'background:#4ade80;box-shadow:0 0 5px rgba(74,222,128,0.5)'
+            : 'background:rgba(255,255,255,0.2);box-shadow:none';
+        div.innerHTML = `<span class="chat-user-dot" style="${dotStyle}"></span><span>${escapeHtml(u.username)}</span>`;
         list.appendChild(div);
     });
 }
@@ -574,6 +613,7 @@ function clickroom(room) {
                     <span class="chat-header-name">${escapeHtml(room.name)}</span>
                     <div class="chat-header-actions">
                         <div class="voice-controls">
+                            <div id="voice-avatars" class="voice-avatars-row"></div>
                             <button id="voice-join-btn" class="voice-btn" onclick="toggleVoice('${room.room_id}')">🎙️ Voice</button>
                             <button id="voice-mute-btn" class="voice-btn" onclick="toggleMute()" style="display:none">🎤 Stumm</button>
                         </div>
@@ -1194,6 +1234,7 @@ function leaveVoice() {
     document.querySelectorAll('audio[data-voice]').forEach(a => a.remove());
 
     voiceParticipants.clear();
+    mutedUsers.clear();
     voiceRoomId = null;
     isMuted = false;
 
@@ -1212,6 +1253,11 @@ function toggleMute() {
     if (!localStream) return;
     isMuted = !isMuted;
     localStream.getAudioTracks().forEach(t => { t.enabled = !isMuted; });
+    const myFP = sessionStorage.getItem('my_fingerprint');
+    if (isMuted) mutedUsers.add(myFP); else mutedUsers.delete(myFP);
+    // Broadcast mute state to all peers via the existing signal channel (no new Go event needed)
+    const muteSignal = JSON.stringify({ type: 'mute_state', muted: isMuted });
+    peerConnections.forEach((_, targetFP) => sendSignal(voiceRoomId, targetFP, muteSignal));
     updateVoiceUI();
 }
 
@@ -1261,6 +1307,10 @@ async function createPeerConnection(targetFP, roomId, isInitiator) {
             const audio = document.querySelector(`audio[data-voice="${targetFP}"]`);
             if (audio) audio.remove();
             if (peerConnections.get(targetFP) === pc) peerConnections.delete(targetFP);
+            // Remove from voice participants when connection drops (e.g. user closed tab without voice_left)
+            voiceParticipants.delete(targetFP);
+            mutedUsers.delete(targetFP);
+            if (targetFP !== sessionStorage.getItem('my_fingerprint')) updateVoiceUI();
         }
     };
 
@@ -1303,6 +1353,9 @@ async function handleSignalMessage(payload) {
             } else {
                 try { await pc.addIceCandidate(sig.candidate); } catch (e) { console.warn('ICE error:', e); }
             }
+        } else if (sig.type === 'mute_state') {
+            if (sig.muted) mutedUsers.add(fromFP); else mutedUsers.delete(fromFP);
+            if (payload.room_id === currentRoomId) updateVoiceUI();
         }
     } catch (e) {
         console.error('WebRTC signal error:', e);
@@ -1330,6 +1383,7 @@ async function handleVoiceJoined(payload) {
 function handleVoiceLeft(payload) {
     // payload: { room_id, fingerprint }
     voiceParticipants.delete(payload.fingerprint);
+    mutedUsers.delete(payload.fingerprint);
 
     pendingIceCandidates.delete(payload.fingerprint);
     const pc = peerConnections.get(payload.fingerprint);
@@ -1364,14 +1418,6 @@ function updateVoiceUI() {
     if (!list) return;
     list.innerHTML = '';
 
-    if (voiceParticipants.size === 0) {
-        const empty = document.createElement('div');
-        empty.style.cssText = 'padding:10px 14px;font-size:0.75rem;color:rgba(255,255,255,0.3)';
-        empty.textContent = 'Niemand im Voice';
-        list.appendChild(empty);
-        return;
-    }
-
     const myFP = sessionStorage.getItem('my_fingerprint');
     const room = roomList.find(r => r.room_id === currentRoomId);
     const fpToName = {};
@@ -1380,14 +1426,58 @@ function updateVoiceUI() {
         (room.users ?? []).forEach(u => { fpToName[u.fingerprint] = u.username; });
     }
 
+    // Mini-avatars in the header — always clear first, then repopulate
+    const avatarRow = document.getElementById('voice-avatars');
+    if (avatarRow) {
+        avatarRow.innerHTML = '';
+        voiceParticipants.forEach(fp => {
+            // Never show own icon when not in voice
+            if (!isInVoice && fp === myFP) return;
+            const name = fpToName[fp] || fp.slice(0, 8) + '…';
+            const initial = name.charAt(0).toUpperCase();
+            const isMutedFP = mutedUsers.has(fp);
+            const wrapper = document.createElement('span');
+            wrapper.className = 'voice-avatar-wrapper';
+            wrapper.title = name + (isMutedFP ? ' (stumm)' : '');
+            const av = document.createElement('span');
+            av.className = 'voice-avatar' + (isMutedFP ? ' voice-avatar-muted' : '');
+            av.dataset.fp = fp;
+            av.textContent = initial;
+            wrapper.appendChild(av);
+            if (isMutedFP) {
+                const icon = document.createElement('span');
+                icon.className = 'voice-mute-icon';
+                icon.textContent = '🔇';
+                wrapper.appendChild(icon);
+            }
+            avatarRow.appendChild(wrapper);
+        });
+    }
+
     voiceParticipants.forEach(fp => {
         const div = document.createElement('div');
         div.className = 'voice-participant';
         const name = fpToName[fp] || fp.slice(0, 8) + '…';
         const isMe = fp === myFP;
-        div.innerHTML = `<span class="voice-dot"></span><span>${name}${isMe ? ' (Du)' : ''}${isMe && isMuted ? ' 🔇' : ''}</span>`;
+        const isMutedFP = mutedUsers.has(fp);
+        const initial = name.charAt(0).toUpperCase();
+        const av = document.createElement('span');
+        av.className = 'voice-avatar' + (isMutedFP ? ' voice-avatar-muted' : '');
+        av.dataset.fp = fp;
+        av.textContent = initial;
+        div.appendChild(av);
+        const label = document.createElement('span');
+        label.textContent = `${name}${isMe ? ' (Du)' : ''}${isMutedFP ? ' 🔇' : ''}`;
+        div.appendChild(label);
         list.appendChild(div);
     });
+
+    if (voiceParticipants.size === 0) {
+        const empty = document.createElement('div');
+        empty.style.cssText = 'padding:10px 14px;font-size:0.75rem;color:rgba(255,255,255,0.3)';
+        empty.textContent = 'Niemand im Voice';
+        list.appendChild(empty);
+    }
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
