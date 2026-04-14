@@ -186,10 +186,9 @@ func (h *Hub) handleUnregisterUser(user *User) {
 			}
 		}
 
-		// Host transfer: elect a new host if this user was the host.
-		// Runs before the empty-room check so the event fires even when the room empties,
-		// ensuring the DB is updated before the next RestoreRoom.
-		if room.HostFP == user.Fingerprint {
+		// Host transfer: only when an ephemeral host disconnects.
+		// Persistent hosts retain ownership while offline and resume on reconnect.
+		if room.HostFP == user.Fingerprint && user.Mode == models.UserModeEphemeral {
 			newHostFP := h.selectNextByLex(room, user.Fingerprint)
 			room.HostFP = newHostFP
 			if newHostFP != "" {
@@ -208,10 +207,12 @@ func (h *Hub) handleUnregisterUser(user *User) {
 				Type:    HubEventHostTransferred,
 				Payload: HostTransferredPayload{RoomID: room.RoomID, NewHostFP: newHostFP},
 			})
-			h.logg.Debug("host transferred on disconnect",
+			h.logg.Info("group owner changed (host disconnect)",
 				zap.String("roomID", room.RoomID),
 				zap.String("oldHostFP", user.Fingerprint),
+				zap.String("oldHostUsername", user.Username),
 				zap.String("newHostFP", newHostFP),
+				zap.String("newHostUsername", room.HostName),
 			)
 		}
 
@@ -446,15 +447,23 @@ func (h *Hub) handleRemoveFromRoom(req RemoveFromRoomRequest) {
 
 	// Update host if it changed.
 	if req.NewHostFP != "" && req.NewHostFP != room.HostFP {
-		h.logg.Debug("host transferred in hub", zap.String("roomID", req.RoomID), zap.String("from", room.HostFP), zap.String("to", req.NewHostFP))
+		oldHostFP := room.HostFP
 		room.HostFP = req.NewHostFP
+		newHostUsername := req.NewHostFP // fallback to FP if user is offline
 		if u := h.getUser(req.NewHostFP); u != nil {
 			room.Host = u
 			room.HostName = u.Username
+			newHostUsername = u.Username
 		} else {
 			room.Host = nil
 			room.HostName = req.NewHostFP
 		}
+		h.logg.Info("group owner changed (member removed)",
+			zap.String("roomID", req.RoomID),
+			zap.String("oldHostFP", oldHostFP),
+			zap.String("newHostFP", req.NewHostFP),
+			zap.String("newHostUsername", newHostUsername),
+		)
 	}
 
 	prevCreator := room.KeyCreatorFP
