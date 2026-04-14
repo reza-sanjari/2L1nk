@@ -744,8 +744,8 @@ function renderFunc(RenderList) {
                 <div class="chat-item-row">
                     <div style="flex:1;cursor:pointer;" class="room-info">
                         <div style="font-weight:bold;">👤${escapeHtml(room.name)}</div>
-                        <span class="unread-badge" style="display:none"></span>
                     </div>
+                    <span class="unread-badge" style="display:none"></span>
                     ${isHost ? `<span class="room-menu-btn" title="Mitglieder verwalten">llll</span>` : ''}
                 </div>`;
 
