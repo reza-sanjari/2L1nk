@@ -379,10 +379,11 @@ function connectLocalChat() {
             }
         };
         socket.send(JSON.stringify(authPayload));
-        // Re-fetch rooms once WS is up so the sidebar reflects online state
-        // (host field is only populated for live hub rooms, so the manage-members
-        // button would be missing if fetchRooms ran before the WS connected).
-        if (sessionId) fetchRooms();
+        // Re-fetch rooms after a short delay so the hub has time to process
+        // RegisterUser + AddToRoom before the HTTP request arrives.
+        // Without the delay, fetchRooms arrives before the hub registers the user
+        // in room.Users, so host is null and the manage-members button is missing.
+        if (sessionId) setTimeout(fetchRooms, 1200);
     };
 
     socket.onmessage = (event) => {
@@ -398,7 +399,17 @@ function connectLocalChat() {
             // Update the cached room entry
             const idx = roomList.findIndex(r => r.room_id === p.room_id);
             if (idx !== -1) {
-                roomList[idx] = { ...roomList[idx], ...p };
+                const oldRoom = roomList[idx];
+                const merged = { ...oldRoom, ...p };
+                // If the old host was a persistent user, keep them as host in the UI.
+                // Persistent users may reconnect — only ephemeral hosts should trigger
+                // an immediate ownership handover.
+                const oldHostPersistent = oldRoom.host && oldRoom.host.mode !== 0;
+                const hostChanged = p.host && oldRoom.host && p.host.fingerprint !== oldRoom.host.fingerprint;
+                if (oldHostPersistent && hostChanged) {
+                    merged.host = oldRoom.host;
+                }
+                roomList[idx] = merged;
             }
             renderFunc(roomList);
             // If this is the open room, refresh the member list too
@@ -484,7 +495,7 @@ function connectLocalChat() {
             if (payload.sender_name) {
                 const label = document.createElement('div');
                 label.className = 'msg-label';
-                if (envelope.sender_mode === 0) {
+                if (payload.sender_mode === 0) {
                     const badge = document.createElement('span');
                     badge.textContent = '👻';
                     badge.title = 'Temporärer Nutzer';
@@ -537,9 +548,42 @@ async function fetchRooms() {
         }
 
         roomList = (await response.json()).rooms ?? [];
+
+        // Cache known host fingerprints so offline rooms still show the edit button.
+        roomList.forEach(r => {
+            if (r.host?.fingerprint) {
+                localStorage.setItem(`2l1nk_host_${r.room_id}`, r.host.fingerprint);
+            }
+        });
+
+        // For rooms the server returned without a host (hub race or room offline),
+        // fall back to the cached host fingerprint. Mode is always 1 (persistent)
+        // because ephemeral hosts never survive a reload anyway.
+        roomList = roomList.map(r => {
+            if (!r.host) {
+                const cached = localStorage.getItem(`2l1nk_host_${r.room_id}`);
+                if (cached) return { ...r, host: { fingerprint: cached, mode: 1 } };
+            }
+            return r;
+        });
+
         renderFunc(roomList);
         const cr = roomList.find(r => r.room_id === currentRoomId);
         if (cr) renderChatUserList(cr.users);
+
+        // Timing race: if any room still has no host after the cache fill,
+        // the hub hasn't settled yet. Retry up to 3 times, 700 ms apart.
+        const myFP = sessionStorage.getItem('my_fingerprint');
+        if (roomList.some(r => !r.host) && myFP) {
+            fetchRooms._retries = (fetchRooms._retries ?? 0);
+            if (fetchRooms._retries < 3 && !fetchRooms._retryPending) {
+                fetchRooms._retries++;
+                fetchRooms._retryPending = true;
+                setTimeout(() => { fetchRooms._retryPending = false; fetchRooms(); }, 700);
+            }
+        } else {
+            fetchRooms._retries = 0;
+        }
     } catch (error) {
 
         console.error("Fehler beim Abrufen der Räume:", error);
@@ -1005,7 +1049,6 @@ async function deleteGroup(roomId) {
 }
 function sendMessage(roomID) {
     const plaintext = document.getElementById('schreibnachricht').value.trim();
-    document.getElementById('schreibnachricht').value = "";
     if (!plaintext) return;
 
     if (!socket || socket.readyState !== WebSocket.OPEN) {
@@ -1019,6 +1062,8 @@ function sendMessage(roomID) {
         return;
     }
 
+    document.getElementById('schreibnachricht').value = "";
+
     const encrypted = AppCrypto.encryptMessage(plaintext, roomKey);
     const ciphertext = JSON.stringify(encrypted); // { nonce, ciphertext } als String
 
@@ -1029,7 +1074,8 @@ function sendMessage(roomID) {
             room_id: roomID,
             epoch: currentRoomEpoch,
             ciphertext,
-            sender_name: sessionStorage.getItem('username')
+            sender_name: sessionStorage.getItem('username'),
+            sender_mode: Number(sessionStorage.getItem('my_mode') ?? 1)
         }
     }));
     send(plaintext); // eigene Nachricht lokal als Klartext anzeigen
@@ -1038,6 +1084,7 @@ function sendMessage(roomID) {
 function send(ciphertext) {
     if (ciphertext === "") return;
     const chatEl = document.getElementById('chat');
+    if (!chatEl) return;
     const msg = document.createElement('div');
     msg.className = 'bubble sent';
     msg.innerText = ciphertext;
@@ -1070,6 +1117,9 @@ async function whoAmI() {
             const data = await res.json();
             if (data.publicFingerPrint) {
                 sessionStorage.setItem('my_fingerprint', data.publicFingerPrint);
+            }
+            if (data.mode !== undefined) {
+                sessionStorage.setItem('my_mode', data.mode);
             }
         }
     } catch (e) {
