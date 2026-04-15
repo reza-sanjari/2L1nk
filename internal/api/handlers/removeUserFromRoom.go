@@ -27,7 +27,8 @@ func (h *Handler) RemoveUserFromRoom(c echo.Context) error {
 		h.logg.Debug("remove user from room: room not found", zap.String("roomID", roomID))
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "room not found"})
 	}
-	if roomRecord.HostFP != caller.PublicKeyFingerprint {
+	isSelf := memberFP == caller.PublicKeyFingerprint
+	if !isSelf && roomRecord.HostFP != caller.PublicKeyFingerprint {
 		h.logg.Warn("remove user from room: forbidden, caller is not the host", zap.String("roomID", roomID), zap.String("callerFP", caller.PublicKeyFingerprint), zap.String("hostFP", roomRecord.HostFP))
 		return c.JSON(http.StatusForbidden, map[string]string{"error": "only the host can remove members"})
 	}
