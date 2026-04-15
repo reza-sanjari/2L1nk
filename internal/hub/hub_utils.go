@@ -153,3 +153,16 @@ func (h *Hub) GetPendingRotation(roomID string) *PendingRotation {
 	}
 	return nil
 }
+
+// GetMemberRooms returns the IDs of all hub rooms where fp appears in MemberModes
+// (i.e. is a known member, regardless of whether they are currently online).
+// Used on WS reconnect to re-slot users into their active rooms.
+func (h *Hub) GetMemberRooms(fp string) []string {
+	var ids []string
+	for _, room := range h.Rooms {
+		if _, ok := room.MemberModes[fp]; ok {
+			ids = append(ids, room.RoomID)
+		}
+	}
+	return ids
+}
