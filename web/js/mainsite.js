@@ -1851,7 +1851,7 @@ async function _runMessageSearch(query, resultsEl) {
                 }
             }
 
-            const res = await authFetch('GET', `/api/rooms/${room.room_id}/messages?limit=100`);
+            const res = await authFetch('GET', `/api/rooms/${room.room_id}/messages`);
             if (!res.ok) return;
             const data = await res.json();
             for (const msg of (data.messages ?? [])) {
