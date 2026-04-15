@@ -1629,14 +1629,20 @@ async function handleVoiceJoined(payload) {
     const myFP = sessionStorage.getItem('my_fingerprint');
 
     if (payload.voice_users) {
+        // Own join confirmation — backend sends us the list of already-connected participants.
+        // Add them and initiate a peer connection to each one.
         payload.voice_users.forEach(fp => voiceParticipants.add(fp));
+        if (voiceRoomId === payload.room_id) {
+            for (const fp of payload.voice_users) {
+                await createPeerConnection(fp, voiceRoomId, true);
+            }
+        }
     } else {
+        // Someone else joined — add them and initiate connection if we're already in voice.
         voiceParticipants.add(payload.fingerprint);
-    }
-
-    // If we're in voice in this room and someone else joined, initiate connection
-    if (voiceRoomId === payload.room_id && payload.fingerprint !== myFP) {
-        await createPeerConnection(payload.fingerprint, voiceRoomId, true);
+        if (voiceRoomId === payload.room_id && payload.fingerprint !== myFP) {
+            await createPeerConnection(payload.fingerprint, voiceRoomId, true);
+        }
     }
 
     if (payload.room_id === currentRoomId) updateVoiceUI();
