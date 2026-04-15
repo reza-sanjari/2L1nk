@@ -32,6 +32,7 @@ func RunMigrations(database *sql.DB) error {
 			public_key        TEXT    NOT NULL,
 			x25519_public_key TEXT    NOT NULL DEFAULT '',
 			username          TEXT,
+			mode              INTEGER NOT NULL DEFAULT 1,
 			created_at        INTEGER NOT NULL
 		)`,
 
@@ -111,7 +112,7 @@ func RunMigrations(database *sql.DB) error {
 	if err := addColumnIfNotExists(database, "rooms", "name", "TEXT"); err != nil {
 		return err
 	}
-	if err := dropColumnIfExists(database, "users", "mode"); err != nil {
+	if err := addColumnIfNotExists(database, "users", "mode", "INTEGER NOT NULL DEFAULT 1"); err != nil {
 		return err
 	}
 	if err := addColumnIfNotExists(database, "users", "x25519_public_key", "TEXT NOT NULL DEFAULT ''"); err != nil {

@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/labstack/echo/v4"
 	"2L1nk/internal/session"
+	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 )
 

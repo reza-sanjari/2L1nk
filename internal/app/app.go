@@ -67,7 +67,7 @@ func New(cfg *config.Config, g *gate.Gate, logFile string, suppressStdout bool) 
 	healthSvc := service.NewHealthService(healthRepo, logg)
 	gateSvc := service.NewGateService(g, sessionStore, userRepo, logg)
 	roomSvc := service.NewRoomService(roomRepo, logg)
-	msgSvc := service.NewMessageService(msgRepo, roomRepo, logg)
+	msgSvc := service.NewMessageService(msgRepo, logg)
 
 	services := service.NewContainer(healthSvc, gateSvc, roomSvc, msgSvc)
 

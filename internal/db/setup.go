@@ -1,8 +1,8 @@
 package db
 
 import (
-	"database/sql"
 	"2L1nk/internal/logger"
+	"database/sql"
 
 	"go.uber.org/zap"
 )
