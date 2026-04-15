@@ -113,12 +113,24 @@ func (h *Handler) Ws(c echo.Context) error {
 
 	h.hub.RegisterUser <- newUser
 
-	// Case 1: slot this user into any hub rooms they're already a DB member of.
-	// Also restore offline rooms where this user is the pending key creator.
+	// Case 1a: slot this user into any hub rooms where they are a known member
+	// (present in MemberModes). Applies to all user modes — persistent users who
+	// briefly disconnected and ephemeral users whose key was retained in hub state
+	// are both re-slotted so future rotations can include them.
+	for _, roomID := range h.hub.GetMemberRooms(newUser.Fingerprint) {
+		h.hub.AddToRoom <- hub.AddToRoomRequest{RoomID: roomID, User: newUser}
+	}
+
+	// Case 1b: for persistent users, also restore offline DB rooms where this user
+	// is the pending key creator, and re-slot into any online DB rooms not yet caught
+	// by Case 1a (e.g. rooms that went offline and were reloaded while user was away).
 	if activeUser.Mode == models.UserModePersistent {
 		if dbRooms, err := h.services.Room.GetUserRooms(activeUser.PublicKeyFingerprint); err == nil {
 			for _, dbRoom := range dbRooms {
 				if h.hub.GetRoom(dbRoom.ID) != nil {
+					// Room is already online — AddToRoom in Case 1a already handled it if
+					// the user was in MemberModes. Send again only if not already a known
+					// member (e.g. room was restored after a hub restart).
 					h.hub.AddToRoom <- hub.AddToRoomRequest{RoomID: dbRoom.ID, User: newUser}
 				} else if dbRoom.KeyCreatorFP == activeUser.PublicKeyFingerprint {
 					// Room is offline but this user is the key creator — restore it so they

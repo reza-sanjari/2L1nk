@@ -167,6 +167,9 @@ func (h *Hub) handleRegisterUser(user *User) {
 // If a room becomes empty it is removed from h.Rooms (auto-offline) but kept in DB.
 // If the user was the pending key creator, a new online key creator is selected and
 // the rotation is re-broadcast for the same epoch (event emitted for DB persistence).
+// MemberPublicKeys and MemberModes are intentionally NOT deleted on disconnect so that
+// the member is included in future rotation payloads and can be re-slotted on reconnect.
+// They are removed only on explicit leave (handleRemoveFromRoom).
 func (h *Hub) handleUnregisterUser(user *User) {
 	delete(h.Users, user.Fingerprint)
 	for _, room := range h.Rooms {
@@ -174,8 +177,6 @@ func (h *Hub) handleUnregisterUser(user *User) {
 			continue
 		}
 		delete(room.Users, user.Fingerprint)
-		delete(room.MemberPublicKeys, user.Fingerprint)
-		delete(room.MemberModes, user.Fingerprint)
 
 		// Voice cleanup: auto-broadcast voice_left if disconnecting user was in voice.
 		// Must run before the room-offline check; sendMessageToRoom needs room.Users.
@@ -284,7 +285,10 @@ func (h *Hub) handleJoinRoom(req RoomMembersChangeRequest) {
 
 // handleAddToRoom adds a live user to an existing hub room with no event and no DB change.
 // Used on WS connect (Case 1) to slot the user into rooms already active in the hub.
-// If the user is the pending key creator, re-sends the rotation WS to them.
+// If there is a pending rotation:
+//   - and this user IS the key creator: re-sends the rotation WS directly to them.
+//   - and this user is a regular member: re-signals the key creator so they can include
+//     the newly online member in their key submission.
 func (h *Hub) handleAddToRoom(req AddToRoomRequest) {
 	room := h.getRoom(req.RoomID)
 	if room == nil {
@@ -295,9 +299,15 @@ func (h *Hub) handleAddToRoom(req AddToRoomRequest) {
 	room.MemberModes[req.User.Fingerprint] = req.User.Mode
 	h.logg.Debug("user added to active room on connect", zap.String("roomID", req.RoomID), zap.String("user", req.User.Fingerprint))
 
-	// If this user is the pending key creator, resend the rotation WS to them.
-	if room.PendingRotation != nil && room.PendingRotation.KeyCreatorFP == req.User.Fingerprint {
-		h.sendRotationToUser(req.User, room)
+	if room.PendingRotation != nil {
+		if room.PendingRotation.KeyCreatorFP == req.User.Fingerprint {
+			// This user is the pending key creator — resend the rotation WS to them.
+			h.sendRotationToUser(req.User, room)
+		} else if creator := h.getUser(room.PendingRotation.KeyCreatorFP); creator != nil {
+			// A regular member came online mid-rotation — re-signal the key creator so
+			// they include this member in their encrypted key submission.
+			h.sendRotationToUser(creator, room)
+		}
 	}
 }
 
