@@ -822,7 +822,7 @@ func (h *Hub) handleSignal(msg WSMessageEnvelope) {
 		h.logg.Error("handleSignal: failed to marshal envelope", zap.Error(err))
 		return
 	}
-	h.sendToUser(target, envelope)
+	h.sendToUserPriority(target, envelope)
 	h.logg.Debug("signal forwarded", zap.String("roomID", payload.RoomID), zap.String("from", msg.Sender.Fingerprint), zap.String("to", payload.TargetFP))
 }
 
@@ -875,7 +875,7 @@ func (h *Hub) handleVoiceJoined(msg WSMessageEnvelope) {
 		h.logg.Error("handleVoiceJoined: failed to marshal joiner envelope", zap.Error(err))
 		return
 	}
-	h.sendToUser(msg.Sender, joinerEnvelope)
+	h.sendToUserPriority(msg.Sender, joinerEnvelope)
 
 	// Broadcast to all other room members (no voice_users field).
 	broadcastPayload, err := json.Marshal(VoiceJoinedPayloadOutbound{
@@ -898,7 +898,7 @@ func (h *Hub) handleVoiceJoined(msg WSMessageEnvelope) {
 		if fp == msg.Sender.Fingerprint {
 			continue
 		}
-		h.sendToUser(u, broadcastEnvelope)
+		h.sendToUserPriority(u, broadcastEnvelope)
 	}
 
 	h.logg.Info("voice joined", zap.String("roomID", payload.RoomID), zap.String("userFP", msg.Sender.Fingerprint), zap.Int("existingVoiceUsers", len(existingFPs)))
@@ -955,6 +955,29 @@ func (h *Hub) sendToUser(u *User, data []byte) {
 	case u.OutGoingMessages <- data:
 	default:
 		h.logg.Warn("outgoing channel full, dropping message to user", zap.String("userFP", u.Fingerprint))
+	}
+}
+
+// sendToUserPriority delivers a message to a user's outgoing channel, blocking
+// up to 200ms if the channel is full. Used for WebRTC signaling and voice
+// presence events where silent drops cause mesh establishment to fail. If the
+// timeout is exceeded the user is considered unreachable and is disconnected
+// so the frontend reconnects rather than operating on a stale WS.
+func (h *Hub) sendToUserPriority(u *User, data []byte) {
+	select {
+	case u.OutGoingMessages <- data:
+		return
+	default:
+	}
+	timer := time.NewTimer(200 * time.Millisecond)
+	defer timer.Stop()
+	select {
+	case u.OutGoingMessages <- data:
+	case <-timer.C:
+		h.logg.Warn("priority send timed out, closing ws", zap.String("userFP", u.Fingerprint))
+		u.PeerMux.Lock()
+		_ = u.Websocket.Close()
+		u.PeerMux.Unlock()
 	}
 }
 

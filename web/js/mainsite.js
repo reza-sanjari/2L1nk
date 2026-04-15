@@ -170,27 +170,32 @@ function formatTime(unixSeconds) {
 let voiceRoomId = null;
 let localStream = null;
 const peerConnections = new Map(); // FP → RTCPeerConnection
-const pendingIceCandidates = new Map(); // FP → RTCIceCandidate[] (queued before remoteDescription is set)
+const peerStates = new Map();      // FP → { makingOffer, ignoreOffer, polite, roomId, iceRestartTimer }
+const pendingIceCandidates = new Map(); // FP → RTCIceCandidate[] (queued before remoteDescription or PC creation)
 let isMuted = false;
 const voiceParticipants = new Set(); // FP von Usern aktuell in Voice
 const mutedUsers = new Set();        // FP von Usern die aktuell gemutet sind
 
-
-const ICE_CONFIG = {
+const DEFAULT_ICE_CONFIG = {
     iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
-        {
-            urls: [
-                'turn:openrelay.metered.ca:80',
-                'turn:openrelay.metered.ca:443',
-                'turn:openrelay.metered.ca:443?transport=tcp'
-            ],
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-        }
     ]
 };
+let ICE_CONFIG = DEFAULT_ICE_CONFIG;
+
+async function loadIceConfig() {
+    try {
+        const res = await fetch('/api/ice-config', { cache: 'no-store' });
+        if (!res.ok) throw new Error('ice-config status ' + res.status);
+        const cfg = await res.json();
+        if (cfg && Array.isArray(cfg.iceServers) && cfg.iceServers.length > 0) {
+            ICE_CONFIG = cfg;
+        }
+    } catch (e) {
+        console.warn('ice-config fetch failed, using default STUN', e);
+    }
+}
 
 // ============================================================
 // CRYPTO MODULE — via tweetnacl
@@ -1484,8 +1489,10 @@ function leaveVoice() {
     const roomId = voiceRoomId;
 
     peerConnections.forEach((_, fp) => pendingIceCandidates.delete(fp));
+    peerStates.forEach((s) => { if (s.iceRestartTimer) clearTimeout(s.iceRestartTimer); });
     peerConnections.forEach((pc) => pc.close());
     peerConnections.clear();
+    peerStates.clear();
 
     if (localStream) {
         localStream.getTracks().forEach(t => t.stop());
@@ -1528,29 +1535,41 @@ async function flushPendingIceCandidates(fp) {
     if (!candidates) return;
     pendingIceCandidates.delete(fp);
     const pc = peerConnections.get(fp);
-    if (!pc) return;
+    if (!pc || !pc.remoteDescription) {
+        // No PC or description yet — put them back.
+        if (candidates.length) pendingIceCandidates.set(fp, candidates);
+        return;
+    }
+    const state = peerStates.get(fp);
     for (const candidate of candidates) {
-        try { await pc.addIceCandidate(candidate); } catch (e) { /* stale candidate, ignore */ }
+        try { await pc.addIceCandidate(candidate); }
+        catch (e) { if (!state?.ignoreOffer) console.warn('ICE error (flush):', e); }
     }
 }
 
-async function createPeerConnection(targetFP, roomId, isInitiator) {
-    if (peerConnections.has(targetFP)) {
-        peerConnections.get(targetFP).close();
-    }
+function ensurePeerConnection(remoteFP, roomId) {
+    const existing = peerConnections.get(remoteFP);
+    if (existing) return existing;
 
     const pc = new RTCPeerConnection(ICE_CONFIG);
-    peerConnections.set(targetFP, pc);
+    peerConnections.set(remoteFP, pc);
+
+    const myFP = sessionStorage.getItem('my_fingerprint') || '';
+    // Perfect-negotiation "polite" rule: deterministic by fingerprint compare.
+    // The peer with the lexicographically larger fingerprint is polite (rolls back on glare).
+    const polite = myFP > remoteFP;
+    const state = { makingOffer: false, ignoreOffer: false, polite, roomId, iceRestartTimer: null };
+    peerStates.set(remoteFP, state);
 
     if (localStream) {
         localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
     }
 
     pc.ontrack = (event) => {
-        let audio = document.querySelector(`audio[data-voice="${targetFP}"]`);
+        let audio = document.querySelector(`audio[data-voice="${remoteFP}"]`);
         if (!audio) {
             audio = document.createElement('audio');
-            audio.dataset.voice = targetFP;
+            audio.dataset.voice = remoteFP;
             audio.autoplay = true;
             document.body.appendChild(audio);
         }
@@ -1560,28 +1579,57 @@ async function createPeerConnection(targetFP, roomId, isInitiator) {
 
     pc.onicecandidate = (event) => {
         if (event.candidate) {
-            sendSignal(roomId, targetFP, { type: 'ice', candidate: event.candidate });
+            sendSignal(roomId, remoteFP, { type: 'ice', candidate: event.candidate });
+        }
+    };
+
+    pc.onnegotiationneeded = async () => {
+        try {
+            state.makingOffer = true;
+            await pc.setLocalDescription();
+            if (pc.localDescription) {
+                sendSignal(roomId, remoteFP, { type: pc.localDescription.type, sdp: pc.localDescription.sdp });
+            }
+        } catch (e) {
+            console.error('negotiationneeded error', e);
+        } finally {
+            state.makingOffer = false;
+        }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+        if (pc.iceConnectionState === 'failed') {
+            try { pc.restartIce(); } catch (e) { console.warn('restartIce failed', e); }
+        } else if (pc.iceConnectionState === 'disconnected') {
+            if (state.iceRestartTimer) clearTimeout(state.iceRestartTimer);
+            state.iceRestartTimer = setTimeout(() => {
+                if (pc.iceConnectionState === 'disconnected') {
+                    try { pc.restartIce(); } catch (e) { console.warn('restartIce failed', e); }
+                }
+            }, 5000);
+        } else if (state.iceRestartTimer) {
+            clearTimeout(state.iceRestartTimer);
+            state.iceRestartTimer = null;
         }
     };
 
     pc.onconnectionstatechange = () => {
-        if (['disconnected', 'failed', 'closed'].includes(pc.connectionState)) {
-            const audio = document.querySelector(`audio[data-voice="${targetFP}"]`);
+        if (['failed', 'closed'].includes(pc.connectionState)) {
+            const audio = document.querySelector(`audio[data-voice="${remoteFP}"]`);
             if (audio) audio.remove();
-            if (peerConnections.get(targetFP) === pc) peerConnections.delete(targetFP);
-            // Remove from voice participants when connection drops (e.g. user closed tab without voice_left)
-            voiceParticipants.delete(targetFP);
-            mutedUsers.delete(targetFP);
-            if (targetFP !== sessionStorage.getItem('my_fingerprint')) updateVoiceUI();
+            if (peerConnections.get(remoteFP) === pc) {
+                peerConnections.delete(remoteFP);
+                peerStates.delete(remoteFP);
+                pendingIceCandidates.delete(remoteFP);
+            }
+            voiceParticipants.delete(remoteFP);
+            mutedUsers.delete(remoteFP);
+            if (remoteFP !== myFP) updateVoiceUI();
         }
     };
 
-    if (isInitiator) {
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        sendSignal(roomId, targetFP, { type: 'offer', sdp: offer.sdp });
-    }
-
+    // Drain any ICE candidates that arrived before PC existed (remoteDescription still null — they'll be re-queued).
+    flushPendingIceCandidates(remoteFP);
     return pc;
 }
 
@@ -1593,27 +1641,40 @@ async function handleSignalMessage(payload) {
     const sig = payload.signal;
 
     try {
-        if (sig.type === 'offer') {
-            const pc = await createPeerConnection(fromFP, voiceRoomId, false);
-            await pc.setRemoteDescription({ type: 'offer', sdp: sig.sdp });
-            await flushPendingIceCandidates(fromFP);
-            const answer = await pc.createAnswer();
-            await pc.setLocalDescription(answer);
-            sendSignal(voiceRoomId, fromFP, { type: 'answer', sdp: answer.sdp });
-        } else if (sig.type === 'answer') {
-            const pc = peerConnections.get(fromFP);
-            if (pc) {
-                await pc.setRemoteDescription({ type: 'answer', sdp: sig.sdp });
-                await flushPendingIceCandidates(fromFP);
+        if (sig.type === 'offer' || sig.type === 'answer') {
+            const pc = ensurePeerConnection(fromFP, voiceRoomId);
+            const state = peerStates.get(fromFP);
+            const description = { type: sig.type, sdp: sig.sdp };
+            const offerCollision = sig.type === 'offer' && (state.makingOffer || pc.signalingState !== 'stable');
+            state.ignoreOffer = !state.polite && offerCollision;
+            if (state.ignoreOffer) return;
+            if (offerCollision) {
+                // Polite peer: rollback local offer, then accept remote.
+                await Promise.all([
+                    pc.setLocalDescription({ type: 'rollback' }).catch(() => {}),
+                    pc.setRemoteDescription(description),
+                ]);
+            } else {
+                await pc.setRemoteDescription(description);
             }
+            if (sig.type === 'offer') {
+                await pc.setLocalDescription();
+                if (pc.localDescription) {
+                    sendSignal(voiceRoomId, fromFP, { type: pc.localDescription.type, sdp: pc.localDescription.sdp });
+                }
+            }
+            await flushPendingIceCandidates(fromFP);
         } else if (sig.type === 'ice') {
             const pc = peerConnections.get(fromFP);
-            if (!pc) return;
-            if (!pc.remoteDescription) {
+            if (!pc || !pc.remoteDescription) {
                 if (!pendingIceCandidates.has(fromFP)) pendingIceCandidates.set(fromFP, []);
                 pendingIceCandidates.get(fromFP).push(sig.candidate);
-            } else {
-                try { await pc.addIceCandidate(sig.candidate); } catch (e) { console.warn('ICE error:', e); }
+                return;
+            }
+            try { await pc.addIceCandidate(sig.candidate); }
+            catch (e) {
+                const state = peerStates.get(fromFP);
+                if (!state?.ignoreOffer) console.warn('ICE error:', e);
             }
         } else if (sig.type === 'mute_state') {
             if (sig.muted) mutedUsers.add(fromFP); else mutedUsers.delete(fromFP);
@@ -1634,9 +1695,18 @@ async function handleVoiceJoined(payload) {
         voiceParticipants.add(payload.fingerprint);
     }
 
-    // If we're in voice in this room and someone else joined, initiate connection
-    if (voiceRoomId === payload.room_id && payload.fingerprint !== myFP) {
-        await createPeerConnection(payload.fingerprint, voiceRoomId, true);
+    // If we're in voice in this room, ensure a peer connection with every relevant peer.
+    // Both sides call ensurePeerConnection; addTrack triggers negotiationneeded and the
+    // polite/impolite rule resolves any offer glare.
+    if (voiceRoomId === payload.room_id) {
+        if (payload.voice_users) {
+            // We just joined — open a PC to every existing voice participant.
+            payload.voice_users.forEach(fp => {
+                if (fp !== myFP) ensurePeerConnection(fp, voiceRoomId);
+            });
+        } else if (payload.fingerprint !== myFP) {
+            ensurePeerConnection(payload.fingerprint, voiceRoomId);
+        }
     }
 
     if (payload.room_id === currentRoomId) updateVoiceUI();
@@ -1648,6 +1718,9 @@ function handleVoiceLeft(payload) {
     mutedUsers.delete(payload.fingerprint);
 
     pendingIceCandidates.delete(payload.fingerprint);
+    const state = peerStates.get(payload.fingerprint);
+    if (state?.iceRestartTimer) clearTimeout(state.iceRestartTimer);
+    peerStates.delete(payload.fingerprint);
     const pc = peerConnections.get(payload.fingerprint);
     if (pc) {
         pc.close();
@@ -1745,6 +1818,7 @@ function updateVoiceUI() {
 window.addEventListener('DOMContentLoaded', async () => {
     Settings.apply(Settings.load());
     await whoAmI();
+    loadIceConfig();
     connectLocalChat();
     fetchRooms();
 });
