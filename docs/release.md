@@ -6,8 +6,8 @@ Binaries are never committed to git. They are uploaded as assets to a GitHub Rel
 
 | Architecture | Linux | Windows | macOS |
 |---|---|---|---|
-| **x86-64** (64-bit) | `2L1nk-linux-x86-64` | `2L1nk-windows-x86-64.exe` | `2L1nk-darwin-x86-64` |
-| **ARM64** (64-bit) | `2L1nk-linux-arm64` | `2L1nk-windows-arm64.exe` | `2L1nk-darwin-arm64` |
+| **x86-64** (64-bit) | [`2L1nk-linux-x86-64`](https://github.com/LBS-Eibiswald-APC/Team9_SanjariReza_KirschFlorian_2L1nk/releases/download/vX.X.X/2L1nk-linux-x86-64) | [`2L1nk-windows-x86-64.exe`](https://github.com/LBS-Eibiswald-APC/Team9_SanjariReza_KirschFlorian_2L1nk/releases/download/vX.X.X/2L1nk-windows-x86-64.exe) | [`2L1nk-darwin-x86-64`](https://github.com/LBS-Eibiswald-APC/Team9_SanjariReza_KirschFlorian_2L1nk/releases/download/vX.X.X/2L1nk-darwin-x86-64) |
+| **ARM64** (64-bit) | [`2L1nk-linux-arm64`](https://github.com/LBS-Eibiswald-APC/Team9_SanjariReza_KirschFlorian_2L1nk/releases/download/vX.X.X/2L1nk-linux-arm64) | [`2L1nk-windows-arm64.exe`](https://github.com/LBS-Eibiswald-APC/Team9_SanjariReza_KirschFlorian_2L1nk/releases/download/vX.X.X/2L1nk-windows-arm64.exe) | [`2L1nk-darwin-arm64`](https://github.com/LBS-Eibiswald-APC/Team9_SanjariReza_KirschFlorian_2L1nk/releases/download/vX.X.X/2L1nk-darwin-arm64) |
 
 > **x86-64** — most desktops, laptops, and cloud VMs (Intel Core, AMD Ryzen, etc.)
 > **ARM64** — Apple Silicon (M1/M2/M3), AWS Graviton, Raspberry Pi 4+, Windows on ARM
@@ -99,5 +99,5 @@ gh release create v1.0.0 \
 
 Users can always find the latest release at:
 ```
-https://github.com/yourname/2L1nk/releases/latest
+https://github.com/LBS-Eibiswald-APC/Team9_SanjariReza_KirschFlorian_2L1nk/releases/latest
 ```
