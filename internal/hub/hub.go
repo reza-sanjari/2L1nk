@@ -8,9 +8,25 @@ import (
 	"go.uber.org/zap"
 )
 
+// RoomLoader fetches a room's persisted state from the DB so the hub can bring
+// it back online without holding a direct DB dependency. Returns nil if the
+// room does not exist.
+type RoomLoader func(roomID string) *LoadedRoom
+
+// LoadedRoom is a snapshot of DB state used to restore a room into the hub.
+type LoadedRoom struct {
+	RoomID       string
+	Name         string
+	HostFP       string
+	KeyCreatorFP string
+	Epoch        int64
+	Members      []MemberKeyInfo
+}
+
 type Hub struct {
 	logg               *logger.Logger
 	s                  *session.Store
+	loadRoom           RoomLoader
 	Rooms              map[string]*Room
 	Users              map[string]*User
 	Events             chan HubEvent
@@ -58,6 +74,12 @@ type Room struct {
 	MemberModes      map[string]models.UserMode // fingerprint → mode (all known members)
 	PendingRotation  *PendingRotation           // non-nil while waiting for key creator to submit keys
 	VoiceUsers       map[string]struct{}        // FPs of users currently in voice; lazily initialized
+}
+
+// SetRoomLoader wires the DB-backed loader used by ensureRoomLoaded. Called
+// once at startup from app.New after services are constructed.
+func (h *Hub) SetRoomLoader(loader RoomLoader) {
+	h.loadRoom = loader
 }
 
 func New(s *session.Store, logg *logger.Logger) *Hub {
