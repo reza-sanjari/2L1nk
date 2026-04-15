@@ -454,7 +454,8 @@ function connectLocalChat() {
                         if (!t) return;
                         if (!roomMessageCache.has(p.room_id)) roomMessageCache.set(p.room_id, []);
                         roomMessageCache.get(p.room_id).push({
-                            isMine: false, senderName: m.senderName,
+                            isMine: false, senderFP: m.senderFP,
+                            senderName: m.senderName,
                             senderMode: m.senderMode, text: t,
                             time: m.time
                         });
@@ -489,6 +490,21 @@ function connectLocalChat() {
             return;
         }
 
+        if (envelope.type === "messages_purged") {
+            const p = envelope.payload;
+            // Cache-Einträge des Senders aus allen Räumen entfernen
+            for (const [roomId, msgs] of roomMessageCache.entries()) {
+                roomMessageCache.set(roomId, msgs.filter(m => m.isMine ? true : m.senderFP !== p.sender_fp));
+            }
+            // Falls der betroffene Raum gerade offen ist, DOM-Bubbles des Senders entfernen
+            if (p.room_id === currentRoomId) {
+                const chatEl = document.getElementById('chat');
+                if (chatEl) {
+                    chatEl.querySelectorAll(`[data-sender-fp="${CSS.escape(p.sender_fp)}"]`).forEach(el => el.remove());
+                }
+            }
+            return;
+        }
 
         if (envelope.type === "message") {
             const payload = envelope.payload;
@@ -518,6 +534,7 @@ function connectLocalChat() {
                     if (!roomMessageCache.has(payload.room_id)) roomMessageCache.set(payload.room_id, []);
                     roomMessageCache.get(payload.room_id).push({
                         isMine: false,
+                        senderFP: envelope.sender_fp,
                         senderName: payload.sender_name ?? null,
                         senderMode: payload.sender_mode ?? 1,
                         text: cachedText,
@@ -529,6 +546,7 @@ function connectLocalChat() {
                     pendingEncryptedMessages.get(payload.room_id).push({
                         ciphertext: payload.ciphertext,
                         epoch: payload.epoch,
+                        senderFP: envelope.sender_fp,
                         senderName: payload.sender_name ?? null,
                         senderMode: payload.sender_mode ?? 1,
                         time: msgTime
@@ -542,6 +560,7 @@ function connectLocalChat() {
             if (!chatEl) return;
             const wrapper = document.createElement('div');
             wrapper.className = 'msg-wrapper';
+            wrapper.dataset.senderFp = envelope.sender_fp;
             if (payload.sender_name) {
                 const label = document.createElement('div');
                 label.className = 'msg-label';
@@ -570,6 +589,7 @@ function connectLocalChat() {
             if (!roomMessageCache.has(payload.room_id)) roomMessageCache.set(payload.room_id, []);
             roomMessageCache.get(payload.room_id).push({
                 isMine: false,
+                senderFP: envelope.sender_fp,
                 senderName: payload.sender_name ?? null,
                 senderMode: payload.sender_mode ?? 1,
                 text,
@@ -719,7 +739,10 @@ function clickroom(room) {
     main.style.display = 'flex';
     main.innerHTML = `
                 <div class="chat-header">
-                    <span class="chat-header-name">${escapeHtml(room.name)}</span>
+                    <div class="chat-header-left">
+                        <span class="chat-header-name">${escapeHtml(room.name)}</span>
+                        <button class="leave-room-btn" onclick="leaveRoom('${room.room_id}')" title="Chat verlassen"><i class="fas fa-sign-out-alt"></i></button>
+                    </div>
                     <div class="chat-header-actions">
                         <div class="voice-controls">
                             <div id="voice-avatars" class="voice-avatars-row"></div>
@@ -825,6 +848,7 @@ async function loadChat(room) {
                 if (msg.isMine) {
                     const div = document.createElement('div');
                     div.className = 'bubble sent';
+                    div.dataset.senderFp = myFP;
                     div.innerText = msg.text;
                     const timeEl = document.createElement('span');
                     timeEl.className = 'msg-time';
@@ -834,6 +858,7 @@ async function loadChat(room) {
                 } else {
                     const wrapper = document.createElement('div');
                     wrapper.className = 'msg-wrapper';
+                    if (msg.senderFP) wrapper.dataset.senderFp = msg.senderFP;
                     if (msg.senderName) {
                         const label = document.createElement('div');
                         label.className = 'msg-label';
@@ -873,6 +898,7 @@ async function loadChat(room) {
                 const div = document.createElement('div');
                 div.className = 'bubble sent';
                 div.dataset.msgId = msg.id;
+                div.dataset.senderFp = myFP;
                 div.innerText = text;
                 div.appendChild(timeEl);
                 chatEl.appendChild(div);
@@ -880,6 +906,7 @@ async function loadChat(room) {
                 const wrapper = document.createElement('div');
                 wrapper.className = 'msg-wrapper';
                 wrapper.dataset.msgId = msg.id;
+                wrapper.dataset.senderFp = msg.sender_fp;
                 const label = document.createElement('div');
                 label.className = 'msg-label';
                 if (msg.is_ephemeral) {
@@ -1155,6 +1182,25 @@ async function deleteGroup(roomId) {
         await fetchRooms();
     } else alert('Fehler beim Löschen der Gruppe');
 }
+
+async function leaveRoom(roomId) {
+    const myFP = sessionStorage.getItem('my_fingerprint');
+    const isEphemeral = Number(sessionStorage.getItem('my_mode') ?? 1) === 0;
+    if (!confirm('Chat wirklich verlassen?')) return;
+    const res = await authFetch('DELETE', `/api/rooms/${roomId}/users/${myFP}`);
+    // Temp users are not in the DB room_members table → API returns 404.
+    // Treat that as a successful leave and clean up locally.
+    if (res.ok || (isEphemeral && res.status === 404)) {
+        currentRoomId = null;
+        currentRoomEpoch = 0;
+        const main = document.getElementById('main');
+        main.style.display = 'none';
+        document.querySelector('.maininfo').style.display = '';
+        await fetchRooms();
+    } else {
+        alert('Fehler beim Verlassen des Chats');
+    }
+}
 function sendMessage(roomID) {
     const plaintext = document.getElementById('schreibnachricht').value.trim();
     if (!plaintext) return;
@@ -1206,6 +1252,7 @@ function send(ciphertext) {
     chatEl.querySelector('.chat-empty')?.remove();
     const msg = document.createElement('div');
     msg.className = 'bubble sent';
+    msg.dataset.senderFp = sessionStorage.getItem('my_fingerprint');
     msg.innerText = ciphertext;
     const timeEl = document.createElement('span');
     timeEl.className = 'msg-time';
@@ -1332,6 +1379,42 @@ async function newChat(groupName) {
 function logout() {
     sessionStorage.clear();
     window.location.href = 'Login';
+}
+
+function toggleUserPopup() {
+    const popup = document.getElementById('user-popup');
+    popup.classList.toggle('open');
+}
+
+document.addEventListener('click', (e) => {
+    const popup = document.getElementById('user-popup');
+    if (!popup) return;
+    if (!popup.contains(e.target) && e.target.id !== 'avatar' && !document.getElementById('avatar').contains(e.target)) {
+        popup.classList.remove('open');
+    }
+});
+
+async function purgeAllMessages() {
+    if (!confirm('Wirklich alle deine Nachrichten löschen?')) return;
+    const res = await authFetch('DELETE', '/api/users/me/messages');
+    if (res.ok) {
+        document.getElementById('user-popup').classList.remove('open');
+        // For ephemeral users, messages are never stored in the DB so the server
+        // won't broadcast messages_purged (deleted count = 0). Remove own bubbles locally.
+        const isEphemeral = Number(sessionStorage.getItem('my_mode') ?? 1) === 0;
+        if (isEphemeral) {
+            const myFP = sessionStorage.getItem('my_fingerprint');
+            const chatEl = document.getElementById('chat');
+            if (chatEl && myFP) {
+                chatEl.querySelectorAll(`[data-sender-fp="${CSS.escape(myFP)}"]`).forEach(el => el.remove());
+            }
+            for (const [roomId, msgs] of roomMessageCache.entries()) {
+                roomMessageCache.set(roomId, msgs.filter(m => !m.isMine));
+            }
+        }
+    } else {
+        alert('Fehler beim Löschen der Nachrichten');
+    }
 }
 
 // ============================================================

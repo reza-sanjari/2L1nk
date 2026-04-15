@@ -432,6 +432,52 @@ body {
     border-left: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+.user-popup {
+    display: none;
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    background: #1a0525;
+    border: 1px solid rgba(var(--accent-rgb), 0.3);
+    border-radius: 12px;
+    padding: 8px;
+    min-width: 200px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    z-index: 500;
+}
+
+.user-popup.open {
+    display: block;
+}
+
+.user-popup-btn {
+    width: 100%;
+    background: transparent;
+    border: none;
+    color: white;
+    padding: 10px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: left;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: background 0.15s;
+}
+
+.user-popup-btn:hover {
+    background: rgba(255, 255, 255, 0.07);
+}
+
+.user-popup-btn--danger {
+    color: #ff5050;
+}
+
+.user-popup-btn--danger:hover {
+    background: rgba(255, 80, 80, 0.12);
+}
+
 .avatar {
     width: 38px;
     height: 38px;
@@ -564,10 +610,33 @@ main {
     flex-shrink: 0;
 }
 
+.chat-header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
 .chat-header-name {
     font-weight: bold;
     font-size: 1rem;
     color: var(--accent);
+}
+
+.leave-room-btn {
+    background: transparent;
+    border: 1px solid rgba(255, 80, 80, 0.4);
+    color: #ff5050;
+    border-radius: 8px;
+    padding: 4px 10px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: background 0.2s, border-color 0.2s;
+    flex-shrink: 0;
+}
+
+.leave-room-btn:hover {
+    background: rgba(255, 80, 80, 0.15);
+    border-color: #ff5050;
 }
 
 .chat-user-panel-wrapper {
