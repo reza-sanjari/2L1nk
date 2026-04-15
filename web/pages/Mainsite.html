@@ -178,12 +178,17 @@
                     </div>
                 </div>
             </div>
-            <div class="avatar-group">
+            <div class="avatar-group" style="position:relative;">
                 <div style="text-align: right; line-height: 1;">
                     <div style="font-size: 0.85rem; font-weight: bold;" id="username"></div>
                     <div style="font-size: 0.6rem; opacity: 0.5; color: #4ade80;">ONLINE</div>
                 </div>
-                <div class="avatar" id="avatar"><div id="usernameshort"></div></div>
+                <div class="avatar" id="avatar" onclick="toggleUserPopup()"><div id="usernameshort"></div></div>
+                <div class="user-popup" id="user-popup">
+                    <button class="user-popup-btn user-popup-btn--danger" onclick="purgeAllMessages()">
+                        <i class="fas fa-trash"></i> Alle Nachrichten löschen
+                    </button>
+                </div>
             </div>
         </div>
     </header>
