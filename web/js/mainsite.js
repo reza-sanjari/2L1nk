@@ -1297,6 +1297,12 @@ async function whoAmI() {
     const usernameshortfield = document.getElementById('usernameshort');
     usernameshortfield.textContent = username.substring(0, 2).toUpperCase();
 
+    // Hide "delete all messages" for ephemeral users — their messages are never persisted.
+    if (Number(sessionStorage.getItem('my_mode') ?? 1) === 0) {
+        const btn = document.querySelector('.user-popup-btn--danger');
+        if (btn) btn.style.display = 'none';
+    }
+
     return username;
 }
 async function submitNewChat() {
