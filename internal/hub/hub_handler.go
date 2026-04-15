@@ -102,6 +102,7 @@ func (h *Hub) handleMessageEnvelope(msg WSMessageEnvelope) {
 			ID:         uuid.NewString(),
 			RoomID:     payload.RoomID,
 			SenderFP:   msg.Sender.Fingerprint,
+			SenderMode: msg.Sender.Mode,
 			Epoch:      int64(payload.Epoch),
 			Ciphertext: payload.Ciphertext,
 			CreatedAt:  time.Now().Unix(),

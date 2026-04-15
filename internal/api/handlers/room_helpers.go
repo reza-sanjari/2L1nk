@@ -27,11 +27,11 @@ func buildRoomResponse(dbRoom *infradb.RoomRecord, live *hub.UserRoomInfo) roomR
 	return res
 }
 
-// persistentMembersToWithMode converts DB member key info (all persistent) to MemberWithMode.
-func persistentMembersToWithMode(members []infradb.MemberKeyInfo) []service.MemberWithMode {
+// membersToWithMode converts DB member key info to MemberWithMode using the stored mode.
+func membersToWithMode(members []infradb.MemberKeyInfo) []service.MemberWithMode {
 	out := make([]service.MemberWithMode, len(members))
 	for i, m := range members {
-		out[i] = service.MemberWithMode{FP: m.Fingerprint, Mode: models.UserModePersistent}
+		out[i] = service.MemberWithMode{FP: m.Fingerprint, Mode: models.UserMode(m.Mode)}
 	}
 	return out
 }
@@ -77,13 +77,8 @@ func (h *Handler) broadcastRoomUpdated(roomID string, epoch int64, liveRoom *hub
 			Fingerprint:     m.Fingerprint,
 			Username:        m.Username,
 			X25519PublicKey: m.X25519PublicKey,
-			Mode:            models.UserModePersistent,
+			Mode:            models.UserMode(m.Mode),
 		})
-	}
-	for _, u := range liveRoom.Users {
-		if u.Mode == models.UserModeEphemeral {
-			userList = append(userList, u)
-		}
 	}
 	updPayload.Users = userList
 
@@ -101,14 +96,4 @@ func (h *Handler) broadcastRoomUpdated(roomID string, epoch int64, liveRoom *hub
 		return
 	}
 	h.hub.BroadcastToRoom <- hub.BroadcastToRoomRequest{RoomID: roomID, Data: envelope}
-}
-
-// appendIfMissing adds a MemberWithMode entry if the FP is not already in the list.
-func appendIfMissing(members []service.MemberWithMode, fp string, mode models.UserMode) []service.MemberWithMode {
-	for _, m := range members {
-		if m.FP == fp {
-			return members
-		}
-	}
-	return append(members, service.MemberWithMode{FP: fp, Mode: mode})
 }

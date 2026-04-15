@@ -354,7 +354,7 @@ func (m tunnelAddModel) renderFormField(f formField, label, inputView string) st
 	if m.activeField == f {
 		prefix = " ▶ "
 	}
-	labelStr := styleSubtle.Render(label+":")
+	labelStr := styleSubtle.Render(label + ":")
 	if m.activeField == f {
 		return styleSelected.Render(prefix) + labelStr + " " + inputView + "\n"
 	}

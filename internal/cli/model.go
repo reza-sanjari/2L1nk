@@ -20,7 +20,7 @@ import (
 type serverState int
 
 const (
-	stateStopped  serverState = iota
+	stateStopped serverState = iota
 	stateRunning
 	stateStopping
 )
@@ -44,7 +44,7 @@ const (
 type tunnelStatus int
 
 const (
-	tunnelStopped  tunnelStatus = iota
+	tunnelStopped tunnelStatus = iota
 	tunnelStarting
 	tunnelRunning
 	tunnelStopping
@@ -98,8 +98,14 @@ type model struct {
 type serverStartedMsg struct{ port, pid int }
 type serverStoppedMsg struct{ err error }
 type dbResetDoneMsg struct{ err error }
-type tunnelStartedMsg struct{ name string; pid int }
-type tunnelStoppedMsg struct{ name string; err error }
+type tunnelStartedMsg struct {
+	name string
+	pid  int
+}
+type tunnelStoppedMsg struct {
+	name string
+	err  error
+}
 
 func newModel(g *gate.Gate, cfg *config.Config, pidPath, logPath, optsPath, tunnelsPath string, opts Options, tunnelsCfg TunnelsConfig, pid int, running bool) model {
 	srvState := stateStopped

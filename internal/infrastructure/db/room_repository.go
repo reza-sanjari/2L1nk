@@ -276,23 +276,25 @@ func (r *RoomRepository) GetKeySlotsByRoomAndRecipient(roomID, recipientFP strin
 	return slots, rows.Err()
 }
 
-// MemberKeyInfo holds a member fingerprint and their X25519 public key.
+// MemberKeyInfo holds a member fingerprint, their X25519 public key, and mode.
 type MemberKeyInfo struct {
 	Fingerprint     string
 	X25519PublicKey string
+	Mode            int
 }
 
 type MemberDetailInfo struct {
 	Fingerprint     string
 	Username        string
 	X25519PublicKey string
+	Mode            int
 }
 
-// GetMembersWithPublicKeys returns the fingerprint and X25519 public key for all
-// persistent members of a room.
+// GetMembersWithPublicKeys returns the fingerprint, X25519 public key, and mode
+// for all members of a room.
 func (r *RoomRepository) GetMembersWithPublicKeys(roomID string) ([]MemberKeyInfo, error) {
 	rows, err := r.db.Query(
-		`SELECT u.fingerprint, u.x25519_public_key
+		`SELECT u.fingerprint, u.x25519_public_key, u.mode
 		 FROM room_members rm
 		 JOIN users u ON rm.member_fp = u.fingerprint
 		 WHERE rm.room_id = ?`,
@@ -306,7 +308,7 @@ func (r *RoomRepository) GetMembersWithPublicKeys(roomID string) ([]MemberKeyInf
 	var members []MemberKeyInfo
 	for rows.Next() {
 		var m MemberKeyInfo
-		if err := rows.Scan(&m.Fingerprint, &m.X25519PublicKey); err != nil {
+		if err := rows.Scan(&m.Fingerprint, &m.X25519PublicKey, &m.Mode); err != nil {
 			return nil, err
 		}
 		members = append(members, m)
@@ -314,11 +316,11 @@ func (r *RoomRepository) GetMembersWithPublicKeys(roomID string) ([]MemberKeyInf
 	return members, rows.Err()
 }
 
-// GetRoomMembersWithDetails returns fingerprint, username, and X25519 public key
-// for all persistent members of a room.
+// GetRoomMembersWithDetails returns fingerprint, username, X25519 public key, and mode
+// for all members of a room.
 func (r *RoomRepository) GetRoomMembersWithDetails(roomID string) ([]MemberDetailInfo, error) {
 	rows, err := r.db.Query(
-		`SELECT u.fingerprint, u.username, u.x25519_public_key
+		`SELECT u.fingerprint, u.username, u.x25519_public_key, u.mode
 		 FROM room_members rm
 		 JOIN users u ON rm.member_fp = u.fingerprint
 		 WHERE rm.room_id = ?`,
@@ -332,7 +334,7 @@ func (r *RoomRepository) GetRoomMembersWithDetails(roomID string) ([]MemberDetai
 	var members []MemberDetailInfo
 	for rows.Next() {
 		var m MemberDetailInfo
-		if err := rows.Scan(&m.Fingerprint, &m.Username, &m.X25519PublicKey); err != nil {
+		if err := rows.Scan(&m.Fingerprint, &m.Username, &m.X25519PublicKey, &m.Mode); err != nil {
 			return nil, err
 		}
 		members = append(members, m)

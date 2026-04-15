@@ -31,6 +31,7 @@ type MessageCreatedPayload struct {
 	ID         string
 	RoomID     string
 	SenderFP   string
+	SenderMode models.UserMode
 	Epoch      int64
 	Ciphertext string
 	CreatedAt  int64
