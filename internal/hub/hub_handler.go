@@ -11,6 +11,76 @@ import (
 	"go.uber.org/zap"
 )
 
+// ensureRoomLoaded returns the live hub Room for roomID, loading it from the DB
+// (via the configured RoomLoader) when the room is offline. Returns nil if the
+// room does not exist in the DB or no loader is wired. Logs the online transition.
+func (h *Hub) ensureRoomLoaded(roomID string) *Room {
+	if room, ok := h.Rooms[roomID]; ok {
+		return room
+	}
+	if h.loadRoom == nil {
+		return nil
+	}
+	loaded := h.loadRoom(roomID)
+	if loaded == nil {
+		return nil
+	}
+	hostPtr := h.getUser(loaded.HostFP)
+	hostName := loaded.HostFP
+	if hostPtr != nil {
+		hostName = hostPtr.Username
+	}
+	room := &Room{
+		Name:             loaded.Name,
+		RoomID:           loaded.RoomID,
+		Host:             hostPtr,
+		HostFP:           loaded.HostFP,
+		HostName:         hostName,
+		KeyCreatorFP:     loaded.KeyCreatorFP,
+		Users:            make(map[string]*User),
+		Epoch:            loaded.Epoch,
+		MemberPublicKeys: make(map[string]string),
+		MemberModes:      make(map[string]models.UserMode),
+	}
+	for _, m := range loaded.Members {
+		room.MemberPublicKeys[m.FP] = m.X25519PublicKey
+		room.MemberModes[m.FP] = m.Mode
+		if u := h.getUser(m.FP); u != nil {
+			room.Users[u.Fingerprint] = u
+			room.MemberPublicKeys[u.Fingerprint] = u.X25519PublicKey
+		}
+	}
+	h.Rooms[roomID] = room
+	h.logg.Info("room online",
+		zap.String("roomID", room.RoomID),
+		zap.String("roomName", room.Name),
+		zap.Int("activeRooms", len(h.Rooms)),
+	)
+	return room
+}
+
+// evictIfEmpty removes the room from h.Rooms when there are no online users and
+// no active voice participants, logging the offline transition. Used after
+// handlers that may have brought the room online for a single action.
+func (h *Hub) evictIfEmpty(room *Room, reason string) {
+	if room == nil {
+		return
+	}
+	if len(room.Users) > 0 {
+		return
+	}
+	if len(room.VoiceUsers) > 0 {
+		return
+	}
+	delete(h.Rooms, room.RoomID)
+	h.logg.Info("room offline",
+		zap.String("roomID", room.RoomID),
+		zap.String("roomName", room.Name),
+		zap.String("reason", reason),
+		zap.Int("activeRooms", len(h.Rooms)),
+	)
+}
+
 func (h *Hub) handleInboundMessage(msg WSMessageEnvelope) {
 	switch msg.Type {
 	case models.Message:
@@ -50,18 +120,9 @@ func (h *Hub) handleMessageEnvelope(msg WSMessageEnvelope) {
 		return
 	}
 
-	targetRoom := h.getRoom(payload.RoomID)
+	targetRoom := h.ensureRoomLoaded(payload.RoomID)
 	if targetRoom == nil {
-		// Room is offline — emit event so the event consumer can load it from DB and deliver
-		h.logg.Debug("target room not in hub, emitting room_offline", zap.String("roomId", payload.RoomID))
-		h.emit(HubEvent{
-			Type: HubEventRoomOffline,
-			Payload: RoomOfflinePayload{
-				RoomID:   payload.RoomID,
-				SenderFP: msg.Sender.Fingerprint,
-				Message:  msg,
-			},
-		})
+		h.logg.Debug("message dropped: room not found", zap.String("roomId", payload.RoomID))
 		return
 	}
 
@@ -141,7 +202,13 @@ func (h *Hub) handleRegisterRoom(req CreateRoomRequest) {
 	h.Rooms[roomID] = room
 
 	req.ResponseChan <- roomID
-	h.logg.Info("room created", zap.String("roomID", roomID), zap.String("host", req.Host.Username), zap.String("name", req.GroupName), zap.Int("activeRooms", len(h.Rooms)))
+	h.logg.Info("room created", zap.String("roomID", roomID), zap.String("host", req.Host.Username), zap.String("roomName", req.GroupName), zap.Int("activeRooms", len(h.Rooms)))
+	h.logg.Info("room online",
+		zap.String("roomID", roomID),
+		zap.String("roomName", req.GroupName),
+		zap.String("reason", "room created"),
+		zap.Int("activeRooms", len(h.Rooms)),
+	)
 
 	h.emit(HubEvent{
 		Type: HubEventRoomCreated,
@@ -218,9 +285,14 @@ func (h *Hub) handleUnregisterUser(user *User) {
 			)
 		}
 
-		if len(room.Users) == 0 {
+		if len(room.Users) == 0 && len(room.VoiceUsers) == 0 {
 			delete(h.Rooms, room.RoomID)
-			h.logg.Info("room went offline (last user disconnected)", zap.String("roomID", room.RoomID), zap.String("roomName", room.Name), zap.Int("activeRooms", len(h.Rooms)))
+			h.logg.Info("room offline",
+				zap.String("roomID", room.RoomID),
+				zap.String("roomName", room.Name),
+				zap.String("reason", "last user disconnected"),
+				zap.Int("activeRooms", len(h.Rooms)),
+			)
 			continue
 		}
 
@@ -248,13 +320,14 @@ func (h *Hub) handleUnregisterUser(user *User) {
 
 // handleJoinRoom syncs hub state after a DB-first member add.
 // The DB has already been updated; this just updates hub state and broadcasts the rotation WS.
+// Brings the room online if it was offline so the change is visible in hub state.
 func (h *Hub) handleJoinRoom(req RoomMembersChangeRequest) {
-	room := h.getRoom(req.RoomID)
+	room := h.ensureRoomLoaded(req.RoomID)
 	if room == nil {
-		// Room is offline — nothing to sync. DB is already updated.
-		h.logg.Debug("join room hub sync skipped: room not in hub", zap.String("roomID", req.RoomID))
+		h.logg.Debug("join room hub sync skipped: room not found", zap.String("roomID", req.RoomID))
 		return
 	}
+	defer h.evictIfEmpty(room, "no online users after add")
 
 	// Add to MemberPublicKeys and MemberModes regardless of online status.
 	if req.UserX25519Key != "" {
@@ -336,7 +409,12 @@ func (h *Hub) handleRestoreRoom(req RestoreRoomRequest) {
 			MemberModes:      make(map[string]models.UserMode),
 		}
 		h.Rooms[req.RoomID] = room
-		h.logg.Info("room restored into hub", zap.String("roomID", req.RoomID), zap.String("roomName", req.RoomName), zap.Int("activeRooms", len(h.Rooms)))
+		h.logg.Info("room online",
+			zap.String("roomID", req.RoomID),
+			zap.String("roomName", req.RoomName),
+			zap.String("reason", "restored on member connect"),
+			zap.Int("activeRooms", len(h.Rooms)),
+		)
 	}
 	for _, m := range req.Members {
 		room.MemberPublicKeys[m.FP] = m.X25519PublicKey
@@ -378,7 +456,12 @@ func (h *Hub) handleLoadRoomAndDeliver(req LoadRoomAndDeliverRequest) {
 			MemberModes:      make(map[string]models.UserMode),
 		}
 		h.Rooms[req.RoomID] = room
-		h.logg.Debug("room loaded into hub for message delivery", zap.String("roomID", req.RoomID))
+		h.logg.Info("room online",
+			zap.String("roomID", req.RoomID),
+			zap.String("roomName", req.RoomName),
+			zap.String("reason", "message delivery to offline room"),
+			zap.Int("activeRooms", len(h.Rooms)),
+		)
 	}
 	for _, m := range req.Members {
 		room.MemberPublicKeys[m.FP] = m.X25519PublicKey
@@ -437,14 +520,22 @@ func (h *Hub) handleSendErrorToUser(req SendErrorRequest) {
 // handleRemoveFromRoom syncs hub state after a DB-first member remove.
 // The DB has already been updated; this just updates hub state and optionally broadcasts rotation.
 func (h *Hub) handleRemoveFromRoom(req RemoveFromRoomRequest) {
-	room := h.getRoom(req.RoomID)
-	if room == nil {
+	if req.Deleted {
+		if room, ok := h.Rooms[req.RoomID]; ok {
+			delete(h.Rooms, req.RoomID)
+			h.logg.Info("room offline",
+				zap.String("roomID", req.RoomID),
+				zap.String("roomName", room.Name),
+				zap.String("reason", "room deleted"),
+				zap.Int("activeRooms", len(h.Rooms)),
+			)
+		}
 		return
 	}
 
-	if req.Deleted {
-		delete(h.Rooms, req.RoomID)
-		h.logg.Info("room removed from hub (deleted)", zap.String("roomID", req.RoomID), zap.Int("activeRooms", len(h.Rooms)))
+	room := h.ensureRoomLoaded(req.RoomID)
+	if room == nil {
+		h.logg.Debug("remove from room hub sync skipped: room not found", zap.String("roomID", req.RoomID))
 		return
 	}
 
@@ -485,8 +576,7 @@ func (h *Hub) handleRemoveFromRoom(req RemoveFromRoomRequest) {
 	}
 
 	if len(room.Users) == 0 {
-		delete(h.Rooms, req.RoomID)
-		h.logg.Info("room went offline (no online members after remove)", zap.String("roomID", req.RoomID), zap.Int("activeRooms", len(h.Rooms)))
+		h.evictIfEmpty(room, "no online members after remove")
 		return
 	}
 
@@ -745,13 +835,14 @@ func (h *Hub) handleVoiceJoined(msg WSMessageEnvelope) {
 		return
 	}
 
-	room := h.getRoom(payload.RoomID)
+	room := h.ensureRoomLoaded(payload.RoomID)
 	if room == nil {
-		h.logg.Debug("handleVoiceJoined: room not in hub", zap.String("roomID", payload.RoomID))
+		h.logg.Debug("handleVoiceJoined: room not found", zap.String("roomID", payload.RoomID))
 		return
 	}
 	if !h.isUserInRoom(msg.Sender, room) {
 		h.logg.Warn("handleVoiceJoined: sender not in room", zap.String("roomID", payload.RoomID), zap.String("senderFP", msg.Sender.Fingerprint))
+		h.evictIfEmpty(room, "voice join rejected")
 		return
 	}
 
@@ -821,11 +912,12 @@ func (h *Hub) handleVoiceLeft(msg WSMessageEnvelope) {
 		return
 	}
 
-	room := h.getRoom(payload.RoomID)
+	room := h.ensureRoomLoaded(payload.RoomID)
 	if room == nil {
-		h.logg.Debug("handleVoiceLeft: room not in hub", zap.String("roomID", payload.RoomID))
+		h.logg.Debug("handleVoiceLeft: room not found", zap.String("roomID", payload.RoomID))
 		return
 	}
+	defer h.evictIfEmpty(room, "voice leave")
 	if !h.isUserInRoom(msg.Sender, room) {
 		h.logg.Warn("handleVoiceLeft: sender not in room", zap.String("roomID", payload.RoomID), zap.String("senderFP", msg.Sender.Fingerprint))
 		return
