@@ -13,6 +13,12 @@ let currentRoomEpoch = 0;
 const pendingSent = new Set(); // eigene gesendete Nachrichten (roomId:ciphertext) — verhindert Echo-Duplikate
 const roomKeys = new Map();   // `${roomId}:${epoch}` → Uint8Array (Room-Key)
 const unreadCounts = new Map(); // roomId → number (ungelesene Nachrichten)
+// In-memory message cache for ephemeral rooms (never stored in DB).
+// Structure: roomId → [{isMine, senderName, senderMode, text, time}]
+const roomMessageCache = new Map();
+// Messages that arrived before the room key was available — retried on room_key_slot.
+// Structure: roomId → [{ciphertext, epoch, senderName, senderMode, time}]
+const pendingEncryptedMessages = new Map();
 let pendingScrollMsgId = null;  // nach loadChat zu dieser Nachrichten-ID scrollen
 
 // ============================================================
@@ -421,6 +427,9 @@ function connectLocalChat() {
 
         if (envelope.type === "room_key_rotation") {
             const p = envelope.payload;
+            // Always update roomList so clickroom picks up the correct epoch.
+            const rotIdx = roomList.findIndex(r => r.room_id === p.room_id);
+            if (rotIdx !== -1) roomList[rotIdx] = { ...roomList[rotIdx], epoch: p.epoch };
             if (p.room_id === currentRoomId) currentRoomEpoch = p.epoch;
             const myFP = sessionStorage.getItem('my_fingerprint');
             if (p.key_creator_fp === myFP) submitRoomKey(p.room_id, p.epoch, p.members);
@@ -433,6 +442,24 @@ function connectLocalChat() {
                 const keyData = JSON.parse(atob(p.encrypted_key));
                 const roomKey = AppCrypto.decryptRoomKey(keyData);
                 roomKeys.set(`${p.room_id}:${p.epoch}`, roomKey);
+                // If this is the open room, make sure currentRoomEpoch is in sync.
+                if (p.room_id === currentRoomId) currentRoomEpoch = p.epoch;
+                // Flush any messages that arrived before the key slot and
+                // couldn't be decrypted at the time.
+                const pending = pendingEncryptedMessages.get(p.room_id) ?? [];
+                if (pending.length > 0) {
+                    pendingEncryptedMessages.delete(p.room_id);
+                    pending.forEach(m => {
+                        const t = decryptText(m.ciphertext, p.room_id, m.epoch);
+                        if (!t) return;
+                        if (!roomMessageCache.has(p.room_id)) roomMessageCache.set(p.room_id, []);
+                        roomMessageCache.get(p.room_id).push({
+                            isMine: false, senderName: m.senderName,
+                            senderMode: m.senderMode, text: t,
+                            time: m.time
+                        });
+                    });
+                }
             } catch (e) {
                 console.error('Fehler beim Entschlüsseln des Room-Keys:', e);
             }
@@ -474,7 +501,7 @@ function connectLocalChat() {
                 return;
             }
 
-            // Raum nicht offen → unread zählen, Sound/Desktop, abbrechen
+            // Raum nicht offen → unread zählen, Sound/Desktop, in Cache speichern
             if (payload.room_id !== currentRoomId) {
                 unreadCounts.set(payload.room_id, (unreadCounts.get(payload.room_id) ?? 0) + 1);
                 updateUnreadUI(payload.room_id);
@@ -483,6 +510,29 @@ function connectLocalChat() {
                 if (cfg.notifDesktop) {
                     const room = roomList.find(r => r.room_id === payload.room_id);
                     showDesktopNotif(room?.name ?? 'Neue Nachricht', null);
+                }
+                // Cache so it appears when the user opens the room.
+                const cachedText = decryptText(payload.ciphertext, payload.room_id, payload.epoch);
+                const msgTime = Math.floor(Date.now() / 1000);
+                if (cachedText) {
+                    if (!roomMessageCache.has(payload.room_id)) roomMessageCache.set(payload.room_id, []);
+                    roomMessageCache.get(payload.room_id).push({
+                        isMine: false,
+                        senderName: payload.sender_name ?? null,
+                        senderMode: payload.sender_mode ?? 1,
+                        text: cachedText,
+                        time: msgTime
+                    });
+                } else {
+                    // Key not available yet — queue for retry when room_key_slot arrives.
+                    if (!pendingEncryptedMessages.has(payload.room_id)) pendingEncryptedMessages.set(payload.room_id, []);
+                    pendingEncryptedMessages.get(payload.room_id).push({
+                        ciphertext: payload.ciphertext,
+                        epoch: payload.epoch,
+                        senderName: payload.sender_name ?? null,
+                        senderMode: payload.sender_mode ?? 1,
+                        time: msgTime
+                    });
                 }
                 return;
             }
@@ -515,6 +565,18 @@ function connectLocalChat() {
             wrapper.appendChild(div);
             chatEl.appendChild(wrapper);
             chatEl.scrollTop = chatEl.scrollHeight;
+
+            // Cache so re-opening the room doesn't wipe ephemeral messages.
+            if (!roomMessageCache.has(payload.room_id)) roomMessageCache.set(payload.room_id, []);
+            roomMessageCache.get(payload.room_id).push({
+                isMine: false,
+                senderName: payload.sender_name ?? null,
+                senderMode: payload.sender_mode ?? 1,
+                text,
+                time: Math.floor(Date.now() / 1000)
+            });
+            // Remove "no messages" placeholder if still visible.
+            chatEl.querySelector('.chat-empty')?.remove();
         }
     };
 
@@ -607,6 +669,9 @@ function toggleChatUserList() {
     if (isOpening) {
         const voicePanel = document.getElementById('voice-panel');
         if (voicePanel) voicePanel.classList.remove('open');
+        // Re-fetch online status every time the panel opens so dots are always current.
+        const room = roomList.find(r => r.room_id === currentRoomId);
+        if (room) renderChatUserList(room.users);
     }
     panel.classList.toggle('open');
 }
@@ -747,10 +812,53 @@ async function loadChat(room) {
         chatEl.innerHTML = '';
 
         if (messages.length === 0) {
-            const empty = document.createElement('div');
-            empty.className = 'chat-empty';
-            empty.textContent = 'Noch keine Nachrichten.';
-            chatEl.appendChild(empty);
+            // For ephemeral rooms messages are never in DB — fall back to in-memory cache.
+            const cached = roomMessageCache.get(room.room_id) ?? [];
+            if (cached.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'chat-empty';
+                empty.textContent = 'Noch keine Nachrichten.';
+                chatEl.appendChild(empty);
+                return;
+            }
+            cached.forEach(msg => {
+                if (msg.isMine) {
+                    const div = document.createElement('div');
+                    div.className = 'bubble sent';
+                    div.innerText = msg.text;
+                    const timeEl = document.createElement('span');
+                    timeEl.className = 'msg-time';
+                    timeEl.textContent = formatTime(msg.time);
+                    div.appendChild(timeEl);
+                    chatEl.appendChild(div);
+                } else {
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'msg-wrapper';
+                    if (msg.senderName) {
+                        const label = document.createElement('div');
+                        label.className = 'msg-label';
+                        if (msg.senderMode === 0) {
+                            const badge = document.createElement('span');
+                            badge.textContent = '👻';
+                            badge.title = 'Temporärer Nutzer';
+                            badge.style.cssText = 'margin-right:4px;font-size:0.85em;opacity:0.8;';
+                            label.appendChild(badge);
+                        }
+                        label.appendChild(document.createTextNode(msg.senderName));
+                        wrapper.appendChild(label);
+                    }
+                    const div = document.createElement('div');
+                    div.className = 'bubble received';
+                    div.innerText = msg.text;
+                    const timeEl = document.createElement('span');
+                    timeEl.className = 'msg-time';
+                    timeEl.textContent = formatTime(msg.time);
+                    div.appendChild(timeEl);
+                    wrapper.appendChild(div);
+                    chatEl.appendChild(wrapper);
+                }
+            });
+            chatEl.scrollTop = chatEl.scrollHeight;
             return;
         }
 
@@ -1079,6 +1187,16 @@ function sendMessage(roomID) {
         }
     }));
     send(plaintext); // eigene Nachricht lokal als Klartext anzeigen
+
+    // Cache so re-opening the room doesn't wipe ephemeral messages.
+    if (!roomMessageCache.has(roomID)) roomMessageCache.set(roomID, []);
+    roomMessageCache.get(roomID).push({
+        isMine: true,
+        senderName: null,
+        senderMode: Number(sessionStorage.getItem('my_mode') ?? 1),
+        text: plaintext,
+        time: Math.floor(Date.now() / 1000)
+    });
 }
 
 function send(ciphertext) {
