@@ -1203,6 +1203,7 @@ function send(ciphertext) {
     if (ciphertext === "") return;
     const chatEl = document.getElementById('chat');
     if (!chatEl) return;
+    chatEl.querySelector('.chat-empty')?.remove();
     const msg = document.createElement('div');
     msg.className = 'bubble sent';
     msg.innerText = ciphertext;
