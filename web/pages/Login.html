@@ -115,7 +115,7 @@
                     <h3><i class="fas fa-door-open"></i> Gateway</h3>
                     <p>Schnellzugriff auf öffentliche Räume.</p>
                     <input type="text" id="gateway" value="" placeholder="Gateway Code eingeben...">
-                    <input type="text" id="loginname" placeholder="Username" onkeydown="if(event.key==='Enter')showModeModal()">
+                    <input type="text" id="loginname" placeholder="Username" maxlength="50" onkeydown="if(event.key==='Enter')showModeModal()">
                     <button class="btn btn-primary" onclick="showModeModal()">Beitreten</button>
                 </div>
 
@@ -313,8 +313,9 @@
     function showModeModal() {
         const gateKey   = document.getElementById('gateway').value.trim();
         const loginName = document.getElementById('loginname').value.trim();
-        if (!gateKey)   { alert("⚠️ Bitte gib einen Gateway-Code ein!"); return; }
-        if (!loginName) { alert("⚠️ Bitte gib einen Login-Namen ein!"); return; }
+        if (!gateKey)             { alert("⚠️ Bitte gib einen Gateway-Code ein!"); return; }
+        if (!loginName)           { alert("⚠️ Bitte gib einen Login-Namen ein!"); return; }
+        if (loginName.length > 50){ alert("⚠️ Der Username darf maximal 50 Zeichen lang sein!"); return; }
         document.getElementById('mode-overlay').classList.add('open');
     }
 

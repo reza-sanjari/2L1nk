@@ -826,8 +826,8 @@ function renderFunc(RenderList) {
 
             div.innerHTML = `
                 <div class="chat-item-row">
-                    <div style="flex:1;cursor:pointer;" class="room-info">
-                        <div style="font-weight:bold;">👤${escapeHtml(room.name)}</div>
+                    <div style="flex:1;min-width:0;cursor:pointer;" class="room-info">
+                        <div style="font-weight:bold;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">👤${escapeHtml(room.name)}</div>
                     </div>
                     <span class="unread-badge" style="display:none"></span>
                     ${isHost ? `<span class="room-menu-btn" title="Mitglieder verwalten">llll</span>` : ''}
@@ -1139,6 +1139,10 @@ async function submitNewChat() {
 
     if (!groupName) {
         alert("⚠️ Bitte gib einen Gruppennamen ein!");
+        return;
+    }
+    if (groupName.length > 100) {
+        alert("⚠️ Der Gruppenname darf maximal 100 Zeichen lang sein!");
         return;
     }
 

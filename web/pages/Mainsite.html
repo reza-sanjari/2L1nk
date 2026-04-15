@@ -193,7 +193,7 @@
 
     <dialog id="newChatModal" style="background: #1a0525; color: white; border: 1px solid #bc13fe; border-radius: 15px; padding: 25px; width: 320px; box-shadow: 0 0 30px rgba(188, 19, 254, 0.3);">
         <h3 style="margin-top: 0; color: #bc13fe;">Neuer Chat erstellen</h3>
-        <input type="text" id="groupNameInput" placeholder="Gruppenname..." style="width: 90%; margin-bottom: 20px; padding: 12px; background: #000; border: 1px solid #4b0082; color: white; border-radius: 8px;">
+        <input type="text" id="groupNameInput" placeholder="Gruppenname..." maxlength="100" style="width: 90%; margin-bottom: 20px; padding: 12px; background: #000; border: 1px solid #4b0082; color: white; border-radius: 8px;">
         <div style="display: flex; gap: 10px;">
             <button onclick="document.getElementById('newChatModal').close()" style="flex: 1; padding: 10px; background: transparent; border: 1px solid #4b0082; color: white; border-radius: 8px; cursor: pointer;">Abbrechen</button>
             <button onclick="submitNewChat()" style="flex: 1; padding: 10px; background: #bc13fe; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">Erstellen</button>
