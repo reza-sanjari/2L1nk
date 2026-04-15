@@ -28,6 +28,7 @@ func RegisterRoutes(e *echo.Echo, h *handlers.Handler, store *session.Store, ns 
 	api := e.Group("/api")
 
 	api.GET("/health", h.Health)
+	api.GET("/ice-config", h.IceConfig)
 
 	// Per-IP rate limiter on the gate endpoint: 10 attempts per minute to prevent brute force.
 	gateIPLimiter := middleware.RateLimiterWithConfig(middleware.RateLimiterConfig{
