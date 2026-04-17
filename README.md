@@ -29,8 +29,12 @@
 | 10.3.2026 | 1.4.5 | 7:30 - 10:00  | 2,5     | LBS | Verschlüsselung Gruppen Chat                        | Probleme beim Aufbau der Verschlüsselung | -       |
 | 12.3.2026 | 1.4.2 | 7:30 - 11:00  | 3,5     | LBS | Chat api integration                                | -                                        | -       |
 | 13.3.2026 | 1.4.2 | 10:00 - 13:00 | 3,0     | LBS | Chat api integration                                | -                                        | -       |
-| 17.3.2026 | 1.4.2 | 7:30 - 10:00  | 2,5     | LBS | Chat api integration                                | -                                        | -       |
-
+| 17.3.2026 | 1.5.3 | 7:30 - 9:00  | 2,5     | LBS | Call ui                                             | -                                        | -       |
+| 17.3.2026 | 1.5.2 | 9:00 - 10:00  | 2,5     | LBS |  WEBRTC Imp                                             | -                                        | -       |
+| 24.3.2026 | 1.5.3 | 7:30 - 10:00  | 2,5     | LBS | Call ui                                             | -                         | -                             |
+| 26.3.2026 | 1.8.1 | 7:30 - 11:00  | 3,5     | LBS |  Recherche Doku                    | -                         | -                             |
+| 27.3.2026 | 1.8.2 | 10:00 - 13:00 | 3,5     | LBS | Doku              | -                         | -                             |
+| 9.4.2026  | 1.9.2 | 7:30 - 11:00  | 3,5     | LBS | PP                                           | -                         | -                                   
 
 
 
