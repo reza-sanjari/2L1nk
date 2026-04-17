@@ -24,12 +24,6 @@ func (h *Handler) GetUserRooms(c echo.Context) error {
 
 	h.logg.Debug("get user rooms request", zap.String("userFP", user.PublicKeyFingerprint), zap.Int("mode", int(user.Mode)))
 
-	if user.Mode != models.UserModePersistent {
-		res := h.hub.GetUserRooms(user.PublicKeyFingerprint)
-		h.logg.Debug("get user rooms: returning hub rooms for ephemeral user", zap.String("userFP", user.PublicKeyFingerprint), zap.Int("count", len(res)))
-		return c.JSON(http.StatusOK, map[string]any{"rooms": res})
-	}
-
 	dbRooms, err := h.services.Room.GetUserRooms(user.PublicKeyFingerprint)
 	if err != nil {
 		h.logg.Error("get user rooms: failed to fetch rooms from DB", zap.String("userFP", user.PublicKeyFingerprint), zap.Error(err))
@@ -57,7 +51,7 @@ func (h *Handler) GetUserRooms(c echo.Context) error {
 				Fingerprint:     m.Fingerprint,
 				Username:        m.Username,
 				X25519PublicKey: m.X25519PublicKey,
-				Mode:            models.UserModePersistent,
+				Mode:            models.UserMode(m.Mode),
 			})
 		}
 
@@ -73,11 +67,6 @@ func (h *Handler) GetUserRooms(c echo.Context) error {
 			r.Online = true
 			host := live.Host
 			r.Host = &host
-			for _, u := range live.Users {
-				if u.Mode == models.UserModeEphemeral {
-					r.Users = append(r.Users, u)
-				}
-			}
 		}
 		rooms = append(rooms, r)
 	}
