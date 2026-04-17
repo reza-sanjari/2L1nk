@@ -167,9 +167,8 @@ func (r *RoomRepository) HasKeySlots(roomID string, epoch int64) (bool, error) {
 	return count > 0, nil
 }
 
-// AddMember conditionally inserts the member into room_members.
-// Silently skips if memberFP is not in the users table (ephemeral user)
-// or if the membership already exists.
+// AddMember inserts the member into room_members.
+// Silently skips if the membership already exists.
 func (r *RoomRepository) AddMember(roomID, memberFP string, joinedAt int64) error {
 	_, err := r.db.Exec(
 		`INSERT OR IGNORE INTO room_members (room_id, member_fp, joined_at)

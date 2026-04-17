@@ -114,9 +114,7 @@ func startEventConsumer(
 }
 
 // broadcastRoomUpdated builds a room_updated WS payload and sends it to all online
-// members of the room. Uses DB as the authoritative member source (with usernames)
-// and merges in online ephemeral members from the hub.
-// For purely ephemeral rooms (not in DB) it falls back to hub-only state.
+// members of the room. Uses DB as the authoritative member source.
 func broadcastRoomUpdated(roomID string, mainHub *hub.Hub, roomSvc *service.RoomService, logg *logger.Logger) {
 	liveRoom := mainHub.GetRoom(roomID)
 	if liveRoom == nil {
@@ -138,7 +136,6 @@ func broadcastRoomUpdated(roomID string, mainHub *hub.Hub, roomSvc *service.Room
 	}
 
 	if dbRoom != nil {
-		// Persistent room: DB is authoritative for the member list (includes offline persistent).
 		members, err := roomSvc.GetRoomMembersWithDetails(roomID)
 		if err != nil {
 			logg.Error("broadcastRoomUpdated: failed to fetch members", zap.String("roomID", roomID), zap.Error(err))
@@ -150,18 +147,11 @@ func broadcastRoomUpdated(roomID string, mainHub *hub.Hub, roomSvc *service.Room
 				Fingerprint:     m.Fingerprint,
 				Username:        m.Username,
 				X25519PublicKey: m.X25519PublicKey,
-				Mode:            models.UserModePersistent,
+				Mode:            models.UserMode(m.Mode),
 			})
-		}
-		// Add online ephemeral members that are not in the DB member list.
-		for _, u := range liveRoom.Users {
-			if u.Mode == models.UserModeEphemeral {
-				userList = append(userList, u)
-			}
 		}
 		updPayload.Users = userList
 	} else {
-		// Ephemeral room: all members are online (ephemerals are removed from hub on disconnect).
 		updPayload.Users = liveRoom.Users
 	}
 

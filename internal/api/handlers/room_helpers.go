@@ -49,10 +49,7 @@ func buildOnlineSet(members []service.MemberWithMode, h *hub.Hub) map[string]boo
 }
 
 // broadcastRoomUpdated sends a room_updated WS event to all online members.
-// It mirrors the per-room shape from GET /rooms: persistent DB members (with usernames)
-// merged with online ephemeral members from the hub.
-// roomID is the room to notify; epoch and liveRoom are the current in-flight values
-// (may differ from DB if the caller has already bumped the epoch in DB).
+// Uses DB as the authoritative member source for both persistent and ephemeral users.
 func (h *Handler) broadcastRoomUpdated(roomID string, epoch int64, liveRoom *hub.UserRoomInfo) {
 	if liveRoom == nil {
 		return // room is offline; no one to notify
@@ -81,6 +78,7 @@ func (h *Handler) broadcastRoomUpdated(roomID string, epoch int64, liveRoom *hub
 		})
 	}
 	updPayload.Users = userList
+
 
 	payloadBytes, err := json.Marshal(updPayload)
 	if err != nil {
