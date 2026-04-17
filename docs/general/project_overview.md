@@ -72,10 +72,10 @@ The system consists of four major components:
 
 * Key pair generated in memory on page load
 * Username chosen per session
-* Keys are destroyed on refresh or tab close
-* No persistence on the client
-* The server does **not** save the user record to the database
-* Messages the user sends are still stored in the database (under their fingerprint)
+* Keys are destroyed on refresh or tab close — refresh produces a brand-new fingerprint; the old row in `users` is simply abandoned
+* No key persistence on the client
+* The server **does** save the user record to `users` with `mode = 0` — so ephemeral users can be room members, hold room/key-creator roles, receive stored key slots, and stay in rooms across disconnects, just like persistent users
+* Messages the ephemeral user sends are **not** persisted to `messages` (skipped based on `SenderMode` in `MessageService.ProcessMessage`)
 
 ### Persistent User Mode
 
@@ -83,6 +83,8 @@ The system consists of four major components:
 * Keys can optionally be encrypted with a passphrase
 * User identity persists across reloads
 * Username persists locally
+* User record saved to `users` with `mode = 1`
+* Messages are persisted and replayed on reconnect
 * Server still does not store private keys
 
 ---
@@ -177,8 +179,8 @@ All communication happens in rooms. A room can have any number of members — so
 The server always uses SQLite. There is no memory-only mode.
 
 * Rooms and encrypted messages are always persisted to the database
-* **Persistent users** (`UserModePersistent`): user record saved to the `users` table; identity survives reconnects
-* **Ephemeral users** (`UserModeEphemeral`): user record is **never** written to the database; the server treats them as session-only
+* **Persistent users** (`UserModePersistent`, `mode = 1`): user record saved to `users`; messages persisted; identity survives reconnects
+* **Ephemeral users** (`UserModeEphemeral`, `mode = 0`): user record is still saved to `users` (so room membership, key slots, and host transfer all work), but messages they send are not written to `messages`. They lose access only when the browser loses their in-memory private key (refresh / tab close)
 * No plaintext, no private keys, and no decryption keys are stored
 * The server operator cannot read any stored messages
 
@@ -191,7 +193,7 @@ The server always uses SQLite. There is no memory-only mode.
     * Active WebSocket connections drop
     * In-memory hub state is lost (active sessions, room membership in memory)
     * The database (messages, rooms, persistent users) is intact and available on next start
-* Ephemeral users are gone after disconnect — their record was never saved
+* Ephemeral users remain in `users` and stay in their rooms on disconnect — they only lose access when the browser loses their private key (refresh / tab close). Their messages were never persisted, so replay returns only messages from persistent senders
 * Clients do not retain messages unless explicitly designed to
 
 ---
@@ -259,7 +261,7 @@ This project intentionally focuses on:
 
 * Self-hosting
 * Explicit trust
-* Ephemeral communication
+* Ephemeral communication from the user's perspective (ephemeral users' private keys never persist client-side; their messages are not stored server-side)
 * Minimal attack surface
 * Understandable and auditable security
 
