@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"2L1nk/internal/session"
 	"net/http"
 	"strconv"
 
@@ -9,7 +10,24 @@ import (
 )
 
 func (h *Handler) GetRoomMessages(c echo.Context) error {
+	user := c.Get("user").(*session.User)
 	roomID := c.Param("room_id")
+
+	members, err := h.services.Room.GetRoomMembers(roomID)
+	if err != nil {
+		h.logg.Error("get room messages: failed to check membership", zap.String("roomID", roomID), zap.Error(err))
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+	}
+	isMember := false
+	for _, fp := range members {
+		if fp == user.PublicKeyFingerprint {
+			isMember = true
+			break
+		}
+	}
+	if !isMember {
+		return c.JSON(http.StatusForbidden, map[string]string{"error": "not a member of this room"})
+	}
 
 	limit := 50
 	if l := c.QueryParam("limit"); l != "" {
