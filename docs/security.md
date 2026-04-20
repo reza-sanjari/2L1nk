@@ -194,7 +194,7 @@ Priority order (lex-lowest fingerprint within each bucket, first non-empty bucke
 4. Offline + Ephemeral    ← last resort
 ```
 
-"Online" means the user has an active WebSocket connection in the hub at the time of selection. "Offline" means they are a known room member but not currently connected.
+"Online" means the user has an active WebSocket connection in the hub at the time of selection. "Offline" means they are a known room member but not currently connected. "Offline + Ephemeral" is simply an ephemeral user whose WS session has ended — their `users` row and `room_members` row are still there, so they remain a valid candidate; only a browser refresh invalidates their identity.
 
 The current key creator is kept if they are online; selection only runs if the current creator is offline or being excluded (e.g., on disconnect).
 
@@ -209,7 +209,7 @@ Client:  POST /api/rooms/:room_id/users/:user_fp
 **DB-first** — hub is updated after DB is already consistent:
 
 1. Handler verifies caller is the host.
-2. Calls `roomSvc.AddMemberDirect` → inserts into `room_members` (skipped if room has no DB record — ephemeral-only room).
+2. Calls `roomSvc.AddMemberDirect` → inserts into `room_members`. Works for both persistent and ephemeral members because all users are in `users`.
 3. Runs key creator selection: keeps current creator if online; otherwise 4-tier lex selection.
 4. Increments epoch, updates `rooms.current_epoch` and `rooms.key_creator_fp` in DB.
 5. Sends `RoomMembersChangeRequest` to hub `JoinRoom` channel → `handleJoinRoom`:
@@ -219,7 +219,7 @@ Client:  POST /api/rooms/:room_id/users/:user_fp
    - Calls `broadcastRotation(room, emitEvent=false)` — DB already updated, no event needed.
    - Calls `broadcastMemberJoined` → sends `join_room` WS to all online members.
 
-If the room is not in the hub (all members offline), the hub sync is silently skipped — the DB is already correct.
+If the room is not already loaded in the hub (all members offline), it is loaded on demand via `RoomLoader` — the room comes online, and the membership event is broadcast to any online users.
 
 ---
 
@@ -264,13 +264,11 @@ Body: { epoch: int64, keys: [{ recipient_fp, encrypted_key (base64) }] }
 
 **Processing:**
 1. Decodes each `encrypted_key` from base64.
-2. Calls `roomSvc.StoreKeySlots` → inserts into `room_key_slots`.
-   - **Ephemeral recipients are silently skipped** — they have no row in `users`, so the FK constraint would fail. Their key is delivered in-memory only (next step).
+2. Calls `roomSvc.StoreKeySlots` → inserts into `room_key_slots` for every recipient. Persistent and ephemeral members both get stored slots (the FK to `users(fingerprint)` is satisfied because all users are persisted).
 3. Sends `EpochKeysSubmittedRequest` to hub → `handleEpochKeysSubmitted`:
    - Clears `room.PendingRotation`.
    - For each entry: if recipient is **online**, sends `room_key_slot` WS directly.
-   - Offline persistent recipients: key is in DB — delivered automatically on next WS connect (see 4.8).
-   - Offline ephemeral recipients: key is not stored and cannot be delivered — they must re-join the room.
+   - Offline recipients: key is in DB — delivered automatically on next WS connect (see 4.8). For ephemeral users, "reconnecting" only succeeds if the browser still holds the same private key (no refresh in between); after a refresh they'd have a new fingerprint and would need to rejoin.
 
 ```json
 {
@@ -427,10 +425,10 @@ The server is a **transport, routing, coordination, and storage layer**. It cann
 
 ### Ephemeral Mode
 - Ed25519 key pair generated in memory on page load.
-- Keys destroyed on tab close or page refresh.
-- Room keys and message history are lost on reload.
+- Keys destroyed on tab close or page refresh — refresh produces a new fingerprint and effectively a new identity.
+- Room keys and message history are lost on reload (client-side).
 - Key pair and room keys are not persisted on the client.
-- User record is not saved to the server database.
+- User record **is** saved to the server database with `mode = 0` so that room membership, key-slot storage, and host transfer work identically to persistent users. Messages the ephemeral user sends are **not** persisted — the skip is in `MessageService.ProcessMessage` keyed on `SenderMode`.
 
 ### Persistent Mode
 - Ed25519 key pair generated once and stored in the browser (IndexedDB or localStorage).
@@ -501,7 +499,7 @@ Sessions are stored in an in-memory `session.Store` (`internal/session/store.go`
 - Returns `false` from `Get` immediately if the session has exceeded the TTL
 - Runs a background goroutine (every hour) that evicts expired sessions and releases their associated username
 
-Sessions are also removed explicitly on user disconnect (`ws.go` cleanup path) and on ephemeral user disconnect. The 24-hour TTL acts as a safety net for sessions that were never explicitly closed (e.g. network failure, browser crash).
+Sessions are also removed explicitly on user disconnect (`ws.go` cleanup path) — this is in-memory session cleanup only. The user's `users` row and any `room_members` rows are untouched, including for ephemeral users (they stay in their rooms until they explicitly leave or until the host removes them). The 24-hour TTL acts as a safety net for sessions that were never explicitly closed (e.g. network failure, browser crash).
 
 ### 10.5 Input Length Limits
 

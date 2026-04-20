@@ -40,7 +40,7 @@ New DB table: migration in `internal/db/` → repo → service.
 
 ## Key Rules
 
-- **Ephemeral users** are never written to `users` table; `messages.sender_fp` is intentionally not a FK
+- **Ephemeral users** are stored in DB (`users` + `room_members`) just like persistent users; only their messages are skipped (not persisted). `messages.sender_fp` is intentionally not a FK
 - **No plaintext keys stored** — server only sees ciphertexts
 - User identity = `fingerprint = SHA-256(ed25519_public_key)`
 - Room key rotates on every join/leave (epoch increments, `key_creator_fp` generates new key)
@@ -48,8 +48,3 @@ New DB table: migration in `internal/db/` → repo → service.
 - Services must NOT depend on Hub; use hub.Events + EventConsumer for hub→DB persistence
 - Logging: always use structured Zap fields — `zap.String(...)`, `zap.Error(...)`
 - Error handling: return typed errors from services, translate to HTTP in handlers — don't log AND return
-
-## Known TODOs
-
-- Signature validation not implemented (`ws.go` ~line 81)
-- Voice call logic pending (DB schema exists)
