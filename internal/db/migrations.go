@@ -12,9 +12,7 @@ var expectedTables = []string{
 	"room_members",
 	"messages",
 	"room_key_slots",
-	"voice_sessions",
-	"voice_participants",
-	"gate_tokens",
+"gate_tokens",
 }
 
 // RunMigrations creates all tables that do not yet exist, inside a single
@@ -32,6 +30,7 @@ func RunMigrations(database *sql.DB) error {
 			public_key        TEXT    NOT NULL,
 			x25519_public_key TEXT    NOT NULL DEFAULT '',
 			username          TEXT,
+			mode              INTEGER NOT NULL DEFAULT 1,
 			created_at        INTEGER NOT NULL
 		)`,
 
@@ -70,23 +69,7 @@ func RunMigrations(database *sql.DB) error {
 			PRIMARY KEY (room_id, epoch, recipient_fp)
 		)`,
 
-		`CREATE TABLE IF NOT EXISTS voice_sessions (
-			id         TEXT    PRIMARY KEY,
-			room_id    TEXT    NOT NULL REFERENCES rooms(id),
-			started_at INTEGER NOT NULL,
-			ended_at   INTEGER
-		)`,
-
-		`CREATE TABLE IF NOT EXISTS voice_participants (
-			session_id TEXT    NOT NULL REFERENCES voice_sessions(id),
-			member_fp  TEXT    NOT NULL,
-			joined_at  INTEGER NOT NULL,
-			left_at    INTEGER,
-			muted      INTEGER NOT NULL DEFAULT 0,
-			PRIMARY KEY (session_id, member_fp)
-		)`,
-
-		`CREATE TABLE IF NOT EXISTS gate_tokens (
+`CREATE TABLE IF NOT EXISTS gate_tokens (
 			id         INTEGER PRIMARY KEY AUTOINCREMENT,
 			token      TEXT    UNIQUE NOT NULL,
 			max_uses   INTEGER NOT NULL DEFAULT 0,
@@ -111,7 +94,7 @@ func RunMigrations(database *sql.DB) error {
 	if err := addColumnIfNotExists(database, "rooms", "name", "TEXT"); err != nil {
 		return err
 	}
-	if err := dropColumnIfExists(database, "users", "mode"); err != nil {
+	if err := addColumnIfNotExists(database, "users", "mode", "INTEGER NOT NULL DEFAULT 1"); err != nil {
 		return err
 	}
 	if err := addColumnIfNotExists(database, "users", "x25519_public_key", "TEXT NOT NULL DEFAULT ''"); err != nil {

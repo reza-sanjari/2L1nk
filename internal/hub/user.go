@@ -73,7 +73,7 @@ func NewUser(fingerprint string, username string, x25519PublicKey string, websoc
 		Fingerprint:      fingerprint,
 		Username:         username,
 		X25519PublicKey:  x25519PublicKey,
-		OutGoingMessages: make(chan []byte, 32),
+		OutGoingMessages: make(chan []byte, 256),
 		Websocket:        websocket,
 		PeerMux:          sync.Mutex{},
 		Mode:             mode,

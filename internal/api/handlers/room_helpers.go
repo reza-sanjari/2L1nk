@@ -27,11 +27,11 @@ func buildRoomResponse(dbRoom *infradb.RoomRecord, live *hub.UserRoomInfo) roomR
 	return res
 }
 
-// persistentMembersToWithMode converts DB member key info (all persistent) to MemberWithMode.
-func persistentMembersToWithMode(members []infradb.MemberKeyInfo) []service.MemberWithMode {
+// membersToWithMode converts DB member key info to MemberWithMode using the stored mode.
+func membersToWithMode(members []infradb.MemberKeyInfo) []service.MemberWithMode {
 	out := make([]service.MemberWithMode, len(members))
 	for i, m := range members {
-		out[i] = service.MemberWithMode{FP: m.Fingerprint, Mode: models.UserModePersistent}
+		out[i] = service.MemberWithMode{FP: m.Fingerprint, Mode: models.UserMode(m.Mode)}
 	}
 	return out
 }
@@ -49,10 +49,7 @@ func buildOnlineSet(members []service.MemberWithMode, h *hub.Hub) map[string]boo
 }
 
 // broadcastRoomUpdated sends a room_updated WS event to all online members.
-// It mirrors the per-room shape from GET /rooms: persistent DB members (with usernames)
-// merged with online ephemeral members from the hub.
-// roomID is the room to notify; epoch and liveRoom are the current in-flight values
-// (may differ from DB if the caller has already bumped the epoch in DB).
+// Uses DB as the authoritative member source for both persistent and ephemeral users.
 func (h *Handler) broadcastRoomUpdated(roomID string, epoch int64, liveRoom *hub.UserRoomInfo) {
 	if liveRoom == nil {
 		return // room is offline; no one to notify
@@ -77,15 +74,11 @@ func (h *Handler) broadcastRoomUpdated(roomID string, epoch int64, liveRoom *hub
 			Fingerprint:     m.Fingerprint,
 			Username:        m.Username,
 			X25519PublicKey: m.X25519PublicKey,
-			Mode:            models.UserModePersistent,
+			Mode:            models.UserMode(m.Mode),
 		})
 	}
-	for _, u := range liveRoom.Users {
-		if u.Mode == models.UserModeEphemeral {
-			userList = append(userList, u)
-		}
-	}
 	updPayload.Users = userList
+
 
 	payloadBytes, err := json.Marshal(updPayload)
 	if err != nil {
@@ -101,14 +94,4 @@ func (h *Handler) broadcastRoomUpdated(roomID string, epoch int64, liveRoom *hub
 		return
 	}
 	h.hub.BroadcastToRoom <- hub.BroadcastToRoomRequest{RoomID: roomID, Data: envelope}
-}
-
-// appendIfMissing adds a MemberWithMode entry if the FP is not already in the list.
-func appendIfMissing(members []service.MemberWithMode, fp string, mode models.UserMode) []service.MemberWithMode {
-	for _, m := range members {
-		if m.FP == fp {
-			return members
-		}
-	}
-	return append(members, service.MemberWithMode{FP: fp, Mode: mode})
 }

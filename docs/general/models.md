@@ -12,8 +12,8 @@ This document lists the key types used across the codebase, organized by package
 type UserMode int
 
 const (
-    UserModeEphemeral  UserMode = iota // 0 — session only, user record never saved to DB
-    UserModePersistent                 // 1 — user record saved to DB, persists across reconnects
+    UserModeEphemeral  UserMode = iota // 0 — user record IS saved to DB; messages sent by this user are not persisted; private key lives only in the browser memory, so a refresh means a new fingerprint
+    UserModePersistent                 // 1 — user record saved to DB; messages persisted; identity survives reconnects
 )
 ```
 
@@ -120,7 +120,7 @@ type WSMessageEnvelope struct {
 
 ## UserRecord
 
-Persisted user data. Only written for `UserModePersistent` users.
+Persisted user data. Written for every user regardless of mode — the `Mode` field distinguishes ephemeral (0) from persistent (1).
 
 ```go
 type UserRecord struct {
@@ -128,6 +128,7 @@ type UserRecord struct {
     PublicKey       string // base64-encoded Ed25519 public key
     X25519PublicKey string // base64-encoded X25519 public key
     Username        string
+    Mode            int    // 0 = ephemeral, 1 = persistent
     CreatedAt       int64  // unix timestamp
 }
 ```

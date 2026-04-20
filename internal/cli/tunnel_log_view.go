@@ -16,15 +16,15 @@ type tunnelURLDetectedMsg struct {
 }
 
 type tunnelLogModel struct {
-	vp          viewport.Model
-	tunnelName  string
-	logPath     string
-	urlPattern  string // domain suffix to identify the tunnel URL in logs
-	width       int
-	height      int
-	atBottom    bool
-	lineCount   int
-	lastURL     string // most recently scanned URL, for deduplication
+	vp         viewport.Model
+	tunnelName string
+	logPath    string
+	urlPattern string // domain suffix to identify the tunnel URL in logs
+	width      int
+	height     int
+	atBottom   bool
+	lineCount  int
+	lastURL    string // most recently scanned URL, for deduplication
 }
 
 func newTunnelLogModel(name, logPath, urlPattern string, width, height int) tunnelLogModel {

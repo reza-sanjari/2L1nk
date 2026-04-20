@@ -23,13 +23,13 @@ type logsDoneMsg struct{}
 var logLevels = []string{"ALL", "DEBUG", "INFO", "WARN", "ERROR"}
 
 type logsModel struct {
-	vp         viewport.Model
-	logPath    string
-	width      int
-	height     int
-	atBottom   bool
-	lineCount  int
-	filterIdx  int
+	vp        viewport.Model
+	logPath   string
+	width     int
+	height    int
+	atBottom  bool
+	lineCount int
+	filterIdx int
 }
 
 func newLogsModel(logPath string, width, height int) logsModel {

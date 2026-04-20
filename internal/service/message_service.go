@@ -4,6 +4,7 @@ import (
 	"2L1nk/internal/hub"
 	infradb "2L1nk/internal/infrastructure/db"
 	"2L1nk/internal/logger"
+	"2L1nk/internal/models"
 )
 
 type MessageRepository interface {
@@ -14,24 +15,18 @@ type MessageRepository interface {
 }
 
 type MessageService struct {
-	msgRepo  MessageRepository
-	roomRepo RoomRepository // reuses the interface defined in room_service.go
-	log      *logger.Logger
+	msgRepo MessageRepository
+	log     *logger.Logger
 }
 
-func NewMessageService(msgRepo MessageRepository, roomRepo RoomRepository, log *logger.Logger) *MessageService {
-	return &MessageService{msgRepo: msgRepo, roomRepo: roomRepo, log: log}
+func NewMessageService(msgRepo MessageRepository, log *logger.Logger) *MessageService {
+	return &MessageService{msgRepo: msgRepo, log: log}
 }
 
-// ProcessMessage saves a message to the DB if the room is persisted.
-// If the room is not in the DB (ephemeral room), the save is skipped silently.
+// ProcessMessage saves a message to the DB unless the sender is ephemeral.
 func (s *MessageService) ProcessMessage(p hub.MessageCreatedPayload) error {
-	room, err := s.roomRepo.GetByID(p.RoomID)
-	if err != nil {
-		return err
-	}
-	if room == nil {
-		return nil // ephemeral room, skip
+	if p.SenderMode == models.UserModeEphemeral {
+		return nil
 	}
 	return s.msgRepo.Save(&infradb.MessageRecord{
 		ID:         p.ID,

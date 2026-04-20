@@ -70,7 +70,7 @@ type RestoreRoomRequest struct {
 type RemoveFromRoomRequest struct {
 	RoomID          string
 	MemberFP        string
-	Deleted         bool   // true if room was deleted from DB — hub just removes from h.Rooms
+	Deleted         bool // true if room was deleted from DB — hub just removes from h.Rooms
 	NewEpoch        int64
 	NewKeyCreatorFP string
 	NewHostFP       string // "" if host is unchanged

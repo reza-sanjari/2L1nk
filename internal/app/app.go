@@ -13,6 +13,7 @@ import (
 	"2L1nk/internal/hub"
 	infradb "2L1nk/internal/infrastructure/db"
 	"2L1nk/internal/logger"
+	"2L1nk/internal/models"
 	"2L1nk/internal/server"
 	"2L1nk/internal/service"
 	"2L1nk/internal/session"
@@ -67,11 +68,37 @@ func New(cfg *config.Config, g *gate.Gate, logFile string, suppressStdout bool) 
 	healthSvc := service.NewHealthService(healthRepo, logg)
 	gateSvc := service.NewGateService(g, sessionStore, userRepo, logg)
 	roomSvc := service.NewRoomService(roomRepo, logg)
-	msgSvc := service.NewMessageService(msgRepo, roomRepo, logg)
+	msgSvc := service.NewMessageService(msgRepo, logg)
 
 	services := service.NewContainer(healthSvc, gateSvc, roomSvc, msgSvc)
 
 	mainHub := hub.New(sessionStore, logg)
+	mainHub.SetRoomLoader(func(roomID string) *hub.LoadedRoom {
+		room, err := roomSvc.GetRoomByID(roomID)
+		if err != nil || room == nil {
+			return nil
+		}
+		members, err := roomSvc.GetMembersWithPublicKeys(roomID)
+		if err != nil {
+			return nil
+		}
+		hubMembers := make([]hub.MemberKeyInfo, len(members))
+		for i, m := range members {
+			hubMembers[i] = hub.MemberKeyInfo{
+				FP:              m.Fingerprint,
+				X25519PublicKey: m.X25519PublicKey,
+				Mode:            models.UserMode(m.Mode),
+			}
+		}
+		return &hub.LoadedRoom{
+			RoomID:       room.ID,
+			Name:         room.Name,
+			HostFP:       room.HostFP,
+			KeyCreatorFP: room.KeyCreatorFP,
+			Epoch:        room.CurrentEpoch,
+			Members:      hubMembers,
+		}
+	})
 	go mainHub.Run()
 
 	startEventConsumer(mainHub, roomSvc, msgSvc, logg)

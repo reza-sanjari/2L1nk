@@ -4,8 +4,8 @@ import (
 	"strings"
 
 	"github.com/atotto/clipboard"
-	qrcode "github.com/skip2/go-qrcode"
 	tea "github.com/charmbracelet/bubbletea"
+	qrcode "github.com/skip2/go-qrcode"
 )
 
 type linkDetailDoneMsg struct{}

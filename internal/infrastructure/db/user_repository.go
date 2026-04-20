@@ -10,6 +10,7 @@ type UserRecord struct {
 	PublicKey       string // base64-encoded Ed25519
 	X25519PublicKey string // base64-encoded X25519
 	Username        string
+	Mode            int
 	CreatedAt       int64
 }
 
@@ -24,11 +25,11 @@ func NewUserRepository(db *sql.DB) *UserRepository {
 // GetByFingerprint returns the user with the given fingerprint, or nil if not found.
 func (r *UserRepository) GetByFingerprint(fingerprint string) (*UserRecord, error) {
 	row := r.db.QueryRow(
-		`SELECT fingerprint, public_key, x25519_public_key, username, created_at FROM users WHERE fingerprint = ?`,
+		`SELECT fingerprint, public_key, x25519_public_key, username, mode, created_at FROM users WHERE fingerprint = ?`,
 		fingerprint,
 	)
 	u := &UserRecord{}
-	err := row.Scan(&u.Fingerprint, &u.PublicKey, &u.X25519PublicKey, &u.Username, &u.CreatedAt)
+	err := row.Scan(&u.Fingerprint, &u.PublicKey, &u.X25519PublicKey, &u.Username, &u.Mode, &u.CreatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -41,8 +42,8 @@ func (r *UserRepository) GetByFingerprint(fingerprint string) (*UserRecord, erro
 // Create inserts a new user row.
 func (r *UserRepository) Create(u *UserRecord) error {
 	_, err := r.db.Exec(
-		`INSERT INTO users (fingerprint, public_key, x25519_public_key, username, created_at) VALUES (?, ?, ?, ?, ?)`,
-		u.Fingerprint, u.PublicKey, u.X25519PublicKey, u.Username, u.CreatedAt,
+		`INSERT INTO users (fingerprint, public_key, x25519_public_key, username, mode, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+		u.Fingerprint, u.PublicKey, u.X25519PublicKey, u.Username, u.Mode, u.CreatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("create user: %w", err)
@@ -53,7 +54,7 @@ func (r *UserRepository) Create(u *UserRecord) error {
 // GetAllUsers returns all persistent users.
 func (r *UserRepository) GetAllUsers() ([]UserRecord, error) {
 	rows, err := r.db.Query(
-		`SELECT fingerprint, public_key, x25519_public_key, username, created_at FROM users`,
+		`SELECT fingerprint, public_key, x25519_public_key, username, mode, created_at FROM users`,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("get all users: %w", err)
@@ -63,7 +64,7 @@ func (r *UserRepository) GetAllUsers() ([]UserRecord, error) {
 	var users []UserRecord
 	for rows.Next() {
 		var u UserRecord
-		if err := rows.Scan(&u.Fingerprint, &u.PublicKey, &u.X25519PublicKey, &u.Username, &u.CreatedAt); err != nil {
+		if err := rows.Scan(&u.Fingerprint, &u.PublicKey, &u.X25519PublicKey, &u.Username, &u.Mode, &u.CreatedAt); err != nil {
 			return nil, err
 		}
 		users = append(users, u)
