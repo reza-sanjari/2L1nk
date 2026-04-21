@@ -108,6 +108,7 @@
     <main>
         <section class="hero">
             <h1 style="font-size: 3.5rem; text-align: center; margin-bottom: 10px; letter-spacing: -1px;">2L<span style="color: #bc13fe;">1nk</span></h1>
+            <a id="app-version" class="login-version" href="https://github.com/your-repo/releases" target="_blank" rel="noopener" style="display:none"></a>
             <!--<p class="subtitle">Wählen Sie Ihren Zugangspunkt zum Netzwerk.</p>-->
 
             <div class="auth-grid">
@@ -192,13 +193,91 @@
         </section>
     </main>
 
-    <footer style="text-align: center; padding: 40px; opacity: 0.4; border-top: 1px solid rgba(255,255,255,0.05);">
-        &copy; 2026 2L1nk Project. Built for Privacy.
+    <footer class="login-footer">
+        <div class="login-footer-links">
+            <a class="login-footer-link" href="https://github.com/your-repo/releases" target="_blank" rel="noopener">
+                <i class="fas fa-download"></i> Releases
+            </a>
+            <a class="login-footer-link" href="/Setup">
+                <i class="fas fa-book"></i> Setup Guide
+            </a>
+            <button class="login-footer-link" onclick="openChangelog()">
+                <i class="fas fa-list"></i> Changelog
+            </button>
+        </div>
+        <div class="login-footer-copy">&copy; 2026 2L1nk Project. Built for Privacy.</div>
     </footer>
+
+    <!-- Changelog Modal -->
+    <div id="changelog-modal" class="cl-overlay" style="display:none" onclick="closeChangelogOverlay(event)">
+        <div class="cl-modal">
+            <div class="cl-modal-header">
+                <span>Changelog</span>
+                <button class="cl-modal-close" onclick="closeChangelog()"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="cl-modal-body" class="cl-modal-body">
+                <div class="cl-loading">Loading...</div>
+            </div>
+        </div>
+    </div>
 
 </body>
 </html>
 <script>
+    // ── App Info (version + changelog) ──────────────────────────────
+    let _appInfo = null;
+
+    async function loadAppInfo() {
+        if (_appInfo) return _appInfo;
+        try {
+            const res = await fetch('/api/info');
+            if (!res.ok) throw new Error();
+            _appInfo = await res.json();
+        } catch (e) { _appInfo = null; }
+        return _appInfo;
+    }
+
+    async function initVersion() {
+        const data = await loadAppInfo();
+        if (!data) return;
+        const el = document.getElementById('app-version');
+        if (el) { el.textContent = 'v' + data.version; el.style.display = 'inline-block'; }
+    }
+
+    function openChangelog() {
+        document.getElementById('changelog-modal').style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+        renderChangelog();
+    }
+
+    function closeChangelog() {
+        document.getElementById('changelog-modal').style.display = 'none';
+        document.body.style.overflow = '';
+    }
+
+    function closeChangelogOverlay(e) {
+        if (e.target === document.getElementById('changelog-modal')) closeChangelog();
+    }
+
+    async function renderChangelog() {
+        const body = document.getElementById('cl-modal-body');
+        const data = await loadAppInfo();
+        if (!data || !data.changelog || !data.changelog.length) {
+            body.innerHTML = '<div class="cl-loading">No changelog available.</div>';
+            return;
+        }
+        body.innerHTML = data.changelog.map(entry => {
+            const notes = entry.notes.map(n => `<li>${n}</li>`).join('');
+            return `<div class="cl-entry">
+                <div class="cl-entry-header">
+                    <span class="cl-version">${entry.version}</span>
+                    <span class="cl-date">${entry.date}</span>
+                </div>
+                <ul class="cl-notes">${notes}</ul>
+            </div>`;
+        }).join('');
+    }
+
     // ── IndexedDB Key Store ──────────────────────────────────────────
     const IDB_NAME    = '2l1nk_keystore';
     const IDB_STORE   = 'keypairs';
@@ -424,5 +503,5 @@
         }
     }
 
-    document.addEventListener('DOMContentLoaded', renderFastLogins);
+    document.addEventListener('DOMContentLoaded', () => { renderFastLogins(); initVersion(); });
 </script>
