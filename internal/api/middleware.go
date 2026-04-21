@@ -20,8 +20,9 @@ func AuthMiddleware(store *session.Store, ns *utils.NonceStore) echo.MiddlewareF
 			sessionID := c.Request().Header.Get("Chat-Session-ID")
 			timestampRaw := c.Request().Header.Get("Chat-Timestamp")
 			signature := c.Request().Header.Get("Chat-Signature")
+			nonce := c.Request().Header.Get("Chat-Nonce")
 
-			if sessionID == "" || timestampRaw == "" || signature == "" {
+			if sessionID == "" || timestampRaw == "" || signature == "" || nonce == "" {
 				return c.JSON(http.StatusUnauthorized, map[string]any{
 					"error": "missing auth headers",
 				})
@@ -67,7 +68,7 @@ func AuthMiddleware(store *session.Store, ns *utils.NonceStore) echo.MiddlewareF
 			sum := sha256.Sum256(bodyBytes)
 			bodyHash := hex.EncodeToString(sum[:])
 
-			canonical := utils.HTTPCanonical(c.Request().Method, c.Request().URL.Path, timestampRaw, bodyHash)
+			canonical := utils.HTTPCanonical(c.Request().Method, c.Request().URL.Path, timestampRaw, bodyHash, nonce)
 			if err := utils.VerifySignature(user.PublicKey, canonical, signature); err != nil {
 				return c.JSON(http.StatusUnauthorized, map[string]any{
 					"error": "invalid signature",
