@@ -614,10 +614,11 @@ function connectLocalChat() {
 async function fetchRooms() {
 
     const timestamp = Math.floor(Date.now() / 1000);
+    const nonce = crypto.randomUUID();
     const path = '/api/users/me/rooms';
 
     const emptyBodyHash = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
-    const canonical = `GET\n${path}\n${timestamp}\n${emptyBodyHash}`;
+    const canonical = `GET\n${path}\n${timestamp}\n${emptyBodyHash}\n${nonce}`;
     const signature = AppCrypto.sign(canonical);
 
     try {
@@ -626,6 +627,7 @@ async function fetchRooms() {
             headers: {
                 'Chat-Session-ID': sessionStorage.getItem('sessionId'),
                 'Chat-Timestamp': timestamp,
+                'Chat-Nonce': nonce,
                 'Chat-Signature': signature
             }
         });
@@ -1097,9 +1099,13 @@ async function openRoomMenu(room) {
     const allUsersRaw = allResp?.ok ? (await allResp.json()) : [];
     const allUsers = Array.isArray(allUsersRaw) ? allUsersRaw : [];
 
+    // Re-read from roomList after the await — background fetchRooms() calls and
+    // room_updated WS events may have updated it while we were waiting.
+    const freshRoom = roomList.find(r => r.room_id === room.room_id) ?? room;
+
     const onlineFPs = new Set(allUsers.filter(u => u.online).map(u => u.fingerprint));
-    const memberFPs = new Set((room.users ?? []).map(u => u.fingerprint));
-    const removable = (room.users ?? []).filter(u => u.fingerprint !== myFP);
+    const memberFPs = new Set((freshRoom.users ?? []).map(u => u.fingerprint));
+    const removable = (freshRoom.users ?? []).filter(u => u.fingerprint !== myFP);
     const addable = allUsers.filter(u => u.online && !memberFPs.has(u.fingerprint) && u.fingerprint !== myFP);
 
     // Mitglieder-Liste befüllen
@@ -1108,7 +1114,7 @@ async function openRoomMenu(room) {
         leftList.innerHTML = '<div class="member-col-empty">Keine weiteren Mitglieder</div>';
     } else {
         removable.forEach(u => leftList.appendChild(
-            makeRow(u.username, 'rem-btn', '– Entfernen', onlineFPs.has(u.fingerprint), () => removeMember(room.room_id, u.fingerprint))
+            makeRow(u.username, 'rem-btn', '– Entfernen', onlineFPs.has(u.fingerprint), () => removeMember(freshRoom.room_id, u.fingerprint))
         ));
     }
 
@@ -1118,7 +1124,7 @@ async function openRoomMenu(room) {
         rightList.innerHTML = '<div class="member-col-empty">Keine online User verfügbar</div>';
     } else {
         addable.forEach(u => rightList.appendChild(
-            makeRow(u.username, 'add-btn', '+ Hinzufügen', true, () => addMember(room.room_id, u))
+            makeRow(u.username, 'add-btn', '+ Hinzufügen', true, () => addMember(freshRoom.room_id, u))
         ));
     }
 }
@@ -1126,10 +1132,11 @@ async function openRoomMenu(room) {
 async function authFetch(method, path, body = null) {
     const bodyString = body ? JSON.stringify(body) : null;
     const timestamp = Math.floor(Date.now() / 1000);
+    const nonce = crypto.randomUUID();
     const bodyHash = bodyString
         ? await hashBody(bodyString)
         : 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
-    const canonical = `${method}\n${path}\n${timestamp}\n${bodyHash}`;
+    const canonical = `${method}\n${path}\n${timestamp}\n${bodyHash}\n${nonce}`;
     const signature = AppCrypto.sign(canonical);
 
     const opts = {
@@ -1137,6 +1144,7 @@ async function authFetch(method, path, body = null) {
         headers: {
             'Chat-Session-ID': sessionStorage.getItem('sessionId'),
             'Chat-Timestamp': timestamp,
+            'Chat-Nonce': nonce,
             'Chat-Signature': signature,
         }
     };
@@ -1351,20 +1359,16 @@ async function newChat(groupName) {
         // 1. Body Hash erzeugen
         const bodyHash = await hashBody(bodyString);
 
-        // 2. Canonical String bauen
-        // PRÜFE: Erwartet dein Go-Server hier wirklich POST (großgeschrieben)?
-        const canonical = `POST\n${path}\n${timestamp}\n${bodyHash}`;
-
-        // 3. Signatur erzeugen
+        const nonce = crypto.randomUUID();
+        const canonical = `POST\n${path}\n${timestamp}\n${bodyHash}\n${nonce}`;
         const signature = AppCrypto.sign(canonical);
-
-
 
         const response = await fetch(`${path}`, {
             method: 'POST',
             headers: {
                 'Chat-Session-ID': sessionId,
-                'Chat-Timestamp': timestamp, // Hier wird der String gesendet
+                'Chat-Timestamp': timestamp,
+                'Chat-Nonce': nonce,
                 'Chat-Signature': signature,
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'

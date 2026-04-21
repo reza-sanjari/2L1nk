@@ -33,9 +33,9 @@ func VerifySignature(pubKey ed25519.PublicKey, canonical string, sigBase64 strin
 
 // HTTPCanonical builds the canonical string for HTTP request signing:
 //
-//	METHOD\nPATH\nTIMESTAMP\nBODY_SHA256_HEX
-func HTTPCanonical(method, path, timestampRaw, bodyHash string) string {
-	return method + "\n" + path + "\n" + timestampRaw + "\n" + bodyHash
+//	METHOD\nPATH\nTIMESTAMP\nBODY_SHA256_HEX\nNONCE
+func HTTPCanonical(method, path, timestampRaw, bodyHash, nonce string) string {
+	return method + "\n" + path + "\n" + timestampRaw + "\n" + bodyHash + "\n" + nonce
 }
 
 // WSCanonical builds the canonical string for WebSocket auth signing:
