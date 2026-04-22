@@ -1,7 +1,19 @@
 [
   {
+    "version": "0.9.4",
+    "date": "21-04-2026",
+    "notes": [
+      "Remove all messages options",
+      "Better handling of temp users",
+      "New setup instructions page",
+      "Removed hardcoded gate key",
+      "Fixed signature verification when adding new users to rooms",
+      "Bug fixes and stability improvements"
+    ]
+  },
+  {
     "version": "0.9.3",
-    "date": "2026-04-21",
+    "date": "17-04-2026",
     "notes": [
       "Added room membership check for get room messages",
       "Fixed missing DB connection logs"
@@ -9,7 +21,7 @@
   },
   {
     "version": "0.9.2",
-    "date": "2026-04-10",
+    "date": "10-04-2026",
     "notes": [
       "Improved gate token rotation",
       "Bug fixes and stability improvements"
