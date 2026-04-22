@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2L1nk — Setup Guide</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --accent: #bc13fe;
+            --accent-dark: #4b0082;
+            --bg-from: #1a0525;
+            --bg-to: #310a5d;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #0a0a0a, var(--bg-from), var(--bg-to));
+            min-height: 100vh;
+            color: #e0e0e0;
+            padding: 40px 20px 80px;
+        }
+
+        .page {
+            max-width: 720px;
+            margin: 0 auto;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: rgba(255,255,255,0.4);
+            text-decoration: none;
+            font-size: 0.82rem;
+            margin-bottom: 36px;
+            transition: color 0.15s;
+        }
+        .back-link:hover { color: rgba(255,255,255,0.8); }
+
+        .page-header {
+            margin-bottom: 40px;
+        }
+
+        .page-header h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .page-header h1 span { color: var(--accent); }
+
+        .page-header p {
+            margin-top: 10px;
+            font-size: 0.9rem;
+            opacity: 0.6;
+            line-height: 1.6;
+        }
+
+        .section {
+            margin-bottom: 36px;
+        }
+
+        .section-title {
+            font-size: 0.7rem;
+            font-weight: bold;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--accent);
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(188,19,254,0.2);
+        }
+
+        .step {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 20px;
+            align-items: flex-start;
+        }
+
+        .step-num {
+            flex-shrink: 0;
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            background: rgba(188,19,254,0.15);
+            border: 1px solid rgba(188,19,254,0.4);
+            color: var(--accent);
+            font-size: 0.72rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 2px;
+        }
+
+        .step-body p {
+            font-size: 0.85rem;
+            line-height: 1.6;
+            opacity: 0.8;
+            margin-bottom: 8px;
+        }
+
+        .step-body p:last-child { margin-bottom: 0; }
+
+        .step-body a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+        .step-body a:hover { text-decoration: underline; }
+
+        code, pre {
+            font-family: 'Consolas', 'Courier New', monospace;
+        }
+
+        .code-block {
+            background: rgba(0,0,0,0.5);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 8px;
+            padding: 14px 16px;
+            margin-top: 8px;
+            overflow-x: auto;
+        }
+
+        .code-block pre {
+            font-size: 0.82rem;
+            color: #d0d0d0;
+            line-height: 1.7;
+            white-space: pre;
+        }
+
+        .code-block .comment { color: rgba(255,255,255,0.3); }
+        .code-block .cmd { color: #4ade80; }
+        .code-block .flag { color: #a5b4fc; }
+        .code-block .val { color: #fde68a; }
+
+        .note {
+            background: rgba(188,19,254,0.06);
+            border: 1px solid rgba(188,19,254,0.2);
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-size: 0.8rem;
+            line-height: 1.6;
+            opacity: 0.85;
+            margin-top: 8px;
+        }
+
+        .note i { color: var(--accent); margin-right: 6px; }
+
+        .releases-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(188,19,254,0.12);
+            border: 1px solid rgba(188,19,254,0.4);
+            color: var(--accent);
+            text-decoration: none;
+            padding: 8px 18px;
+            border-radius: 8px;
+            font-size: 0.82rem;
+            font-weight: bold;
+            transition: background 0.15s;
+            margin-top: 8px;
+        }
+        .releases-btn:hover { background: rgba(188,19,254,0.22); }
+
+        /* TUI menu table */
+        .tui-menu {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.82rem;
+            margin-top: 10px;
+        }
+        .tui-menu th {
+            text-align: left;
+            padding: 6px 12px;
+            font-size: 0.68rem;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: rgba(188,19,254,0.7);
+            border-bottom: 1px solid rgba(188,19,254,0.15);
+        }
+        .tui-menu td {
+            padding: 8px 12px;
+            vertical-align: top;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+        }
+        .tui-menu tr:last-child td { border-bottom: none; }
+        .tui-menu .item-name {
+            font-family: 'Consolas', 'Courier New', monospace;
+            color: #e0e0e0;
+            white-space: nowrap;
+        }
+        .tui-menu .item-name.danger { color: #f87171; }
+        .tui-menu .item-desc {
+            color: rgba(255,255,255,0.5);
+            line-height: 1.5;
+        }
+
+        .sub-list {
+            margin-top: 10px;
+            padding-left: 0;
+            list-style: none;
+        }
+        .sub-list li {
+            font-size: 0.82rem;
+            line-height: 1.6;
+            opacity: 0.75;
+            padding: 3px 0;
+            padding-left: 16px;
+            position: relative;
+        }
+        .sub-list li::before {
+            content: '–';
+            position: absolute;
+            left: 0;
+            color: var(--accent);
+            opacity: 0.6;
+        }
+        .sub-list code {
+            background: rgba(188,19,254,0.12);
+            border-radius: 3px;
+            padding: 1px 5px;
+            font-size: 0.78rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <a class="back-link" href="/">
+            <i class="fas fa-arrow-left"></i> Back
+        </a>
+
+        <div class="page-header">
+            <h1>Self-hosting <span>2L1nk</span></h1>
+            <p>2L1nk is a self-hosted, end-to-end encrypted chat server. All encryption happens in the browser — the server never sees your messages or private keys.</p>
+        </div>
+
+        <!-- DOWNLOAD -->
+        <div class="section">
+            <div class="section-title">1 — Download</div>
+
+            <div class="step">
+                <div class="step-num">1</div>
+                <div class="step-body">
+                    <p>Grab the latest binary for your platform from the Releases page.</p>
+                    <a class="releases-btn" href="https://github.com/LBS-Eibiswald-APC/Team9_SanjariReza_KirschFlorian_2L1nk/releases" target="_blank" rel="noopener">
+                        <i class="fas fa-download"></i> View Releases
+                    </a>
+                    <p style="margin-top:12px">Available builds: <code>linux/amd64</code>, <code>windows/amd64</code>, <code>darwin/amd64</code></p>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-num">2</div>
+                <div class="step-body">
+                    <p>Make the binary executable (Linux / macOS):</p>
+                    <div class="code-block"><pre><span class="cmd">chmod +x</span> 2L1nk</pre></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RUN -->
+        <div class="section">
+            <div class="section-title">2 — Run</div>
+
+            <div class="step">
+                <div class="step-num">1</div>
+                <div class="step-body">
+                    <p>Simply run the binary. On first launch it reads configuration from environment variables and opens the interactive TUI.</p>
+                    <div class="code-block"><pre><span class="comment"># TUI mode — interactive control panel (default)</span>
+<span class="cmd">./2L1nk</span>
+
+<span class="comment"># Headless server — no TUI, just run the server (for VPS / systemd)</span>
+<span class="cmd">./2L1nk</span> <span class="flag">--server</span></pre></div>
+                    <div class="note" style="margin-top:10px">
+                        <i class="fas fa-info-circle"></i>
+                        In TUI mode you start and stop the server from inside the control panel — the binary itself stays open as the management UI. Use <code>--server</code> only when running unattended (e.g. as a systemd service).
+                    </div>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-num">2</div>
+                <div class="step-body">
+                    <p>On first run a gate token is automatically generated. Share it with users so they can register — think of it as an invite code. You can view, rotate, and limit it at any time from the TUI's Gate Key screen.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ENVIRONMENT VARIABLES -->
+        <div class="section">
+            <div class="section-title">3 — Configuration</div>
+
+            <div class="step">
+                <div class="step-num"></div>
+                <div class="step-body">
+                    <p>All configuration is via environment variables. Only set what you need — sensible defaults are used for everything else.</p>
+                    <div class="code-block"><pre><span class="flag">PORT</span>          <span class="comment"># HTTP listen port          (default: 8080)</span>
+<span class="flag">DB_PATH</span>       <span class="comment"># SQLite database file path (default: 2L1nk.db)</span>
+<span class="flag">STUN_URLS</span>     <span class="comment"># Comma-separated STUN server URLs (optional)</span>
+<span class="flag">TURN_URLS</span>     <span class="comment"># Comma-separated TURN server URLs (optional)</span>
+<span class="flag">TURN_USERNAME</span> <span class="comment"># TURN credential username   (optional)</span>
+<span class="flag">TURN_PASSWORD</span> <span class="comment"># TURN credential password   (optional)</span></pre></div>
+                    <div class="note">
+                        <i class="fas fa-info-circle"></i>
+                        STUN/TURN are only needed for voice calls across strict NATs. For most setups you can leave them unset.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TUI -->
+        <div class="section">
+            <div class="section-title">4 — TUI Control Panel</div>
+
+            <div class="step">
+                <div class="step-num"></div>
+                <div class="step-body">
+                    <p>Running <code>./2L1nk</code> without flags opens the interactive control panel. Navigate with <kbd>↑↓</kbd> or <kbd>j/k</kbd>, confirm with <kbd>Enter</kbd>, go back with <kbd>Esc</kbd> or <kbd>q</kbd>.</p>
+
+                    <table class="tui-menu" style="margin-top:14px">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th>What it does</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="item-name">Run Server</td>
+                                <td class="item-desc">Starts the chat server as a detached background process. Tunnels marked <em>Auto Start</em> are launched automatically alongside it.</td>
+                            </tr>
+                            <tr>
+                                <td class="item-name">Stop Server</td>
+                                <td class="item-desc">Kills the background server process. If <em>Temp Server</em> mode is on, the database and log are securely wiped on stop.</td>
+                            </tr>
+                            <tr>
+                                <td class="item-name">Gate Key →</td>
+                                <td class="item-desc">Manage the invite token users need to register.
+                                    <ul class="sub-list">
+                                        <li>Toggle <strong>Unlimited</strong> or set a <strong>max-uses</strong> cap — the token expires after that many registrations.</li>
+                                        <li><strong>Copy Key</strong> — copies the current token to the clipboard.</li>
+                                        <li><strong>Generate New Random Key</strong> — rotates to a fresh random token immediately.</li>
+                                        <li><strong>Set Custom Key</strong> — enter any string as the token.</li>
+                                        <li><strong>View Past Keys</strong> — history of all previously used tokens.</li>
+                                    </ul>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="item-name">View Logs</td>
+                                <td class="item-desc">Streams the live server log file in a scrollable view. Greyed out when <em>No Logs</em> is enabled in Options.</td>
+                            </tr>
+                            <tr>
+                                <td class="item-name">Outbound Tunnels →</td>
+                                <td class="item-desc">Manage tunnels that expose your server to the internet without port-forwarding. Built-in presets for Cloudflare, localhost.run, Serveo, Pinggy, and srv.us. Each tunnel can be started, stopped, and set to auto-start with the server. The detected public URL is shown live once the tunnel is running.</td>
+                            </tr>
+                            <tr>
+                                <td class="item-name">Links →</td>
+                                <td class="item-desc">Quick-access panel showing your server's local network URL, global (internet-facing) IP, and the public URLs of any running tunnels. Select an entry to view a QR code you can scan to open the app.</td>
+                            </tr>
+                            <tr>
+                                <td class="item-name">Reset Database</td>
+                                <td class="item-desc">Stops the server if running, deletes the database file, and re-runs migrations to create a fresh empty database. All accounts, rooms, and messages are permanently lost.</td>
+                            </tr>
+                            <tr>
+                                <td class="item-name">Options →</td>
+                                <td class="item-desc">Toggle persistent server settings:
+                                    <ul class="sub-list">
+                                        <li><code>No Logs</code> — disables log file creation entirely.</li>
+                                        <li><code>Temp Server</code> — securely wipes the database and log file when the server is stopped. Useful for ephemeral / one-session deployments.</li>
+                                    </ul>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="item-name danger">☢ Nuke</td>
+                                <td class="item-desc">Irreversibly wipes everything: database, logs, PID file, options, tunnel config, and all tunnel log files. Files are overwritten with random bytes before deletion. The TUI exits immediately after. Use only if you want to completely remove all traces of the server.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- REVERSE PROXY -->
+        <div class="section">
+            <div class="section-title">5 — Reverse Proxy (recommended)</div>
+
+            <div class="step">
+                <div class="step-num"></div>
+                <div class="step-body">
+                    <p>For production, put 2L1nk behind a reverse proxy such as <strong>nginx</strong> or <strong>Caddy</strong> to handle TLS. WebSocket connections use the <code>/api/ws</code> path — make sure your proxy forwards upgrade headers.</p>
+                    <div class="code-block"><pre><span class="comment"># Caddy — handles TLS automatically</span>
+your-domain.com {
+    reverse_proxy localhost:8080
+}
+
+<span class="comment"># nginx</span>
+server {
+    listen 443 ssl;
+    server_name your-domain.com;
+
+    location / {
+        proxy_pass http://localhost:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+    }
+}</pre></div>
+                    <div class="note">
+                        <i class="fas fa-shield-alt"></i>
+                        HTTPS is required for the Web Crypto APIs used by E2E encryption — the app will not work over plain HTTP in modern browsers.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- KEEP IT RUNNING -->
+        <div class="section">
+            <div class="section-title">6 — Keep it Running (Linux / systemd)</div>
+
+            <div class="step">
+                <div class="step-num">1</div>
+                <div class="step-body">
+                    <p>Create a systemd service to start 2L1nk automatically on boot and restart it on crash. Use <code>--server</code> so it runs headless with no TUI.</p>
+                    <div class="code-block"><pre><span class="comment"># /etc/systemd/system/2l1nk.service</span>
+[Unit]
+Description=2L1nk encrypted chat server
+After=network.target
+
+[Service]
+Type=simple
+User=<span class="flag">youruser</span>
+WorkingDirectory=<span class="flag">/opt/2l1nk</span>
+ExecStart=<span class="flag">/opt/2l1nk/2L1nk</span> --server
+Restart=on-failure
+RestartSec=5
+Environment=PORT=8080
+Environment=DB_PATH=<span class="flag">/opt/2l1nk/2l1nk.db</span>
+
+[Install]
+WantedBy=multi-user.target</pre></div>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-num">2</div>
+                <div class="step-body">
+                    <p>Enable and start the service:</p>
+                    <div class="code-block"><pre><span class="cmd">sudo systemctl daemon-reload</span>
+<span class="cmd">sudo systemctl enable</span> 2l1nk
+<span class="cmd">sudo systemctl start</span>  2l1nk
+<span class="cmd">sudo systemctl status</span> 2l1nk   <span class="comment"># verify it's running</span></pre></div>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-num">3</div>
+                <div class="step-body">
+                    <p>View live logs:</p>
+                    <div class="code-block"><pre><span class="cmd">sudo journalctl -u</span> 2l1nk <span class="flag">-f</span></pre></div>
+                    <div class="note">
+                        <i class="fas fa-info-circle"></i>
+                        When running under systemd you can still open the TUI on the same machine to manage the gate key or check tunnels — just run <code>./2L1nk</code> without <code>--server</code> alongside the running service.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECURITY NOTES -->
+        <div class="section">
+            <div class="section-title">7 — Security Notes</div>
+
+            <div class="step">
+                <div class="step-num"></div>
+                <div class="step-body">
+                    <p><strong>What the server stores:</strong> usernames, public keys (Ed25519 + X25519), and encrypted message ciphertexts. The server has no access to plaintext messages or private keys — these never leave the user's device.</p>
+                    <p style="margin-top:10px"><strong>Ephemeral users:</strong> users who register with temporary mode are stored in the database for the duration of their session (so they can join rooms) but their messages are never persisted and their account is removed on disconnect.</p>
+                    <p style="margin-top:10px"><strong>Key rotation:</strong> the room encryption key rotates automatically every time a user joins or leaves. Old keys are discarded; new members cannot read previous messages.</p>
+                    <p style="margin-top:10px"><strong>Gate token:</strong> keep it private — anyone with it can create an account on your server. Use the max-uses limit to issue single-use or limited-use invites.</p>
+                    <div class="note" style="margin-top:12px">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        Keep regular backups of your database file (<code>DB_PATH</code>). If it's lost, all user accounts and room memberships are gone — message history is unrecoverable.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

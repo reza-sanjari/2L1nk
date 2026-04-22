@@ -7,7 +7,7 @@ import (
 )
 
 func (h *Handler) Health(c echo.Context) error {
-	data, err := h.Services.Health.GetStatus()
+	data, err := h.services.Health.GetStatus()
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]any{
 			"status": "error",

@@ -5,213 +5,95 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>2L1nk - Gateway & Team</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="../css/login.css">
+    <script src="https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl-fast.min.js"></script>
     <style>
-        /* --- ANIMATED BACKGROUND (Langsamer: 25s) --- */
-        @keyframes fluidBG {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
+        /* ── Mode Selection Modal ─────────────────────────── */
+        .mode-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.75);
+            backdrop-filter: blur(6px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
         }
-
-        @keyframes floatShape {
-            0%, 100% { transform: translateY(0) rotate(0deg) scale(1); }
-            50% { transform: translateY(-40px) rotate(10deg) scale(1.05); }
-        }
-
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: 'Segoe UI', sans-serif;
-            background: linear-gradient(-45deg, #0a0a0a, #1a0525, #310a5d, #000000);
-            background-size: 400% 400%;
-            animation: fluidBG 25s ease infinite; /* Von 15s auf 25s verlangsamt */
-            color: white;
-            scroll-behavior: smooth;
-            overflow-x: hidden;
-        }
-
-        /* --- GEOMETRIC SHAPES (Im Hintergrund) --- */
-        .shape {
-            position: fixed; /* Fixed, damit sie beim Scrollen bleiben */
-            z-index: -1;
-            opacity: 0.25;
-            animation: floatShape 20s infinite ease-in-out;
-        }
-
-        .circle {
-            width: 300px;
-            height: 300px;
-            border-radius: 50%;
-            top: 5%;
-            left: 5%;
-            background: linear-gradient(135deg, #6a0dad, #000);
+        .mode-overlay.open { display: flex; }
+        .mode-card {
+            background: #1a0a2e;
+            border: 1px solid rgba(188,19,254,0.4);
+            border-radius: 16px;
+            padding: 36px 32px 28px;
+            max-width: 480px;
+            width: 90%;
+            text-align: center;
             box-shadow: 0 0 60px rgba(188,19,254,0.2);
         }
-
-        .triangle {
-            width: 250px;
-            height: 250px;
-            bottom: 10%;
-            left: 35%;
-            clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
-            background: linear-gradient(135deg, #6a0dad, #000);
-            animation-delay: -5s;
+        .mode-card h3 {
+            font-size: 1.3rem;
+            margin-bottom: 8px;
+            color: #fff;
         }
-
-        .square {
-            width: 180px;
-            height: 180px;
-            top: 15%;
-            right: 15%;
-            background: linear-gradient(45deg, #4b0082, #000);
-            transform: rotate(45deg);
-            animation-delay: -2s;
+        .mode-card p {
+            font-size: 0.85rem;
+            color: rgba(255,255,255,0.5);
+            margin-bottom: 28px;
         }
-
-        .small-circle {
-            width: 120px;
-            height: 120px;
-            border-radius: 50%;
-            bottom: 25%;
-            right: 5%;
-            background: linear-gradient(135deg, #6a0dad, #000);
-            box-shadow: 0 0 40px rgba(188,19,254,0.3);
-            animation-delay: -8s;
-        }
-
-        /* --- LAYOUT SECTIONS --- */
-        header {
-            padding: 20px 50px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: rgba(0,0,0,0.3);
-            backdrop-filter: blur(10px);
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-
-        section {
-            padding: 80px 20px;
-            max-width: 1100px;
-            margin: 0 auto;
-            position: relative;
-        }
-
-        .hero {
-            min-height: 85vh;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .auth-grid {
+        .mode-options {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-            gap: 30px;
-            width: 100%;
-            margin-top: 40px;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 20px;
         }
-
-        .glass-card {
-            background: rgba(255, 255, 255, 0.04);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(188, 19, 254, 0.2);
-            border-radius: 20px;
-            padding: 40px;
-            transition: 0.4s;
-        }
-
-        .glass-card:hover {
-            border-color: #bc13fe;
-            transform: translateY(-5px);
-            background: rgba(255, 255, 255, 0.07);
-        }
-
-        .info-section {
-            background: rgba(0, 0, 0, 0.4);
-            border-radius: 60px 60px 0 0;
-            border-top: 1px solid rgba(188, 19, 254, 0.2);
-            backdrop-filter: blur(10px);
-        }
-
-        .feature-list {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 40px;
-            margin-top: 50px;
-        }
-
-        .feature-item i {
-            font-size: 2rem;
-            color: #bc13fe;
-            margin-bottom: 15px;
-        }
-
-        .team-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-top: 40px;
-        }
-
-        .team-card {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 30px;
-            border-radius: 15px;
-            text-align: center;
-            backdrop-filter: blur(5px);
-        }
-
-        .avatar {
-            width: 80px;
-            height: 80px;
-            background: linear-gradient(45deg, #4b0082, #bc13fe);
-            border-radius: 50%;
-            margin: 0 auto 15px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.5rem;
-        }
-
-        input {
-            width: 100%;
-            padding: 12px;
-            margin: 10px 0 20px;
-            background: rgba(0,0,0,0.5);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 8px;
-            color: white;
-            box-sizing: border-box;
-        }
-
-        .btn {
-            width: 100%;
-            padding: 14px;
-            border-radius: 8px;
-            border: none;
-            font-weight: bold;
+        .mode-btn {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 12px;
+            padding: 22px 16px;
             cursor: pointer;
-            transition: 0.3s;
-            text-transform: uppercase;
+            transition: border-color 0.2s, background 0.2s;
+            color: #fff;
+            text-align: center;
         }
-
-        .btn-primary { background: #bc13fe; color: white; }
-        .btn-primary:hover { box-shadow: 0 0 20px rgba(188, 19, 254, 0.6); }
-
-        .btn-secondary { background: transparent; border: 1px solid #bc13fe; color: white; }
-        .btn-secondary:hover { background: rgba(188, 19, 254, 0.15); }
-
-        h2 { color: #bc13fe; font-size: 2.5rem; text-align: center; }
-        .subtitle { text-align: center; opacity: 0.7; margin-bottom: 40px; }
-
+        .mode-btn:hover { border-color: #bc13fe; background: rgba(188,19,254,0.08); }
+        .mode-btn .mode-icon { font-size: 2rem; margin-bottom: 10px; }
+        .mode-btn .mode-title { font-weight: 700; font-size: 1rem; margin-bottom: 6px; }
+        .mode-btn .mode-desc { font-size: 0.78rem; color: rgba(255,255,255,0.5); line-height: 1.4; }
+        .mode-btn.ephemeral:hover { border-color: #aaa; }
+        .mode-cancel {
+            background: none;
+            border: none;
+            color: rgba(255,255,255,0.35);
+            cursor: pointer;
+            font-size: 0.85rem;
+            padding: 8px;
+        }
+        .mode-cancel:hover { color: rgba(255,255,255,0.7); }
     </style>
 </head>
 <body>
+
+    <!-- Mode Selection Modal -->
+    <div id="mode-overlay" class="mode-overlay" onclick="if(event.target===this)closeModeModal()">
+        <div class="mode-card">
+            <h3>Wie möchtest du beitreten?</h3>
+            <p>Wähle, ob deine Identität gespeichert werden soll.</p>
+            <div class="mode-options">
+                <button class="mode-btn ephemeral" onclick="connectToGateway(0)">
+                    <div class="mode-icon">👻</div>
+                    <div class="mode-title">Temporär</div>
+                    <div class="mode-desc">Identität und Verlauf werden nicht gespeichert. Beim Schließen des Tabs gelöscht.</div>
+                </button>
+                <button class="mode-btn persistent" onclick="connectToGateway(1)">
+                    <div class="mode-icon">🔑</div>
+                    <div class="mode-title">Dauerhaft</div>
+                    <div class="mode-desc">Identität lokal gespeichert. Nachrichten-Verlauf bleibt erhalten.</div>
+                </button>
+            </div>
+            <button class="mode-cancel" onclick="closeModeModal()">Abbrechen</button>
+        </div>
+    </div>
 
     <div class="shape circle"></div>
     <div class="shape triangle"></div>
@@ -220,54 +102,74 @@
 
     <header>
         <div style="font-weight: bold; font-size: 1.4rem; color: #bc13fe;"><i class="fas fa-link"></i> 2L1nk</div>
-        <div style="font-size: 0.7rem; opacity: 0.5;">V. 3.0.1 // SECURE_NODE</div>
+        <!--<div style="font-size: 0.7rem; opacity: 0.5;">SECURE_NODE</div>-->
     </header>
 
     <main>
         <section class="hero">
-            <h1 style="font-size: 3.5rem; text-align: center; margin-bottom: 10px; letter-spacing: -1px;">2L <span style="color: #bc13fe;">1nk.</span></h1>
+            <h1 style="font-size: 3.5rem; text-align: center; margin-bottom: 10px; letter-spacing: -1px;">2L<span style="color: #bc13fe;">1nk</span></h1>
+            <a id="app-version" class="login-version" href="https://github.com/LBS-Eibiswald-APC/Team9_SanjariReza_KirschFlorian_2L1nk/releases" target="_blank" rel="noopener" style="display:none"></a>
             <!--<p class="subtitle">Wählen Sie Ihren Zugangspunkt zum Netzwerk.</p>-->
 
             <div class="auth-grid">
                 <div class="glass-card">
                     <h3><i class="fas fa-door-open"></i> Gateway</h3>
                     <p>Schnellzugriff auf öffentliche Räume.</p>
-                    <input type="text" placeholder="Gateway Code eingeben...">
-                    <button class="btn btn-primary">Beitreten</button>
+                    <input type="text" id="gateway" value="" placeholder="Gateway Code eingeben...">
+                    <input type="text" id="loginname" placeholder="Username" maxlength="50" onkeydown="if(event.key==='Enter')showModeModal()">
+                    <button class="btn btn-primary" onclick="showModeModal()">Beitreten</button>
                 </div>
 
-                <div class="glass-card">
+                <div id="fast-login-section" class="fast-login-section" style="display:none">
+                    <div class="fast-login-title"><i class="fas fa-bolt"></i> Schnell-Login</div>
+                    <div id="fast-login-list" class="fast-login-list"></div>
+                </div>
+
+                <!--<div class="glass-card">
                     <h3><i class="fas fa-lock"></i> Account Login</h3>
                     <p>Verwalte deine verschlüsselten Daten.</p>
                     <input type="email" placeholder="E-Mail">
                     <input type="password" placeholder="Passwort">
                     <button class="btn btn-secondary">Anmelden</button>
-                </div>
+                </div>-->
             </div>
         </section>
 
         <section class="info-section">
-            <h2>Über das Projekt</h2>
-            <p style="text-align: center; max-width: 700px; margin: 0 auto; line-height: 1.6;">
-                2L1nk ist eine hochmoderne Kommunikationsplattform, die auf absolute Privatsphäre ausgelegt ist. 
-                Durch unsere Gateway-Technologie ermöglichen wir anonyme Zugänge, ohne die Sicherheit des Kernsystems zu gefährden.
-            </p>
+            <div class="info-header">
+                <span class="info-badge"><i class="fas fa-lock"></i> Zero-Knowledge Architektur</span>
+                <h2>Kommunikation,<br>die <span class="accent-text">niemand lesen kann.</span></h2>
+                <p class="info-desc">
+                    2L1nk ist eine selbst-gehostete E2E-verschlüsselte Plattform — der Server speichert
+                    ausschließlich Ciphertext und kann keine Nachrichten entschlüsseln.
+                    Dein Gateway, deine Kontrolle.
+                </p>
+            </div>
 
             <div class="feature-list">
                 <div class="feature-item">
-                    <i class="fas fa-shield-alt"></i>
-                    <h4>End-to-End</h4>
-                    <p>Jede Nachricht und jeder Voice-Call wird direkt auf deinem Gerät verschlüsselt.</p>
+                    <div class="feature-icon-wrap" style="--icon-color: 74, 222, 128;">
+                        <i class="fas fa-shield-alt"></i>
+                    </div>
+                    <h4>End-to-End Verschlüsselt</h4>
+                    <p>AES-256-GCM & ChaCha20-Poly1305. Jede Nachricht wird direkt auf deinem Gerät ver- und entschlüsselt.</p>
+                    <div class="feature-tag">AES-256 · Ed25519</div>
                 </div>
                 <div class="feature-item">
-                    <i class="fas fa-bolt"></i>
+                    <div class="feature-icon-wrap" style="--icon-color: 188, 19, 254;">
+                        <i class="fas fa-bolt"></i>
+                    </div>
                     <h4>Low Latency</h4>
-                    <p>Optimierte Server-Infrastruktur für verzögerungsfreie Sprachübertragung weltweit.</p>
+                    <p>WebSocket-basierte Echtzeit-Kommunikation — optimiert für schnelle Zustellung weltweit.</p>
+                    <div class="feature-tag">WebSocket · Go</div>
                 </div>
                 <div class="feature-item">
-                    <i class="fas fa-user-secret"></i>
-                    <h4>Anonymität</h4>
-                    <p>Keine unnötige Datensammlung. Dein Gateway, deine Regeln.</p>
+                    <div class="feature-icon-wrap" style="--icon-color: 168, 85, 247;">
+                        <i class="fas fa-user-secret"></i>
+                    </div>
+                    <h4>Vollständige Anonymität</h4>
+                    <p>Kein Account, keine E-Mail, Keine Nummer</p>
+                    <div class="feature-tag">No Account · No Logs</div>
                 </div>
             </div>
         </section>
@@ -275,35 +177,331 @@
         <section>
             <h2>Unser Team</h2>
             <p class="subtitle">Die Köpfe hinter der Verschlüsselung.</p>
-            
+
             <div class="team-grid">
                 <div class="team-card">
-                    <div class="avatar"><i class="fas fa-code"></i></div>
-                    <strong>Alex Rivet</strong><br>
-                    <small style="color: #bc13fe;">Lead Architect</small>
+                    <div class="avatar"><i class="fas fa-user"></i></div>
+                    <strong>Florian Kirsch</strong><br>
+                    <small style="color: #bc13fe;">Frontend</small>
                 </div>
                 <div class="team-card">
-                    <div class="avatar"><i class="fas fa-user-shield"></i></div>
-                    <strong>Sarah Jenkins</strong><br>
-                    <small style="color: #bc13fe;">Security Analyst</small>
-                </div>
-                <div class="team-card">
-                    <div class="avatar"><i class="fas fa-paint-brush"></i></div>
-                    <strong>Marc Voller</strong><br>
-                    <small style="color: #bc13fe;">UI/UX Designer</small>
-                </div>
-                <div class="team-card">
-                    <div class="avatar"><i class="fas fa-server"></i></div>
-                    <strong>Lena Kraft</strong><br>
-                    <small style="color: #bc13fe;">Backend Dev</small>
+                    <div class="avatar"><i class="fas fa-user"></i></div>
+                    <strong>Reza Senjari</strong><br>
+                    <small style="color: #bc13fe;">Backend</small>
                 </div>
             </div>
         </section>
     </main>
 
-    <footer style="text-align: center; padding: 40px; opacity: 0.4; border-top: 1px solid rgba(255,255,255,0.05);">
-        &copy; 2026 2L1nk Project. Built for Privacy.
+    <footer class="login-footer">
+        <div class="login-footer-links">
+            <a class="login-footer-link" href="https://github.com/LBS-Eibiswald-APC/Team9_SanjariReza_KirschFlorian_2L1nk/releases" target="_blank" rel="noopener">
+                <i class="fas fa-download"></i> Releases
+            </a>
+            <a class="login-footer-link" href="/Setup">
+                <i class="fas fa-book"></i> Setup Guide
+            </a>
+            <button class="login-footer-link" onclick="openChangelog()">
+                <i class="fas fa-list"></i> Changelog
+            </button>
+        </div>
+        <div class="login-footer-copy">&copy; 2026 2L1nk Project. Built for Privacy.</div>
     </footer>
+
+    <!-- Changelog Modal -->
+    <div id="changelog-modal" class="cl-overlay" style="display:none" onclick="closeChangelogOverlay(event)">
+        <div class="cl-modal">
+            <div class="cl-modal-header">
+                <span>Changelog</span>
+                <button class="cl-modal-close" onclick="closeChangelog()"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="cl-modal-body" class="cl-modal-body">
+                <div class="cl-loading">Loading...</div>
+            </div>
+        </div>
+    </div>
 
 </body>
 </html>
+<script>
+    // ── App Info (version + changelog) ──────────────────────────────
+    let _appInfo = null;
+
+    async function loadAppInfo() {
+        if (_appInfo) return _appInfo;
+        try {
+            const res = await fetch('/api/info');
+            if (!res.ok) throw new Error();
+            _appInfo = await res.json();
+        } catch (e) { _appInfo = null; }
+        return _appInfo;
+    }
+
+    async function initVersion() {
+        const data = await loadAppInfo();
+        if (!data) return;
+        const el = document.getElementById('app-version');
+        if (el) { el.textContent = 'v' + data.version; el.style.display = 'inline-block'; }
+    }
+
+    function openChangelog() {
+        document.getElementById('changelog-modal').style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+        renderChangelog();
+    }
+
+    function closeChangelog() {
+        document.getElementById('changelog-modal').style.display = 'none';
+        document.body.style.overflow = '';
+    }
+
+    function closeChangelogOverlay(e) {
+        if (e.target === document.getElementById('changelog-modal')) closeChangelog();
+    }
+
+    async function renderChangelog() {
+        const body = document.getElementById('cl-modal-body');
+        const data = await loadAppInfo();
+        if (!data || !data.changelog || !data.changelog.length) {
+            body.innerHTML = '<div class="cl-loading">No changelog available.</div>';
+            return;
+        }
+        body.innerHTML = data.changelog.map(entry => {
+            const notes = entry.notes.map(n => `<li>${n}</li>`).join('');
+            return `<div class="cl-entry">
+                <div class="cl-entry-header">
+                    <span class="cl-version">${entry.version}</span>
+                    <span class="cl-date">${entry.date}</span>
+                </div>
+                <ul class="cl-notes">${notes}</ul>
+            </div>`;
+        }).join('');
+    }
+
+    // ── IndexedDB Key Store ──────────────────────────────────────────
+    const IDB_NAME    = '2l1nk_keystore';
+    const IDB_STORE   = 'keypairs';
+    const IDB_VERSION = 1;
+
+    function openKeyDB() {
+        return new Promise((resolve, reject) => {
+            const req = indexedDB.open(IDB_NAME, IDB_VERSION);
+            req.onupgradeneeded = e => e.target.result.createObjectStore(IDB_STORE, { keyPath: 'username' });
+            req.onsuccess = e => resolve(e.target.result);
+            req.onerror   = e => reject(e.target.error);
+        });
+    }
+
+    async function saveKeysToIDB(username, keys) {
+        const db  = await openKeyDB();
+        return new Promise((resolve, reject) => {
+            const tx  = db.transaction(IDB_STORE, 'readwrite');
+            tx.objectStore(IDB_STORE).put({ username, ...keys });
+            tx.oncomplete = resolve;
+            tx.onerror    = e => reject(e.target.error);
+        });
+    }
+
+    async function loadKeysFromIDB(username) {
+        const db = await openKeyDB();
+        return new Promise((resolve, reject) => {
+            const req = db.transaction(IDB_STORE, 'readonly')
+                          .objectStore(IDB_STORE).get(username);
+            req.onsuccess = e => resolve(e.target.result ?? null);
+            req.onerror   = e => reject(e.target.error);
+        });
+    }
+
+    async function deleteKeysFromIDB(username) {
+        const db = await openKeyDB();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(IDB_STORE, 'readwrite');
+            tx.objectStore(IDB_STORE).delete(username);
+            tx.oncomplete = resolve;
+            tx.onerror    = e => reject(e.target.error);
+        });
+    }
+
+    // ── Saved Logins (localStorage) ─────────────────────────────────
+    const SAVED_KEY = '2l1nk_saved_logins';
+
+    function getSavedLogins() {
+        try { return JSON.parse(localStorage.getItem(SAVED_KEY)) ?? []; }
+        catch { return []; }
+    }
+
+    function saveLogin(username, gatewayKey) {
+        const logins = getSavedLogins().filter(l => l.username !== username);
+        logins.unshift({ username, gatewayKey });
+        localStorage.setItem(SAVED_KEY, JSON.stringify(logins.slice(0, 5)));
+    }
+
+    function removeLogin(username) {
+        const logins = getSavedLogins().filter(l => l.username !== username);
+        localStorage.setItem(SAVED_KEY, JSON.stringify(logins));
+        deleteKeysFromIDB(username).catch(() => {});
+        renderFastLogins();
+    }
+
+    function renderFastLogins() {
+        const logins  = getSavedLogins();
+        const section = document.getElementById('fast-login-section');
+        const list    = document.getElementById('fast-login-list');
+        if (logins.length === 0) { section.style.display = 'none'; return; }
+        section.style.display = 'flex';
+        list.innerHTML = '';
+        logins.forEach(l => {
+            const card = document.createElement('div');
+            card.className = 'fast-login-card';
+            // Use textContent / DOM API to safely display user data
+            const avatar = document.createElement('div');
+            avatar.className = 'fast-login-avatar';
+            avatar.textContent = l.username.charAt(0).toUpperCase();
+            const info = document.createElement('div');
+            info.className = 'fast-login-info';
+            const name = document.createElement('div');
+            name.className = 'fast-login-name';
+            name.textContent = l.username;
+            info.appendChild(name);
+            const goBtn = document.createElement('button');
+            goBtn.className = 'fast-login-go';
+            goBtn.title = 'Einloggen';
+            goBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i>';
+            goBtn.onclick = () => quickLogin(l.username, l.gatewayKey);
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'fast-login-remove';
+            removeBtn.title = 'Entfernen';
+            removeBtn.innerHTML = '<i class="fas fa-times"></i>';
+            removeBtn.onclick = () => removeLogin(l.username);
+            card.appendChild(avatar);
+            card.appendChild(info);
+            card.appendChild(goBtn);
+            card.appendChild(removeBtn);
+            list.appendChild(card);
+        });
+    }
+
+    async function quickLogin(username, gatewayKey) {
+        document.getElementById('gateway').value   = gatewayKey;
+        document.getElementById('loginname').value = username;
+        // Quick login always uses persistent mode (keys are already stored)
+        await connectToGateway(1);
+    }
+
+    // ── Mode Modal ───────────────────────────────────────────────────
+    function showModeModal() {
+        const gateKey   = document.getElementById('gateway').value.trim();
+        const loginName = document.getElementById('loginname').value.trim();
+        if (!gateKey)             { alert("⚠️ Bitte gib einen Gateway-Code ein!"); return; }
+        if (!loginName)           { alert("⚠️ Bitte gib einen Login-Namen ein!"); return; }
+        if (loginName.length > 50){ alert("⚠️ Der Username darf maximal 50 Zeichen lang sein!"); return; }
+        document.getElementById('mode-overlay').classList.add('open');
+    }
+
+    function closeModeModal() {
+        document.getElementById('mode-overlay').classList.remove('open');
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────
+    function b64(bytes) { return btoa(String.fromCharCode(...bytes)); }
+
+    function fromB64(str) {
+        return Uint8Array.from(atob(str), c => c.charCodeAt(0));
+    }
+
+    // ── Main Login ───────────────────────────────────────────────────
+    // mode: 0 = ephemeral, 1 = persistent
+    async function connectToGateway(mode) {
+        closeModeModal();
+
+        const gateKey   = document.getElementById('gateway').value.trim();
+        const loginName = document.getElementById('loginname').value.trim();
+
+        if (!gateKey)   { alert("⚠️ Bitte gib einen Gateway-Code ein!"); return; }
+        if (!loginName) { alert("⚠️ Bitte gib einen Login-Namen ein!"); return; }
+
+        const isPersistent = mode === 1;
+
+        // 1. Keys laden (IDB, nur persistent) oder neu generieren
+        let ed25519Secret, ed25519Public, x25519Secret, x25519Public;
+
+        const stored = isPersistent
+            ? await loadKeysFromIDB(loginName).catch(() => null)
+            : null;
+
+        if (stored) {
+            // Gespeicherte Keys wiederverwenden → gleiche Identität
+            ed25519Secret = stored.ed25519_secret;
+            ed25519Public = stored.ed25519_public;
+            x25519Secret  = stored.x25519_secret;
+            x25519Public  = stored.x25519_public;
+        } else {
+            // Neue Keys generieren
+            const signingKP = nacl.sign.keyPair();
+            const dhKP      = nacl.box.keyPair();
+            ed25519Secret = b64(signingKP.secretKey);
+            ed25519Public = b64(signingKP.publicKey);
+            x25519Secret  = b64(dhKP.secretKey);
+            x25519Public  = b64(dhKP.publicKey);
+        }
+
+        sessionStorage.setItem('ed25519_secret', ed25519Secret);
+        sessionStorage.setItem('ed25519_public',  ed25519Public);
+        sessionStorage.setItem('x25519_secret',   x25519Secret);
+        sessionStorage.setItem('x25519_public',   x25519Public);
+
+        // 2. Body & Canonical String bauen
+        const timestamp = Math.floor(Date.now() / 1000).toString();
+        const body = JSON.stringify({ gateToken: gateKey, publicKey: ed25519Public, x25519PublicKey: x25519Public, username: loginName, mode });
+        const hashBuf  = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(body));
+        const bodyHash = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+        const canonical = `POST\n/api/auth/gate\n${timestamp}\n${bodyHash}`;
+
+        // 3. Signieren
+        const sig       = nacl.sign.detached(new TextEncoder().encode(canonical), fromB64(ed25519Secret));
+        const signature = b64(sig);
+
+        try {
+            const response = await fetch('/api/auth/gate', {
+                method: 'POST',
+                headers: {
+                    'Chat-Timestamp': timestamp,
+                    'Chat-Signature': signature,
+                    'Content-Type':   'application/json'
+                },
+                body
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ error: response.statusText }));
+                throw new Error(errorData.error ?? `Server-Fehler ${response.status}`);
+            }
+
+            // Keys in IndexedDB speichern (nur persistent, nur wenn neu generiert)
+            if (isPersistent && !stored) {
+                await saveKeysToIDB(loginName, {
+                    ed25519_secret: ed25519Secret,
+                    ed25519_public: ed25519Public,
+                    x25519_secret:  x25519Secret,
+                    x25519_public:  x25519Public,
+                }).catch(() => {});
+            }
+
+            // Schnell-Login nur für persistente Nutzer speichern
+            if (isPersistent) {
+                saveLogin(loginName, gateKey);
+            }
+
+            sessionStorage.setItem('username',   loginName);
+            sessionStorage.setItem('gatewayKey', gateKey);
+            sessionStorage.setItem('my_mode',    isPersistent ? 'Persistent' : 'Ephemeral');
+            const data = await response.json();
+            sessionStorage.setItem('sessionId', data.sessionId);
+            window.location.href = "Mainsite";
+        } catch (err) {
+            alert("❌ Fehler beim Gateway-Check:\n" + err.message);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => { renderFastLogins(); initVersion(); });
+</script>
