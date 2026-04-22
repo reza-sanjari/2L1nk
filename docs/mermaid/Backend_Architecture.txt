@@ -1,0 +1,131 @@
+flowchart LR
+
+    %% ========= CLIENTS =========
+    subgraph Clients
+        Client["Client (HTTP)"]
+        WSClient["Client (WebSocket)"]
+        Browser["Browser (Embedded Assets)"]
+    end
+
+    %% ========= CLI =========
+    subgraph CLI_Layer["CLI / TUI"]
+        Menu["Main Menu"]
+        GateMenu["Gate Menu"]
+        TunnelMenu["Tunnel Menu"]
+        OptionsMenu["Options Menu"]
+        LogsView["Logs View"]
+        NukeReset["Nuke / Reset"]
+        ProcManager["Process Manager"]
+    end
+
+    %% ========= TRANSPORT =========
+    subgraph Transport
+        Server["Echo Server"]
+        StaticFiles["Embedded Static Files"]
+        Middleware["Middleware"]
+        AuthMiddleware["Auth Middleware"]
+        Routes["Routes"]
+    end
+
+    %% ========= API =========
+    subgraph API_Layer
+        HttpHandler["HTTP Handlers"]
+        WSHandler["WebSocket Handler"]
+    end
+
+    %% ========= BUSINESS =========
+    subgraph Business_Layer
+        ServiceContainer["Service Container"]
+        HealthSvc["Health Service"]
+        GateSvc["Gate Service"]
+        RoomSvc["Room Service"]
+        MsgSvc["Message Service"]
+        Gate["Gate"]
+    end
+
+    %% ========= RUNTIME =========
+    subgraph Runtime_Layer
+        Hub["Hub"]
+        EventConsumer["Event Consumer\n(Hub Events → DB)"]
+        Session["Session Store"]
+    end
+
+    %% ========= INFRASTRUCTURE =========
+    subgraph Infrastructure_Layer
+        GateRepo["Gate Repository"]
+        HealthRepo["Health Repository"]
+        RoomRepo["Room Repository"]
+        MsgRepo["Message Repository"]
+        UserRepo["User Repository"]
+        DB[("SQLite DB")]
+    end
+
+    %% ========= CROSS CUTTING =========
+    subgraph CrossCutting["Cross-Cutting"]
+        Logger["Logger"]
+        Config["Config"]
+        Utils["Utils"]
+    end
+
+    %% ========= HTTP FLOW =========
+    Client --> Server
+    Browser --> Server
+    Server --> StaticFiles
+    Server --> Middleware
+    Middleware --> AuthMiddleware
+    AuthMiddleware --> Routes
+    Middleware --> Routes
+    Routes --> HttpHandler
+    HttpHandler --> ServiceContainer
+    ServiceContainer --> HealthSvc
+    ServiceContainer --> GateSvc
+    ServiceContainer --> RoomSvc
+    ServiceContainer --> MsgSvc
+    GateSvc --> Gate
+    Gate --> GateRepo
+    HealthSvc --> HealthRepo
+    RoomSvc --> RoomRepo
+    MsgSvc --> MsgRepo
+    MsgSvc --> RoomRepo
+    GateSvc --> UserRepo
+    GateRepo --> DB
+    HealthRepo --> DB
+    RoomRepo --> DB
+    MsgRepo --> DB
+    UserRepo --> DB
+
+    %% ========= WEBSOCKET FLOW =========
+    WSClient --> Server
+    Routes --> WSHandler
+    WSHandler --> Hub
+    Hub --> Session
+
+    %% ========= HUB EVENT FLOW =========
+    Hub -->|"Events channel"| EventConsumer
+    EventConsumer --> RoomSvc
+    EventConsumer --> MsgSvc
+    EventConsumer -->|"LoadRoomAndDeliver"| Hub
+
+    %% ========= SHARED RUNTIME ACCESS =========
+    AuthMiddleware --> Session
+    HttpHandler --> Hub
+    HttpHandler --> Session
+
+    %% ========= CLI FLOW =========
+    Menu --> GateMenu
+    Menu --> TunnelMenu
+    Menu --> OptionsMenu
+    Menu --> LogsView
+    Menu --> NukeReset
+    Menu --> ProcManager
+    GateMenu --> Gate
+    ProcManager -->|"spawns/stops"| Server
+
+    %% ========= CROSS CUTTING =========
+    Logger -.-> Business_Layer
+    Logger -.-> Infrastructure_Layer
+    Logger -.-> Hub
+    Logger -.-> EventConsumer
+    Config -.-> Server
+    Config -.-> CLI_Layer
+    Utils -.-> Business_Layer

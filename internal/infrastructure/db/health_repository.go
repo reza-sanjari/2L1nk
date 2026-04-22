@@ -1,12 +1,15 @@
 package db
 
-type HealthRepository struct{}
+import "database/sql"
 
-func NewHealthRepository() *HealthRepository {
-	return &HealthRepository{}
+type HealthRepository struct {
+	db *sql.DB
+}
+
+func NewHealthRepository(db *sql.DB) *HealthRepository {
+	return &HealthRepository{db: db}
 }
 
 func (r *HealthRepository) Ping() error {
-	// No DB: just report healthy.
-	return nil
+	return r.db.Ping()
 }

@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CipherChat - Purple Edition</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet"  href="/css/mainsite.css">
+    <script src="https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl-fast.min.js"></script>
+    <script src="/js/mainsite.js"></script>
+
+</head>
+<body>
+
+    <div class="shape circle"></div>
+    <div class="shape triangle"></div>
+    <div class="shape square"></div>
+    <div class="shape small-circle"></div>
+
+    <header class="top-bar">
+        <button class="nav-toggle" onclick="document.querySelector('nav').classList.contains('open') ? closeSidebar() : openSidebar()" aria-label="Menü öffnen">
+            <i class="fas fa-bars"></i>
+        </button>
+        <div class="top-bar-actions">
+            <!-- Search Panel -->
+            <div class="nav-panel-wrapper">
+                <i class="fas fa-search nav-icon" title="Global Search" onclick="toggleNavPanel('search-panel')"></i>
+                <div class="nav-panel" id="search-panel">
+                    <button class="nav-panel-close" onclick="closeNavPanel('search-panel')"><i class="fas fa-times"></i></button>
+                    <div class="nav-panel-title">Suche</div>
+                    <div class="nav-panel-search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="global-search-input" placeholder="Nutzer oder Raum suchen..." oninput="globalSearch(event)">
+                    </div>
+                    <div id="global-search-results" class="nav-panel-list"></div>
+                </div>
+            </div>
+
+            <!-- Notifications Panel -->
+            <div class="nav-panel-wrapper">
+                <span style="position:relative;display:inline-flex">
+                    <i class="fas fa-bell nav-icon" title="Notifications" onclick="toggleNavPanel('notif-panel')"></i>
+                    <span class="nav-badge" id="bell-badge" style="display:none"></span>
+                </span>
+                <div class="nav-panel" id="notif-panel">
+                    <button class="nav-panel-close" onclick="closeNavPanel('notif-panel')"><i class="fas fa-times"></i></button>
+                    <div class="nav-panel-title">Benachrichtigungen</div>
+                    <div id="notif-list" class="nav-panel-list">
+                        <div class="nav-panel-empty">Keine neuen Benachrichtigungen</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Panel -->
+            <div class="nav-panel-wrapper">
+                <i class="fas fa-cog nav-icon" title="Settings" onclick="toggleNavPanel('settings-panel')"></i>
+                <div class="nav-panel nav-panel--wide" id="settings-panel">
+                    <button class="nav-panel-close" onclick="closeNavPanel('settings-panel')"><i class="fas fa-times"></i></button>
+                    <div class="nav-panel-title">Einstellungen</div>
+
+                    <!-- AUSSEHEN -->
+                    <div class="settings-section">
+                        <div class="settings-section-title">Aussehen</div>
+                        <div class="settings-row settings-row-col">
+                            <span class="settings-label">Akzentfarbe</span>
+                            <div class="settings-swatches" id="settings-swatches"></div>
+                        </div>
+                        <div class="settings-row settings-row-col">
+                            <span class="settings-label">Hintergrund</span>
+                            <div class="settings-seg" id="seg-bg">
+                                <button data-val="shapes" onclick="setSetting('bgStyle','shapes')">Standard</button>
+                                <button data-val="grid"   onclick="setSetting('bgStyle','grid')">Grid</button>
+                                <button data-val="gradient" onclick="setSetting('bgStyle','gradient')">Gradient</button>
+                                <button data-val="none"  onclick="setSetting('bgStyle','none')">Keiner</button>
+                            </div>
+                        </div>
+                        <div class="settings-row">
+                            <span class="settings-label">Hintergrund Farben</span>
+                            <div class="settings-color-pair">
+                                <div class="settings-color-item">
+                                    <span class="settings-color-label">Von</span>
+                                    <input type="color" id="bg-from-picker" value="#1a0525" oninput="setSetting('bgFrom', this.value)">
+                                </div>
+                                <div class="settings-color-item">
+                                    <span class="settings-color-label">Bis</span>
+                                    <input type="color" id="bg-to-picker" value="#310a5d" oninput="setSetting('bgTo', this.value)">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="settings-row">
+                            <span class="settings-label">Form Farbe</span>
+                            <input type="color" id="shape-color-picker" value="#4b0082" oninput="setSetting('shapeColor', this.value)">
+                        </div>
+                        <div class="settings-row">
+                            <span class="settings-label">Glow-Effekte</span>
+                            <label class="settings-toggle">
+                                <input type="checkbox" id="tog-glow" onchange="setSetting('glow', this.checked)">
+                                <span class="settings-toggle-track"></span>
+                            </label>
+                        </div>
+                        <div class="settings-row settings-row-col">
+                            <span class="settings-label">Chat-Bubbles</span>
+                            <div class="settings-seg" id="seg-bubble">
+                                <button data-val="round"  onclick="setSetting('bubbleSquare', false)">Abgerundet</button>
+                                <button data-val="square" onclick="setSetting('bubbleSquare', true)">Eckig</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- LESBARKEIT -->
+                    <div class="settings-section">
+                        <div class="settings-section-title">Lesbarkeit</div>
+                        <div class="settings-row settings-row-col">
+                            <span class="settings-label">Schriftgröße</span>
+                            <div class="settings-seg" id="seg-fontsize">
+                                <button data-val="sm"     onclick="setSetting('fontSize','sm')">Klein</button>
+                                <button data-val="normal" onclick="setSetting('fontSize','normal')">Normal</button>
+                                <button data-val="lg"     onclick="setSetting('fontSize','lg')">Groß</button>
+                            </div>
+                        </div>
+                        <div class="settings-row">
+                            <span class="settings-label">Zeitstempel anzeigen</span>
+                            <label class="settings-toggle">
+                                <input type="checkbox" id="tog-timestamps" onchange="setSetting('timestamps', this.checked)">
+                                <span class="settings-toggle-track"></span>
+                            </label>
+                        </div>
+                        <div class="settings-row">
+                            <span class="settings-label">Kompakt-Modus</span>
+                            <label class="settings-toggle">
+                                <input type="checkbox" id="tog-compact" onchange="setSetting('compact', this.checked)">
+                                <span class="settings-toggle-track"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- BENACHRICHTIGUNGEN -->
+                    <div class="settings-section">
+                        <div class="settings-section-title">Benachrichtigungen</div>
+                        <div class="settings-row">
+                            <span class="settings-label">Ton bei neuer Nachricht</span>
+                            <label class="settings-toggle">
+                                <input type="checkbox" id="tog-sound" onchange="setSetting('notifSound', this.checked)">
+                                <span class="settings-toggle-track"></span>
+                            </label>
+                        </div>
+                        <div class="settings-row">
+                            <span class="settings-label">Desktop-Benachrichtigung</span>
+                            <label class="settings-toggle">
+                                <input type="checkbox" id="tog-desktop" onchange="setSetting('notifDesktop', this.checked)">
+                                <span class="settings-toggle-track"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- KONTO -->
+                    <div class="settings-section">
+                        <div class="settings-section-title">Konto</div>
+                        <div class="settings-row">
+                            <span class="settings-label">Gateway Key</span>
+                            <button class="settings-copy-btn" id="copy-gateway" onclick="copySettingsValue('gatewayKey', 'copy-gateway')"><i class="fas fa-copy"></i> Kopieren</button>
+                        </div>
+                        <div class="settings-row">
+                            <span class="settings-label">Fingerprint</span>
+                            <div style="display:flex;align-items:center;gap:6px;min-width:0">
+                                <span class="settings-value" id="settings-fp" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="">–</span>
+                                <button class="settings-copy-btn" id="copy-fp" onclick="copySettingsValue('my_fingerprint', 'copy-fp')"><i class="fas fa-copy"></i></button>
+                            </div>
+                        </div>
+                        <div class="settings-row">
+                            <span class="settings-label">Modus</span>
+                            <span class="settings-value" id="settings-mode">–</span>
+                        </div>
+                        <div class="settings-row settings-row-btn">
+                            <button class="settings-btn-secondary" onclick="resetSettings()"><i class="fas fa-undo"></i> Standard</button>
+                            <button class="settings-btn-danger" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Abmelden</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="avatar-group" style="position:relative;">
+                <div style="text-align: right; line-height: 1;">
+                    <div style="font-size: 0.85rem; font-weight: bold;" id="username"></div>
+                    <div style="font-size: 0.6rem; opacity: 0.5; color: #4ade80;">ONLINE</div>
+                </div>
+                <div class="avatar" id="avatar" onclick="toggleUserPopup()"><div id="usernameshort"></div></div>
+                <div class="user-popup" id="user-popup">
+                    <button class="user-popup-btn user-popup-btn--danger" onclick="purgeAllMessages()">
+                        <i class="fas fa-trash"></i> Alle Nachrichten löschen
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="nav-overlay" id="nav-overlay" onclick="closeSidebar(); closeMobilePanel();"></div>
+    <div id="mobile-panel-root"></div>
+
+    <dialog id="newChatModal" style="background: #1a0525; color: white; border: 1px solid #bc13fe; border-radius: 15px; padding: 25px; width: 320px; box-shadow: 0 0 30px rgba(188, 19, 254, 0.3);">
+        <h3 style="margin-top: 0; color: #bc13fe;">Neuer Chat erstellen</h3>
+        <input type="text" id="groupNameInput" placeholder="Gruppenname..." maxlength="100" style="width: 90%; margin-bottom: 20px; padding: 12px; background: #000; border: 1px solid #4b0082; color: white; border-radius: 8px;">
+        <div style="display: flex; gap: 10px;">
+            <button onclick="document.getElementById('newChatModal').close()" style="flex: 1; padding: 10px; background: transparent; border: 1px solid #4b0082; color: white; border-radius: 8px; cursor: pointer;">Abbrechen</button>
+            <button onclick="submitNewChat()" style="flex: 1; padding: 10px; background: #bc13fe; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">Erstellen</button>
+        </div>
+    </dialog>
+    <div class="app-container">
+        <nav>
+            <button class="nav-close-btn" onclick="closeSidebar()" aria-label="Menü schließen">
+                <i class="fas fa-times"></i>
+            </button>
+            <div class="brand">
+                <div class="brand-icon"><i class="fas fa-shield-alt"></i></div>
+                <div>
+                    <div style="font-weight: bold; font-size: 1.2rem; color: #bc13fe;">2L1nk</div>
+                    <div style="font-size: 0.6rem; opacity: 0.5; letter-spacing: 2px;" onclick="sendMessage();">ENCRYPTED</div>
+                </div>
+            </div>
+
+            <div class="search-box">
+                <i class="fas fa-search" style="opacity: 0.4;"></i>
+                <input type="text" placeholder="Suchen..." id="searchbar" oninput="searchfunction(event)">
+            </div>
+
+            <div class="chat-list-header">
+                <span>CHATS</span>
+            </div>
+
+            <div id="chat-list-container" class="empty-state">
+                <i class="fas fa-users" style="font-size: 2rem; margin-bottom: 10px;"></i>
+                <p>Keine aktiven Chats </p>
+            </div>
+
+            <button class="btn-action" onclick="document.getElementById('newChatModal').showModal()">Neuer Chat</button>
+            <!--<button class="btn-action btn-voice" onclick="connectLocalChat()"><i class="fas fa-voice"></i> &nbsp;  Anrufen</button>-->
+
+            <div style="display: flex; justify-content: space-around; margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); opacity: 0.6;">
+                <!--<i class="fas fa-question-circle"></i>-->
+                <i class="fas fa-sign-out-alt" onclick="logout()"></i>
+            </div>
+        </nav>
+        <div class="maininfo">
+
+            <div class="welcome-icon">
+                <i class="fas fa-shield-alt"></i>
+            </div>
+            <h1 style="font-size: 2.5rem; margin: 0;">Willkommen bei <span style="color: #bc13fe;">2L1nk</span></h1>
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <i class="fas fa-lock" style="color: #4ade80;"></i>
+                    <span style="font-size: 0.7rem; font-weight: bold; opacity: 0.6;">AES-256</span>
+                </div>
+                <div class="feature-card">
+                    <i class="fas fa-comment" style="color: #bc13fe;"></i>
+                    <span style="font-size: 0.7rem; font-weight: bold; opacity: 0.6;">CHAT</span>
+                </div>
+                <div class="feature-card">
+                    <i class="fas fa-voice" style="color: #a855f7;"></i>
+                    <span style="font-size: 0.7rem; font-weight: bold; opacity: 0.6;">Voice</span>
+                </div>
+            </div>
+
+            <div class="status-bar">
+                <span>> Sichere Verbindung : </span>
+                <div class="cursor"></div>
+            </div>
+
+        </div>
+        <main id="main">
+        </main>
+
+    </div>
+</body>
+</html>

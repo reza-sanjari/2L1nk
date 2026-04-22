@@ -1,16 +1,23 @@
 package app
 
 import (
+	"context"
+	"fmt"
+
+	"time"
+
 	"2L1nk/internal/api/handlers"
 	"2L1nk/internal/config"
+	"2L1nk/internal/db"
 	"2L1nk/internal/gate"
 	"2L1nk/internal/hub"
-	"2L1nk/internal/infrastructure/db"
+	infradb "2L1nk/internal/infrastructure/db"
 	"2L1nk/internal/logger"
+	"2L1nk/internal/models"
 	"2L1nk/internal/server"
 	"2L1nk/internal/service"
 	"2L1nk/internal/session"
-	"fmt"
+	"2L1nk/internal/utils"
 
 	"go.uber.org/zap"
 )
@@ -20,48 +27,84 @@ type App struct {
 	logger *logger.Logger
 }
 
-func New(cfg *config.Config) *App {
-	// Logger
+// New wires up the application. logFile is an optional path for log output.
+// suppressStdout silences stdout logging (used for --tempserver direct mode).
+func New(cfg *config.Config, g *gate.Gate, logFile string, suppressStdout bool) *App {
 	logg, err := logger.New(logger.Config{
-		Level:      "debug", // debug | info | warn | error
-		JSON:       false,
-		OutputFile: "", //  file path or empty for stdout
+		Level:          "debug",
+		JSON:           false,
+		OutputFile:     logFile,
+		SuppressStdout: suppressStdout,
 	})
 	if err != nil {
 		panic(err)
 	}
 
-	// Session Store
-	sessionStore := session.NewStore()
-
-	// Infrastructure
-	healthRepo := db.NewHealthRepository()
-	RoomRepo := db.NewRoomRepository()
-
-	// Gate
-	g, err := gate.New(0)
+	database, err := db.Setup(cfg.DBPath, logg)
 	if err != nil {
-		logg.Fatal("failed to initialize gate", zap.Error(err))
+		logg.Fatal("failed to initialize database", zap.Error(err))
 	}
 
-	logg.Info(fmt.Sprintf("gate initialized: %s %s", g.Key(), "unlimited"))
+	gateRepo := infradb.NewGateRepository(database)
+	if err := g.SetRepo(gateRepo); err != nil {
+		logg.Fatal("failed to initialize gate repo", zap.Error(err))
+	}
 
-	// Services
+	sessionStore := session.NewStore()
+	nonceStore := utils.NewNonceStore(60 * time.Second)
+
+	healthRepo := infradb.NewHealthRepository(database)
+	roomRepo := infradb.NewRoomRepository(database)
+	msgRepo := infradb.NewMessageRepository(database)
+	userRepo := infradb.NewUserRepository(database)
+
+	g.SetLogger(logg.Logger)
+	maxUsesStr := "unlimited"
+	if g.MaxUses() > 0 {
+		maxUsesStr = fmt.Sprintf("max %d", g.MaxUses())
+	}
+	logg.Info("gate initialized", zap.String("key", g.Key()), zap.String("max_uses", maxUsesStr))
+
 	healthSvc := service.NewHealthService(healthRepo, logg)
-	gateSvc := service.NewGateService(g, sessionStore, logg)
-	RoomSvc := service.NewRoomService(RoomRepo, logg)
+	gateSvc := service.NewGateService(g, sessionStore, userRepo, logg)
+	roomSvc := service.NewRoomService(roomRepo, logg)
+	msgSvc := service.NewMessageService(msgRepo, logg)
 
-	// Service Container
-	services := service.NewContainer(healthSvc, gateSvc, RoomSvc)
+	services := service.NewContainer(healthSvc, gateSvc, roomSvc, msgSvc)
 
-	// Hub
-	mainHub := hub.New(sessionStore)
+	mainHub := hub.New(sessionStore, logg)
+	mainHub.SetRoomLoader(func(roomID string) *hub.LoadedRoom {
+		room, err := roomSvc.GetRoomByID(roomID)
+		if err != nil || room == nil {
+			return nil
+		}
+		members, err := roomSvc.GetMembersWithPublicKeys(roomID)
+		if err != nil {
+			return nil
+		}
+		hubMembers := make([]hub.MemberKeyInfo, len(members))
+		for i, m := range members {
+			hubMembers[i] = hub.MemberKeyInfo{
+				FP:              m.Fingerprint,
+				X25519PublicKey: m.X25519PublicKey,
+				Mode:            models.UserMode(m.Mode),
+			}
+		}
+		return &hub.LoadedRoom{
+			RoomID:       room.ID,
+			Name:         room.Name,
+			HostFP:       room.HostFP,
+			KeyCreatorFP: room.KeyCreatorFP,
+			Epoch:        room.CurrentEpoch,
+			Members:      hubMembers,
+		}
+	})
+	go mainHub.Run()
 
-	// Handler
-	handler := handlers.NewHandler(services, mainHub)
+	startEventConsumer(mainHub, roomSvc, msgSvc, logg)
 
-	// Server
-	srv := server.New(cfg, handler, sessionStore)
+	handler := handlers.NewHandler(services, mainHub, sessionStore, logg, nonceStore)
+	srv := server.New(cfg, handler, sessionStore, nonceStore)
 
 	return &App{
 		server: srv,
@@ -72,4 +115,9 @@ func New(cfg *config.Config) *App {
 func (a *App) Start() error {
 	defer a.logger.Sync()
 	return a.server.Start()
+}
+
+func (a *App) Stop(ctx context.Context) error {
+	defer a.logger.Sync()
+	return a.server.Stop(ctx)
 }

@@ -1,0 +1,23 @@
+# Compiled binaries
+bin/
+
+# Runtime files
+*.db
+*.db-shm
+*.db-wal
+*.pid
+*.log
+*.tunnels.json
+*.opts
+
+# Go artifacts
+*.out
+coverage.html
+go.sum
+
+# Test data
+tests/postman/
+
+# OS files
+.DS_Store
+Thumbs.db
