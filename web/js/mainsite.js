@@ -1099,13 +1099,9 @@ async function openRoomMenu(room) {
     const allUsersRaw = allResp?.ok ? (await allResp.json()) : [];
     const allUsers = Array.isArray(allUsersRaw) ? allUsersRaw : [];
 
-    // Re-read from roomList after the await — background fetchRooms() calls and
-    // room_updated WS events may have updated it while we were waiting.
-    const freshRoom = roomList.find(r => r.room_id === room.room_id) ?? room;
-
     const onlineFPs = new Set(allUsers.filter(u => u.online).map(u => u.fingerprint));
-    const memberFPs = new Set((freshRoom.users ?? []).map(u => u.fingerprint));
-    const removable = (freshRoom.users ?? []).filter(u => u.fingerprint !== myFP);
+    const memberFPs = new Set((room.users ?? []).map(u => u.fingerprint));
+    const removable = (room.users ?? []).filter(u => u.fingerprint !== myFP);
     const addable = allUsers.filter(u => u.online && !memberFPs.has(u.fingerprint) && u.fingerprint !== myFP);
 
     // Mitglieder-Liste befüllen
@@ -1114,7 +1110,7 @@ async function openRoomMenu(room) {
         leftList.innerHTML = '<div class="member-col-empty">Keine weiteren Mitglieder</div>';
     } else {
         removable.forEach(u => leftList.appendChild(
-            makeRow(u.username, 'rem-btn', '– Entfernen', onlineFPs.has(u.fingerprint), () => removeMember(freshRoom.room_id, u.fingerprint))
+            makeRow(u.username, 'rem-btn', '– Entfernen', onlineFPs.has(u.fingerprint), () => removeMember(room.room_id, u.fingerprint))
         ));
     }
 
@@ -1124,7 +1120,7 @@ async function openRoomMenu(room) {
         rightList.innerHTML = '<div class="member-col-empty">Keine online User verfügbar</div>';
     } else {
         addable.forEach(u => rightList.appendChild(
-            makeRow(u.username, 'add-btn', '+ Hinzufügen', true, () => addMember(freshRoom.room_id, u))
+            makeRow(u.username, 'add-btn', '+ Hinzufügen', true, () => addMember(room.room_id, u))
         ));
     }
 }
