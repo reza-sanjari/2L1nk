@@ -19,7 +19,7 @@ help:
 	@echo "Build:"
 	@echo "  make build          - Build normal binaries (Linux + Windows)"
 	@echo "  make build-static   - Build static binaries (Linux + Windows)"
-	@echo "  make run            - Run Linux binary from ./bin/linux/$(BINARY_NAME)-linux-x86-64"
+	@echo "  make run            - Run Linux binary from ./bin/$(BINARY_NAME)-linux-x86-64"
 	@echo ""
 	@echo "Testing:"
 	@echo "  make test           - Run all tests with race detector"
@@ -44,73 +44,69 @@ help:
 # ==========================
 .PHONY: build
 build:
-	mkdir -p $(BUILD_DIR)/linux
-	mkdir -p $(BUILD_DIR)/windows
-	mkdir -p $(BUILD_DIR)/darwin
+	mkdir -p $(BUILD_DIR)
 
 	# Linux (x86-64 / ARM64)
 	GOOS=linux GOARCH=amd64 \
-	$(GO) build -o $(BUILD_DIR)/linux/$(BINARY_NAME)-linux-x86-64 $(CMD_PATH)
+	$(GO) build -o $(BUILD_DIR)/$(BINARY_NAME)-linux-x86-64 $(CMD_PATH)
 
 	GOOS=linux GOARCH=arm64 \
-	$(GO) build -o $(BUILD_DIR)/linux/$(BINARY_NAME)-linux-arm64 $(CMD_PATH)
+	$(GO) build -o $(BUILD_DIR)/$(BINARY_NAME)-linux-arm64 $(CMD_PATH)
 
 	# Windows (x86-64 / ARM64)
 	GOOS=windows GOARCH=amd64 \
-	$(GO) build -o $(BUILD_DIR)/windows/$(BINARY_NAME)-windows-x86-64.exe $(CMD_PATH)
+	$(GO) build -o $(BUILD_DIR)/$(BINARY_NAME)-windows-x86-64.exe $(CMD_PATH)
 
 	GOOS=windows GOARCH=arm64 \
-	$(GO) build -o $(BUILD_DIR)/windows/$(BINARY_NAME)-windows-arm64.exe $(CMD_PATH)
+	$(GO) build -o $(BUILD_DIR)/$(BINARY_NAME)-windows-arm64.exe $(CMD_PATH)
 
 	# macOS (Intel x86-64 / Apple Silicon ARM64)
 	GOOS=darwin GOARCH=amd64 \
-	$(GO) build -o $(BUILD_DIR)/darwin/$(BINARY_NAME)-darwin-x86-64 $(CMD_PATH)
+	$(GO) build -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-x86-64 $(CMD_PATH)
 
 	GOOS=darwin GOARCH=arm64 \
-	$(GO) build -o $(BUILD_DIR)/darwin/$(BINARY_NAME)-darwin-arm64 $(CMD_PATH)
+	$(GO) build -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64 $(CMD_PATH)
 
 # ==========================
 # Build (Static)
 # ==========================
 .PHONY: build-static
 build-static:
-	mkdir -p $(BUILD_DIR)/linux
-	mkdir -p $(BUILD_DIR)/windows
-	mkdir -p $(BUILD_DIR)/darwin
+	mkdir -p $(BUILD_DIR)
 
 	# Linux static (x86-64 / ARM64)
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
 	$(GO) build -a -ldflags="-w -s" \
-	-o $(BUILD_DIR)/linux/$(BINARY_NAME)-linux-x86-64 $(CMD_PATH)
+	-o $(BUILD_DIR)/$(BINARY_NAME)-linux-x86-64 $(CMD_PATH)
 
 	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
 	$(GO) build -a -ldflags="-w -s" \
-	-o $(BUILD_DIR)/linux/$(BINARY_NAME)-linux-arm64 $(CMD_PATH)
+	-o $(BUILD_DIR)/$(BINARY_NAME)-linux-arm64 $(CMD_PATH)
 
 	# Windows static (x86-64 / ARM64)
 	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 \
 	$(GO) build -a -ldflags="-w -s" \
-	-o $(BUILD_DIR)/windows/$(BINARY_NAME)-windows-x86-64.exe $(CMD_PATH)
+	-o $(BUILD_DIR)/$(BINARY_NAME)-windows-x86-64.exe $(CMD_PATH)
 
 	CGO_ENABLED=0 GOOS=windows GOARCH=arm64 \
 	$(GO) build -a -ldflags="-w -s" \
-	-o $(BUILD_DIR)/windows/$(BINARY_NAME)-windows-arm64.exe $(CMD_PATH)
+	-o $(BUILD_DIR)/$(BINARY_NAME)-windows-arm64.exe $(CMD_PATH)
 
 	# macOS static (Intel x86-64 / Apple Silicon ARM64)
 	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 \
 	$(GO) build -a -ldflags="-w -s" \
-	-o $(BUILD_DIR)/darwin/$(BINARY_NAME)-darwin-x86-64 $(CMD_PATH)
+	-o $(BUILD_DIR)/$(BINARY_NAME)-darwin-x86-64 $(CMD_PATH)
 
 	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 \
 	$(GO) build -a -ldflags="-w -s" \
-	-o $(BUILD_DIR)/darwin/$(BINARY_NAME)-darwin-arm64 $(CMD_PATH)
+	-o $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64 $(CMD_PATH)
 
 # ==========================
 # Run
 # ==========================
 .PHONY: run
 run:
-	$(BUILD_DIR)/linux/$(BINARY_NAME)-linux-x86-64
+	$(BUILD_DIR)/$(BINARY_NAME)-linux-x86-64
 
 # ==========================
 # Clean
