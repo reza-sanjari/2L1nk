@@ -12,7 +12,7 @@ var expectedTables = []string{
 	"room_members",
 	"messages",
 	"room_key_slots",
-"gate_tokens",
+	"gate_tokens",
 }
 
 // RunMigrations creates all tables that do not yet exist, inside a single
@@ -51,13 +51,16 @@ func RunMigrations(database *sql.DB) error {
 		)`,
 
 		`CREATE TABLE IF NOT EXISTS messages (
-			id         TEXT    PRIMARY KEY,
-			room_id    TEXT    NOT NULL REFERENCES rooms(id),
-			sender_fp  TEXT    NOT NULL,
-			epoch      INTEGER NOT NULL,
-			type       INTEGER NOT NULL,
-			ciphertext BLOB    NOT NULL,
-			created_at INTEGER NOT NULL
+			id            TEXT    PRIMARY KEY,
+			room_id       TEXT    NOT NULL REFERENCES rooms(id),
+			sender_fp     TEXT    NOT NULL,
+			epoch         INTEGER NOT NULL,
+			type          INTEGER NOT NULL,
+			ciphertext    BLOB    NOT NULL,
+			signature     TEXT    NOT NULL,
+			sig_timestamp INTEGER NOT NULL,
+			sig_nonce     TEXT    NOT NULL,
+			created_at    INTEGER NOT NULL
 		)`,
 
 		`CREATE TABLE IF NOT EXISTS room_key_slots (
@@ -69,7 +72,7 @@ func RunMigrations(database *sql.DB) error {
 			PRIMARY KEY (room_id, epoch, recipient_fp)
 		)`,
 
-`CREATE TABLE IF NOT EXISTS gate_tokens (
+		`CREATE TABLE IF NOT EXISTS gate_tokens (
 			id         INTEGER PRIMARY KEY AUTOINCREMENT,
 			token      TEXT    UNIQUE NOT NULL,
 			max_uses   INTEGER NOT NULL DEFAULT 0,

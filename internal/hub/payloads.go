@@ -24,11 +24,48 @@ type outboundEnvelope struct {
 	Payload  json.RawMessage    `json:"payload"`
 }
 
-// MessagePayload todo: chance ciphertext type to []byte
+// MessagePayload is the legacy bare payload shape (room_id / epoch / ciphertext
+// only). Retained for the event consumer's DB-replay path which only needs these
+// fields. For the live WS send/receive path use InboundMessagePayload and
+// OutboundMessagePayload — those carry the per-message signature fields.
+//
+// todo: change ciphertext type to []byte — do NOT do this in the V-02 fix PR,
+// it would change the bytes that clients hash for the signature canonical.
 type MessagePayload struct {
 	RoomID     string `json:"room_id"`
 	Epoch      uint64 `json:"epoch"`
 	Ciphertext string `json:"ciphertext"`
+}
+
+// InboundMessagePayload is the wire-format for a "message" envelope from
+// client → server. sender_fp, timestamp, nonce, and signature cover the payload
+// (minus themselves) under the MSG_V1 canonical; see utils.MessageCanonical.
+type InboundMessagePayload struct {
+	RoomID     string `json:"room_id"`
+	Epoch      uint64 `json:"epoch"`
+	Ciphertext string `json:"ciphertext"`
+	SenderFP   string `json:"sender_fp"`
+	Timestamp  string `json:"timestamp"` // unix seconds as decimal string
+	Nonce      string `json:"nonce"`
+	Signature  string `json:"signature"` // base64 Ed25519 signature
+}
+
+// OutboundMessagePayload is the server-constructed wire-format for a "message"
+// envelope broadcast to all room members. sender_fp / sender_name / sender_mode
+// come from the authenticated session, NOT from the inbound client payload, so
+// a malicious client cannot spoof attribution (V-03). The signature fields are
+// forwarded verbatim from the verified inbound payload so peers can re-verify
+// with the sender's Ed25519 public key.
+type OutboundMessagePayload struct {
+	RoomID     string          `json:"room_id"`
+	Epoch      uint64          `json:"epoch"`
+	Ciphertext string          `json:"ciphertext"`
+	SenderFP   string          `json:"sender_fp"`
+	SenderName string          `json:"sender_name"`
+	SenderMode models.UserMode `json:"sender_mode"`
+	Timestamp  string          `json:"timestamp"`
+	Nonce      string          `json:"nonce"`
+	Signature  string          `json:"signature"`
 }
 
 // MemberJoinedPayload is the WS payload sent to all room members when a new member joins.
@@ -49,12 +86,13 @@ type AddToRoomRequest struct {
 	User   *User
 }
 
-// MemberKeyInfo carries a member's fingerprint, X25519 public key, and mode.
-// Used when restoring rooms and in key rotation events.
+// MemberKeyInfo carries a member's fingerprint, X25519 public key, Ed25519
+// public key, and mode. Used when restoring rooms and in key rotation events.
 type MemberKeyInfo struct {
-	FP              string
-	X25519PublicKey string
-	Mode            models.UserMode
+	FP               string
+	X25519PublicKey  string
+	Ed25519PublicKey string // base64-encoded Ed25519 public key
+	Mode             models.UserMode
 }
 
 type RestoreRoomRequest struct {
@@ -110,8 +148,9 @@ type PendingRotation struct {
 
 // MemberWithKey is a member entry sent in a RoomKeyRotationPayload.
 type MemberWithKey struct {
-	Fingerprint     string `json:"fingerprint"`
-	X25519PublicKey string `json:"x25519_public_key"`
+	Fingerprint      string `json:"fingerprint"`
+	X25519PublicKey  string `json:"x25519_public_key"`
+	Ed25519PublicKey string `json:"ed25519_public_key"`
 }
 
 // RoomKeyRotationPayload is the WS payload for a room_key_rotation event.

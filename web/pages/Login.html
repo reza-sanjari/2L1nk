@@ -108,7 +108,7 @@
     <main>
         <section class="hero">
             <h1 style="font-size: 3.5rem; text-align: center; margin-bottom: 10px; letter-spacing: -1px;">2L<span style="color: #bc13fe;">1nk</span></h1>
-            <a id="app-version" class="login-version" href="https://github.com/LBS-Eibiswald-APC/Team9_SanjariReza_KirschFlorian_2L1nk/releases" target="_blank" rel="noopener" style="display:none"></a>
+            <a id="app-version" class="login-version" href="https://github.com/reza-sanjari/2L1nk/releases" target="_blank" rel="noopener" style="display:none"></a>
             <!--<p class="subtitle">Wählen Sie Ihren Zugangspunkt zum Netzwerk.</p>-->
 
             <div class="auth-grid">
@@ -195,7 +195,7 @@
 
     <footer class="login-footer">
         <div class="login-footer-links">
-            <a class="login-footer-link" href="https://github.com/LBS-Eibiswald-APC/Team9_SanjariReza_KirschFlorian_2L1nk/releases" target="_blank" rel="noopener">
+            <a class="login-footer-link" href="https://github.com/reza-sanjari/2L1nk/releases" target="_blank" rel="noopener">
                 <i class="fas fa-download"></i> Releases
             </a>
             <a class="login-footer-link" href="/Setup">
@@ -452,10 +452,13 @@
 
         // 2. Body & Canonical String bauen
         const timestamp = Math.floor(Date.now() / 1000).toString();
+        const nonce     = b64(nacl.randomBytes(16));
         const body = JSON.stringify({ gateToken: gateKey, publicKey: ed25519Public, x25519PublicKey: x25519Public, username: loginName, mode });
         const hashBuf  = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(body));
         const bodyHash = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
-        const canonical = `POST\n/api/auth/gate\n${timestamp}\n${bodyHash}`;
+        const canonical =
+            `GATE\n${timestamp}\n${nonce}\n${mode}\n${loginName}\n` +
+            `${ed25519Public}\n${x25519Public}\n${bodyHash}`;
 
         // 3. Signieren
         const sig       = nacl.sign.detached(new TextEncoder().encode(canonical), fromB64(ed25519Secret));
@@ -466,6 +469,7 @@
                 method: 'POST',
                 headers: {
                     'Chat-Timestamp': timestamp,
+                    'Chat-Nonce':     nonce,
                     'Chat-Signature': signature,
                     'Content-Type':   'application/json'
                 },

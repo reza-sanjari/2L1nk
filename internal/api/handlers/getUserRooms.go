@@ -48,10 +48,11 @@ func (h *Handler) GetUserRooms(c echo.Context) error {
 		userList := make([]hub.RoomMemberInfo, 0, len(members))
 		for _, m := range members {
 			userList = append(userList, hub.RoomMemberInfo{
-				Fingerprint:     m.Fingerprint,
-				Username:        m.Username,
-				X25519PublicKey: m.X25519PublicKey,
-				Mode:            models.UserMode(m.Mode),
+				Fingerprint:      m.Fingerprint,
+				Username:         m.Username,
+				X25519PublicKey:  m.X25519PublicKey,
+				Ed25519PublicKey: m.Ed25519PublicKey,
+				Mode:             models.UserMode(m.Mode),
 			})
 		}
 

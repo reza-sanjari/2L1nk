@@ -2,9 +2,11 @@ package hub
 
 import (
 	"2L1nk/internal/models"
+	"2L1nk/internal/utils"
 	"encoding/base64"
 	"encoding/json"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -31,23 +33,26 @@ func (h *Hub) ensureRoomLoaded(roomID string) *Room {
 		hostName = hostPtr.Username
 	}
 	room := &Room{
-		Name:             loaded.Name,
-		RoomID:           loaded.RoomID,
-		Host:             hostPtr,
-		HostFP:           loaded.HostFP,
-		HostName:         hostName,
-		KeyCreatorFP:     loaded.KeyCreatorFP,
-		Users:            make(map[string]*User),
-		Epoch:            loaded.Epoch,
-		MemberPublicKeys: make(map[string]string),
-		MemberModes:      make(map[string]models.UserMode),
+		Name:              loaded.Name,
+		RoomID:            loaded.RoomID,
+		Host:              hostPtr,
+		HostFP:            loaded.HostFP,
+		HostName:          hostName,
+		KeyCreatorFP:      loaded.KeyCreatorFP,
+		Users:             make(map[string]*User),
+		Epoch:             loaded.Epoch,
+		MemberPublicKeys:  make(map[string]string),
+		MemberEd25519Keys: make(map[string]string),
+		MemberModes:       make(map[string]models.UserMode),
 	}
 	for _, m := range loaded.Members {
 		room.MemberPublicKeys[m.FP] = m.X25519PublicKey
+		room.MemberEd25519Keys[m.FP] = m.Ed25519PublicKey
 		room.MemberModes[m.FP] = m.Mode
 		if u := h.getUser(m.FP); u != nil {
 			room.Users[u.Fingerprint] = u
 			room.MemberPublicKeys[u.Fingerprint] = u.X25519PublicKey
+			room.MemberEd25519Keys[u.Fingerprint] = base64.StdEncoding.EncodeToString(u.Ed25519PublicKey)
 		}
 	}
 	h.Rooms[roomID] = room
@@ -112,7 +117,7 @@ func (h *Hub) handleMessageEnvelope(msg WSMessageEnvelope) {
 		return
 	}
 
-	var payload MessagePayload
+	var payload InboundMessagePayload
 	err := json.Unmarshal(msg.Payload, &payload)
 	h.logg.Debug("message received", zap.String("user", msg.Sender.Username))
 	if err != nil {
@@ -150,25 +155,113 @@ func (h *Hub) handleMessageEnvelope(msg WSMessageEnvelope) {
 		return
 	}
 
-	data, err := json.Marshal(msg)
+	// V-02 / V-03 fix: verify the per-message Ed25519 signature over the MSG_V1
+	// canonical and refuse to trust any client-provided attribution.
+	if err := h.verifyMessageSignature(msg.Sender, &payload); err != nil {
+		h.sendMessageAuthError(msg.Sender, payload.RoomID, err)
+		h.logg.Warn("message rejected: signature verification failed",
+			zap.String("roomID", payload.RoomID),
+			zap.String("senderFP", msg.Sender.Fingerprint),
+			zap.String("claimedSenderFP", payload.SenderFP),
+			zap.Error(err),
+		)
+		return
+	}
+
+	// Server-owned outbound payload: sender_fp/name/mode come from the
+	// authenticated session, never from the client payload. Signature fields
+	// are forwarded verbatim so peers can independently verify.
+	outbound := OutboundMessagePayload{
+		RoomID:     payload.RoomID,
+		Epoch:      payload.Epoch,
+		Ciphertext: payload.Ciphertext,
+		SenderFP:   msg.Sender.Fingerprint,
+		SenderName: msg.Sender.Username,
+		SenderMode: msg.Sender.Mode,
+		Timestamp:  payload.Timestamp,
+		Nonce:      payload.Nonce,
+		Signature:  payload.Signature,
+	}
+	outboundPayload, err := json.Marshal(outbound)
 	if err != nil {
-		h.logg.Error("failed to marshal message", zap.Error(err))
+		h.logg.Error("failed to marshal outbound message payload", zap.Error(err))
+		return
+	}
+	data, err := json.Marshal(WSMessageEnvelope{
+		Type:    models.Message,
+		Payload: json.RawMessage(outboundPayload),
+	})
+	if err != nil {
+		h.logg.Error("failed to marshal outbound message envelope", zap.Error(err))
 		return
 	}
 	h.sendMessageToRoom(targetRoom, data)
 
+	sigTs, _ := strconv.ParseInt(payload.Timestamp, 10, 64)
 	h.emit(HubEvent{
 		Type: HubEventMessageCreated,
 		Payload: MessageCreatedPayload{
-			ID:         uuid.NewString(),
-			RoomID:     payload.RoomID,
-			SenderFP:   msg.Sender.Fingerprint,
-			SenderMode: msg.Sender.Mode,
-			Epoch:      int64(payload.Epoch),
-			Ciphertext: payload.Ciphertext,
-			CreatedAt:  time.Now().Unix(),
+			ID:           uuid.NewString(),
+			RoomID:       payload.RoomID,
+			SenderFP:     msg.Sender.Fingerprint,
+			SenderMode:   msg.Sender.Mode,
+			Epoch:        int64(payload.Epoch),
+			Ciphertext:   payload.Ciphertext,
+			Signature:    payload.Signature,
+			SigTimestamp: sigTs,
+			SigNonce:     payload.Nonce,
+			CreatedAt:    time.Now().Unix(),
 		},
 	})
+}
+
+// verifyMessageSignature enforces V-02: every chat message must carry an
+// Ed25519 signature from the claimed sender. Order of checks is cheapest first
+// so forgeries are rejected before we pay for the `ed25519.Verify` call.
+func (h *Hub) verifyMessageSignature(sender *User, payload *InboundMessagePayload) error {
+	// Claimed sender must match the authenticated session — cheap check that
+	// also prevents a caller from wasting a verify on an obviously-forged
+	// attribution.
+	if payload.SenderFP != sender.Fingerprint {
+		return utils.ErrAuthSignature
+	}
+	if len(sender.Ed25519PublicKey) == 0 {
+		return utils.ErrAuthSignature
+	}
+	ctHash := utils.HashBodyHex([]byte(payload.Ciphertext))
+	canonical := utils.MessageCanonical(
+		payload.RoomID,
+		strconv.FormatInt(int64(payload.Epoch), 10),
+		payload.SenderFP,
+		payload.Timestamp,
+		payload.Nonce,
+		ctHash,
+	)
+	replayKey := "msg:" + payload.RoomID + ":" + payload.SenderFP + ":" + payload.Nonce
+	return utils.VerifySignedRequest(
+		sender.Ed25519PublicKey,
+		canonical,
+		payload.Timestamp,
+		payload.Signature,
+		replayKey,
+		30*time.Second,
+		h.msgNonceStore,
+	)
+}
+
+// sendMessageAuthError notifies the sender that their message was rejected due
+// to a signature/timestamp/replay failure. Clients can surface this so a bug in
+// their signing code is obvious instead of silently discarded.
+func (h *Hub) sendMessageAuthError(u *User, roomID string, cause error) {
+	payload, _ := json.Marshal(map[string]string{
+		"room_id": roomID,
+		"reason":  cause.Error(),
+	})
+	envelope, _ := json.Marshal(WSMessageEnvelope{
+		Type:    models.Error,
+		Payload: json.RawMessage(payload),
+	})
+	h.sendToUser(u, envelope)
 }
 
 func (h *Hub) handleReAuth(msg WSMessageEnvelope) {
@@ -188,16 +281,17 @@ func (h *Hub) handleRegisterRoom(req CreateRoomRequest) {
 	}
 	roomID := uuid.NewString()
 	room := &Room{
-		Name:             req.GroupName,
-		RoomID:           roomID,
-		Host:             roomHost,
-		HostFP:           roomHost.Fingerprint,
-		HostName:         roomHost.Username,
-		KeyCreatorFP:     roomHost.Fingerprint,
-		Users:            map[string]*User{roomHost.Fingerprint: roomHost},
-		Epoch:            0,
-		MemberPublicKeys: map[string]string{roomHost.Fingerprint: roomHost.X25519PublicKey},
-		MemberModes:      map[string]models.UserMode{roomHost.Fingerprint: roomHost.Mode},
+		Name:              req.GroupName,
+		RoomID:            roomID,
+		Host:              roomHost,
+		HostFP:            roomHost.Fingerprint,
+		HostName:          roomHost.Username,
+		KeyCreatorFP:      roomHost.Fingerprint,
+		Users:             map[string]*User{roomHost.Fingerprint: roomHost},
+		Epoch:             0,
+		MemberPublicKeys:  map[string]string{roomHost.Fingerprint: roomHost.X25519PublicKey},
+		MemberEd25519Keys: map[string]string{roomHost.Fingerprint: base64.StdEncoding.EncodeToString(roomHost.Ed25519PublicKey)},
+		MemberModes:       map[string]models.UserMode{roomHost.Fingerprint: roomHost.Mode},
 	}
 	h.Rooms[roomID] = room
 
@@ -333,11 +427,15 @@ func (h *Hub) handleJoinRoom(req RoomMembersChangeRequest) {
 	if req.UserX25519Key != "" {
 		room.MemberPublicKeys[req.UserFP] = req.UserX25519Key
 	}
+	if req.UserEd25519Key != "" {
+		room.MemberEd25519Keys[req.UserFP] = req.UserEd25519Key
+	}
 	room.MemberModes[req.UserFP] = req.UserMode
 
 	if newUser := h.getUser(req.UserFP); newUser != nil {
 		room.Users[newUser.Fingerprint] = newUser
 		room.MemberPublicKeys[newUser.Fingerprint] = newUser.X25519PublicKey // prefer live key
+		room.MemberEd25519Keys[newUser.Fingerprint] = base64.StdEncoding.EncodeToString(newUser.Ed25519PublicKey)
 		h.logg.Debug("member joined room (online)", zap.String("roomID", req.RoomID), zap.String("memberFP", req.UserFP), zap.Int("onlineCount", len(room.Users)))
 	} else {
 		h.logg.Debug("member added to room (offline)", zap.String("roomID", req.RoomID), zap.String("memberFP", req.UserFP))
@@ -370,6 +468,10 @@ func (h *Hub) handleAddToRoom(req AddToRoomRequest) {
 	}
 	room.Users[req.User.Fingerprint] = req.User
 	room.MemberPublicKeys[req.User.Fingerprint] = req.User.X25519PublicKey
+	if room.MemberEd25519Keys == nil {
+		room.MemberEd25519Keys = make(map[string]string)
+	}
+	room.MemberEd25519Keys[req.User.Fingerprint] = base64.StdEncoding.EncodeToString(req.User.Ed25519PublicKey)
 	room.MemberModes[req.User.Fingerprint] = req.User.Mode
 	h.logg.Debug("user added to active room on connect", zap.String("roomID", req.RoomID), zap.String("user", req.User.Fingerprint))
 
@@ -397,16 +499,17 @@ func (h *Hub) handleRestoreRoom(req RestoreRoomRequest) {
 			hostName = hostPtr.Username
 		}
 		room = &Room{
-			Name:             req.RoomName,
-			RoomID:           req.RoomID,
-			Host:             hostPtr,
-			HostFP:           req.HostFP,
-			HostName:         hostName,
-			KeyCreatorFP:     req.KeyCreatorFP,
-			Users:            make(map[string]*User),
-			Epoch:            req.Epoch,
-			MemberPublicKeys: make(map[string]string),
-			MemberModes:      make(map[string]models.UserMode),
+			Name:              req.RoomName,
+			RoomID:            req.RoomID,
+			Host:              hostPtr,
+			HostFP:            req.HostFP,
+			HostName:          hostName,
+			KeyCreatorFP:      req.KeyCreatorFP,
+			Users:             make(map[string]*User),
+			Epoch:             req.Epoch,
+			MemberPublicKeys:  make(map[string]string),
+			MemberEd25519Keys: make(map[string]string),
+			MemberModes:       make(map[string]models.UserMode),
 		}
 		h.Rooms[req.RoomID] = room
 		h.logg.Info("room online",
@@ -418,10 +521,12 @@ func (h *Hub) handleRestoreRoom(req RestoreRoomRequest) {
 	}
 	for _, m := range req.Members {
 		room.MemberPublicKeys[m.FP] = m.X25519PublicKey
+		room.MemberEd25519Keys[m.FP] = m.Ed25519PublicKey
 		room.MemberModes[m.FP] = m.Mode
 		if u := h.getUser(m.FP); u != nil {
 			room.Users[u.Fingerprint] = u
 			room.MemberPublicKeys[u.Fingerprint] = u.X25519PublicKey // prefer live key
+			room.MemberEd25519Keys[u.Fingerprint] = base64.StdEncoding.EncodeToString(u.Ed25519PublicKey)
 		}
 	}
 	h.logg.Debug("room restored: member slots populated", zap.String("roomID", req.RoomID), zap.Int("totalMembers", len(req.Members)), zap.Int("onlineMembers", len(room.Users)), zap.Bool("hasPendingRotation", req.HasPendingRotation))
@@ -444,16 +549,17 @@ func (h *Hub) handleLoadRoomAndDeliver(req LoadRoomAndDeliverRequest) {
 			hostName = hostPtr.Username
 		}
 		room = &Room{
-			Name:             req.RoomName,
-			RoomID:           req.RoomID,
-			Host:             hostPtr,
-			HostFP:           req.HostFP,
-			HostName:         hostName,
-			KeyCreatorFP:     req.HostFP,
-			Users:            make(map[string]*User),
-			Epoch:            req.Epoch,
-			MemberPublicKeys: make(map[string]string),
-			MemberModes:      make(map[string]models.UserMode),
+			Name:              req.RoomName,
+			RoomID:            req.RoomID,
+			Host:              hostPtr,
+			HostFP:            req.HostFP,
+			HostName:          hostName,
+			KeyCreatorFP:      req.HostFP,
+			Users:             make(map[string]*User),
+			Epoch:             req.Epoch,
+			MemberPublicKeys:  make(map[string]string),
+			MemberEd25519Keys: make(map[string]string),
+			MemberModes:       make(map[string]models.UserMode),
 		}
 		h.Rooms[req.RoomID] = room
 		h.logg.Info("room online",
@@ -465,10 +571,12 @@ func (h *Hub) handleLoadRoomAndDeliver(req LoadRoomAndDeliverRequest) {
 	}
 	for _, m := range req.Members {
 		room.MemberPublicKeys[m.FP] = m.X25519PublicKey
+		room.MemberEd25519Keys[m.FP] = m.Ed25519PublicKey
 		room.MemberModes[m.FP] = m.Mode
 		if u := h.getUser(m.FP); u != nil {
 			room.Users[u.Fingerprint] = u
 			room.MemberPublicKeys[u.Fingerprint] = u.X25519PublicKey
+			room.MemberEd25519Keys[u.Fingerprint] = base64.StdEncoding.EncodeToString(u.Ed25519PublicKey)
 		}
 	}
 
@@ -477,27 +585,68 @@ func (h *Hub) handleLoadRoomAndDeliver(req LoadRoomAndDeliverRequest) {
 		h.logg.Debug("pending message sender not in room, dropping", zap.String("roomID", req.RoomID))
 		return
 	}
-	data, err := json.Marshal(req.Message)
+
+	// Same V-02 verification as the live path: signature must match the
+	// authenticated sender, or the message is dropped and not persisted.
+	var inbound InboundMessagePayload
+	if err := json.Unmarshal(req.Message.Payload, &inbound); err != nil {
+		h.logg.Warn("pending message payload unmarshal failed, dropping",
+			zap.String("roomID", req.RoomID), zap.Error(err))
+		return
+	}
+	if err := h.verifyMessageSignature(req.Message.Sender, &inbound); err != nil {
+		h.sendMessageAuthError(req.Message.Sender, req.RoomID, err)
+		h.logg.Warn("pending message rejected: signature verification failed",
+			zap.String("roomID", req.RoomID),
+			zap.String("senderFP", req.Message.Sender.Fingerprint),
+			zap.String("claimedSenderFP", inbound.SenderFP),
+			zap.Error(err),
+		)
+		return
+	}
+
+	outbound := OutboundMessagePayload{
+		RoomID:     inbound.RoomID,
+		Epoch:      inbound.Epoch,
+		Ciphertext: inbound.Ciphertext,
+		SenderFP:   req.Message.Sender.Fingerprint,
+		SenderName: req.Message.Sender.Username,
+		SenderMode: req.Message.Sender.Mode,
+		Timestamp:  inbound.Timestamp,
+		Nonce:      inbound.Nonce,
+		Signature:  inbound.Signature,
+	}
+	outboundPayload, err := json.Marshal(outbound)
 	if err != nil {
-		h.logg.Error("failed to marshal pending message", zap.Error(err))
+		h.logg.Error("failed to marshal pending outbound payload", zap.Error(err))
+		return
+	}
+	data, err := json.Marshal(WSMessageEnvelope{
+		Type:    models.Message,
+		Payload: json.RawMessage(outboundPayload),
+	})
+	if err != nil {
+		h.logg.Error("failed to marshal pending outbound envelope", zap.Error(err))
 		return
 	}
 	h.sendMessageToRoom(room, data)
 
-	var msgPayload MessagePayload
-	if err := json.Unmarshal(req.Message.Payload, &msgPayload); err == nil {
-		h.emit(HubEvent{
-			Type: HubEventMessageCreated,
-			Payload: MessageCreatedPayload{
-				ID:         uuid.NewString(),
-				RoomID:     req.RoomID,
-				SenderFP:   req.Message.Sender.Fingerprint,
-				Epoch:      int64(msgPayload.Epoch),
-				Ciphertext: msgPayload.Ciphertext,
-				CreatedAt:  time.Now().Unix(),
-			},
-		})
-	}
+	sigTs, _ := strconv.ParseInt(inbound.Timestamp, 10, 64)
+	h.emit(HubEvent{
+		Type: HubEventMessageCreated,
+		Payload: MessageCreatedPayload{
+			ID:           uuid.NewString(),
+			RoomID:       req.RoomID,
+			SenderFP:     req.Message.Sender.Fingerprint,
+			SenderMode:   req.Message.Sender.Mode,
+			Epoch:        int64(inbound.Epoch),
+			Ciphertext:   inbound.Ciphertext,
+			Signature:    inbound.Signature,
+			SigTimestamp: sigTs,
+			SigNonce:     inbound.Nonce,
+			CreatedAt:    time.Now().Unix(),
+		},
+	})
 }
 
 // handleSendErrorToUser sends a WS error message to a specific online user.
@@ -544,6 +693,7 @@ func (h *Hub) handleRemoveFromRoom(req RemoveFromRoomRequest) {
 
 	delete(room.Users, req.MemberFP)
 	delete(room.MemberPublicKeys, req.MemberFP)
+	delete(room.MemberEd25519Keys, req.MemberFP)
 	delete(room.MemberModes, req.MemberFP)
 	h.logg.Debug("member removed from room in hub", zap.String("roomID", req.RoomID), zap.String("memberFP", req.MemberFP), zap.Int("onlineCount", len(room.Users)))
 
@@ -665,12 +815,17 @@ func (h *Hub) broadcastRotation(room *Room, emitEvent bool) {
 	// Refresh online member keys in the cache.
 	for fp, u := range room.Users {
 		room.MemberPublicKeys[fp] = u.X25519PublicKey
+		room.MemberEd25519Keys[fp] = base64.StdEncoding.EncodeToString(u.Ed25519PublicKey)
 	}
 
 	// Build full member list (online + offline persistent) from cache.
 	members := make([]MemberWithKey, 0, len(room.MemberPublicKeys))
 	for fp, key := range room.MemberPublicKeys {
-		members = append(members, MemberWithKey{Fingerprint: fp, X25519PublicKey: key})
+		members = append(members, MemberWithKey{
+			Fingerprint:      fp,
+			X25519PublicKey:  key,
+			Ed25519PublicKey: room.MemberEd25519Keys[fp],
+		})
 	}
 
 	payloadBytes, err := json.Marshal(RoomKeyRotationPayload{
@@ -715,10 +870,15 @@ func (h *Hub) sendRotationToUser(u *User, room *Room) {
 	// Refresh online member keys.
 	for fp, online := range room.Users {
 		room.MemberPublicKeys[fp] = online.X25519PublicKey
+		room.MemberEd25519Keys[fp] = base64.StdEncoding.EncodeToString(online.Ed25519PublicKey)
 	}
 	members := make([]MemberWithKey, 0, len(room.MemberPublicKeys))
 	for fp, key := range room.MemberPublicKeys {
-		members = append(members, MemberWithKey{Fingerprint: fp, X25519PublicKey: key})
+		members = append(members, MemberWithKey{
+			Fingerprint:      fp,
+			X25519PublicKey:  key,
+			Ed25519PublicKey: room.MemberEd25519Keys[fp],
+		})
 	}
 	payloadBytes, err := json.Marshal(RoomKeyRotationPayload{
 		RoomID:       room.RoomID,
