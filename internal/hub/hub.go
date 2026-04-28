@@ -4,6 +4,7 @@ import (
 	"2L1nk/internal/logger"
 	"2L1nk/internal/models"
 	"2L1nk/internal/session"
+	"2L1nk/internal/utils"
 
 	"go.uber.org/zap"
 )
@@ -26,6 +27,7 @@ type LoadedRoom struct {
 type Hub struct {
 	logg               *logger.Logger
 	s                  *session.Store
+	msgNonceStore      *utils.NonceStore
 	loadRoom           RoomLoader
 	Rooms              map[string]*Room
 	Users              map[string]*User
@@ -51,6 +53,7 @@ type RoomMembersChangeRequest struct {
 	UserFP          string
 	UserMode        models.UserMode
 	UserX25519Key   string // X25519 public key of the joining member
+	UserEd25519Key  string // base64-encoded Ed25519 public key of the joining member
 	NewEpoch        int64
 	NewKeyCreatorFP string
 }
@@ -62,18 +65,19 @@ type CreateRoomRequest struct {
 }
 
 type Room struct {
-	Name             string
-	RoomID           string
-	Host             *User            // live WS connection; nil when host is offline
-	HostFP           string           // always set
-	HostName         string           // always set when known
-	KeyCreatorFP     string           // fingerprint of current key creator
-	Users            map[string]*User // only active WS connections
-	Epoch            int64
-	MemberPublicKeys map[string]string          // fingerprint → base64 X25519 public key (all known members)
-	MemberModes      map[string]models.UserMode // fingerprint → mode (all known members)
-	PendingRotation  *PendingRotation           // non-nil while waiting for key creator to submit keys
-	VoiceUsers       map[string]struct{}        // FPs of users currently in voice; lazily initialized
+	Name              string
+	RoomID            string
+	Host              *User            // live WS connection; nil when host is offline
+	HostFP            string           // always set
+	HostName          string           // always set when known
+	KeyCreatorFP      string           // fingerprint of current key creator
+	Users             map[string]*User // only active WS connections
+	Epoch             int64
+	MemberPublicKeys  map[string]string          // fingerprint → base64 X25519 public key (all known members)
+	MemberEd25519Keys map[string]string          // fingerprint → base64 Ed25519 public key (all known members)
+	MemberModes       map[string]models.UserMode // fingerprint → mode (all known members)
+	PendingRotation   *PendingRotation           // non-nil while waiting for key creator to submit keys
+	VoiceUsers        map[string]struct{}        // FPs of users currently in voice; lazily initialized
 }
 
 // SetRoomLoader wires the DB-backed loader used by ensureRoomLoaded. Called
@@ -82,10 +86,11 @@ func (h *Hub) SetRoomLoader(loader RoomLoader) {
 	h.loadRoom = loader
 }
 
-func New(s *session.Store, logg *logger.Logger) *Hub {
+func New(s *session.Store, msgNonceStore *utils.NonceStore, logg *logger.Logger) *Hub {
 	return &Hub{
 		logg:               logg,
 		s:                  s,
+		msgNonceStore:      msgNonceStore,
 		Rooms:              make(map[string]*Room),
 		Users:              make(map[string]*User),
 		Events:             make(chan HubEvent, 256),

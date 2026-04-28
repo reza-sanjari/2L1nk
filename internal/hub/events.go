@@ -28,13 +28,16 @@ type RoomCreatedPayload struct {
 }
 
 type MessageCreatedPayload struct {
-	ID         string
-	RoomID     string
-	SenderFP   string
-	SenderMode models.UserMode
-	Epoch      int64
-	Ciphertext string
-	CreatedAt  int64
+	ID           string
+	RoomID       string
+	SenderFP     string
+	SenderMode   models.UserMode
+	Epoch        int64
+	Ciphertext   string
+	Signature    string // base64 Ed25519 signature bound to this message
+	SigTimestamp int64  // unix-seconds timestamp the signature was bound to
+	SigNonce     string // per-message replay nonce
+	CreatedAt    int64
 }
 
 type RoomOfflinePayload struct {
