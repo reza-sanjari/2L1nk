@@ -52,6 +52,10 @@ func New(cfg *config.Config, g *gate.Gate, logFile string, suppressStdout bool) 
 
 	sessionStore := session.NewStore()
 	nonceStore := utils.NewNonceStore(60 * time.Second)
+	// Dedicated replay store for per-message signatures (V-02). Separate
+	// namespace from HTTP/WS auth nonces so the two cannot collide and TTLs
+	// can evolve independently.
+	msgNonceStore := utils.NewNonceStore(60 * time.Second)
 
 	healthRepo := infradb.NewHealthRepository(database)
 	roomRepo := infradb.NewRoomRepository(database)
@@ -72,7 +76,7 @@ func New(cfg *config.Config, g *gate.Gate, logFile string, suppressStdout bool) 
 
 	services := service.NewContainer(healthSvc, gateSvc, roomSvc, msgSvc)
 
-	mainHub := hub.New(sessionStore, logg)
+	mainHub := hub.New(sessionStore, msgNonceStore, logg)
 	mainHub.SetRoomLoader(func(roomID string) *hub.LoadedRoom {
 		room, err := roomSvc.GetRoomByID(roomID)
 		if err != nil || room == nil {
@@ -85,9 +89,10 @@ func New(cfg *config.Config, g *gate.Gate, logFile string, suppressStdout bool) 
 		hubMembers := make([]hub.MemberKeyInfo, len(members))
 		for i, m := range members {
 			hubMembers[i] = hub.MemberKeyInfo{
-				FP:              m.Fingerprint,
-				X25519PublicKey: m.X25519PublicKey,
-				Mode:            models.UserMode(m.Mode),
+				FP:               m.Fingerprint,
+				X25519PublicKey:  m.X25519PublicKey,
+				Ed25519PublicKey: m.Ed25519PublicKey,
+				Mode:             models.UserMode(m.Mode),
 			}
 		}
 		return &hub.LoadedRoom{

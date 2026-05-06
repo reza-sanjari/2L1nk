@@ -90,26 +90,23 @@ func (h *Handler) Ws(c echo.Context) error {
 
 	h.logg.Debug("websocket authenticated", zap.String("username", activeUser.Username), zap.String("fingerprint", activeUser.PublicKeyFingerprint))
 
-	now := time.Now().Unix()
-	if auth.Timestamp < now-30 || auth.Timestamp > now+30 {
-		h.logg.Warn("websocket closed: timestamp out of window", zap.String("sessionId", auth.SessionID))
-		return nil
-	}
-
-	if !h.nonceStore.Add(auth.Signature) {
-		h.logg.Warn("websocket closed: replayed auth signature", zap.String("sessionId", auth.SessionID))
-		return nil
-	}
-
 	timestampStr := strconv.FormatInt(auth.Timestamp, 10)
 	canonical := utils.WSCanonical(auth.SessionID, timestampStr)
-	if err := utils.VerifySignature(activeUser.PublicKey, canonical, auth.Signature); err != nil {
-		h.logg.Warn("websocket closed: invalid signature", zap.String("sessionId", auth.SessionID), zap.Error(err))
+	if err := utils.VerifySignedRequest(
+		activeUser.PublicKey,
+		canonical,
+		timestampStr,
+		auth.Signature,
+		auth.Signature,
+		30*time.Second,
+		h.nonceStore,
+	); err != nil {
+		h.logg.Warn("websocket closed: auth rejected", zap.String("sessionId", auth.SessionID), zap.Error(err))
 		return nil
 	}
 
 	x25519Key := base64.StdEncoding.EncodeToString(activeUser.X25519PublicKey)
-	newUser := hub.NewUser(activeUser.PublicKeyFingerprint, activeUser.Username, x25519Key, ws, activeUser.Mode, h.logg)
+	newUser := hub.NewUser(activeUser.PublicKeyFingerprint, activeUser.Username, x25519Key, activeUser.PublicKey, ws, activeUser.Mode, h.logg)
 
 	h.hub.RegisterUser <- newUser
 
@@ -136,7 +133,12 @@ func (h *Handler) Ws(c echo.Context) error {
 				}
 				hubMembers := make([]hub.MemberKeyInfo, len(memberKeys))
 				for i, m := range memberKeys {
-					hubMembers[i] = hub.MemberKeyInfo{FP: m.Fingerprint, X25519PublicKey: m.X25519PublicKey}
+					hubMembers[i] = hub.MemberKeyInfo{
+						FP:               m.Fingerprint,
+						X25519PublicKey:  m.X25519PublicKey,
+						Ed25519PublicKey: m.Ed25519PublicKey,
+						Mode:             models.UserMode(m.Mode),
+					}
 				}
 				h.hub.RestoreRoom <- hub.RestoreRoomRequest{
 					RoomID:             dbRoom.ID,

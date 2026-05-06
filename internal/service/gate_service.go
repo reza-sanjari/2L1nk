@@ -19,6 +19,7 @@ type UserRepository interface {
 	GetAllUsers() ([]infradb.UserRecord, error)
 	Create(u *infradb.UserRecord) error
 	UpdateUsername(fingerprint, username string) error
+	UsernameExists(username string) (bool, error)
 }
 
 type GateService struct {
@@ -65,7 +66,11 @@ func (s *GateService) Authorize(req GateRequest) (*GateResult, error) {
 		return nil, err
 	}
 	if existing == nil {
-		if s.store.UsernameExists(req.Username) {
+		taken, err := s.userRepo.UsernameExists(req.Username)
+		if err != nil {
+			return nil, err
+		}
+		if taken {
 			return nil, ErrUsernameTaken
 		}
 		if err := s.userRepo.Create(&infradb.UserRecord{
@@ -79,8 +84,17 @@ func (s *GateService) Authorize(req GateRequest) (*GateResult, error) {
 			return nil, err
 		}
 	} else {
-		if err := s.userRepo.UpdateUsername(fp, req.Username); err != nil {
-			return nil, err
+		if req.Username != existing.Username {
+			taken, err := s.userRepo.UsernameExists(req.Username)
+			if err != nil {
+				return nil, err
+			}
+			if taken {
+				return nil, ErrUsernameTaken
+			}
+			if err := s.userRepo.UpdateUsername(fp, req.Username); err != nil {
+				return nil, err
+			}
 		}
 	}
 

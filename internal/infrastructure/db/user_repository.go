@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 )
 
@@ -82,4 +83,22 @@ func (r *UserRepository) UpdateUsername(fingerprint, username string) error {
 		return fmt.Errorf("update username: %w", err)
 	}
 	return nil
+}
+
+// UsernameExists reports whether any users row currently holds the given
+// username. TOCTOU between this check and a subsequent insert/update is
+// acceptable in the current schema (no UNIQUE index yet — see audit V-14).
+func (r *UserRepository) UsernameExists(username string) (bool, error) {
+	var one int
+	err := r.db.QueryRow(
+		`SELECT 1 FROM users WHERE username = ? LIMIT 1`,
+		username,
+	).Scan(&one)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("username exists: %w", err)
+	}
+	return true, nil
 }
