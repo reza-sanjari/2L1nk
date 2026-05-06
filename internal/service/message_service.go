@@ -29,13 +29,16 @@ func (s *MessageService) ProcessMessage(p hub.MessageCreatedPayload) error {
 		return nil
 	}
 	return s.msgRepo.Save(&infradb.MessageRecord{
-		ID:         p.ID,
-		RoomID:     p.RoomID,
-		SenderFP:   p.SenderFP,
-		Epoch:      p.Epoch,
-		Type:       0,
-		Ciphertext: p.Ciphertext,
-		CreatedAt:  p.CreatedAt,
+		ID:           p.ID,
+		RoomID:       p.RoomID,
+		SenderFP:     p.SenderFP,
+		Epoch:        p.Epoch,
+		Type:         0,
+		Ciphertext:   p.Ciphertext,
+		Signature:    p.Signature,
+		SigTimestamp: p.SigTimestamp,
+		SigNonce:     p.SigNonce,
+		CreatedAt:    p.CreatedAt,
 	})
 }
 

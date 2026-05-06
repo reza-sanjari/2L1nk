@@ -2,9 +2,15 @@ package handlers
 
 import (
 	"2L1nk/internal/models"
+	"2L1nk/internal/utils"
 	"crypto/ed25519"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
+	"strconv"
+	"time"
 
 	"2L1nk/internal/service"
 
@@ -21,8 +27,22 @@ type gateAuthorizeRequest struct {
 }
 
 func (h *Handler) GateAuthorize(c echo.Context) error {
+	// Read the raw body so we can both JSON-decode it and hash it for the
+	// proof-of-possession canonical.
+	var bodyBytes []byte
+	if c.Request().Body != nil {
+		var err error
+		bodyBytes, err = io.ReadAll(c.Request().Body)
+		if err != nil {
+			h.logg.Error("failed to read gate body", zap.Error(err))
+			return c.JSON(http.StatusBadRequest, map[string]string{
+				"error": "invalid request body",
+			})
+		}
+	}
+
 	var req gateAuthorizeRequest
-	if err := c.Bind(&req); err != nil {
+	if err := json.Unmarshal(bodyBytes, &req); err != nil {
 		h.logg.Error("failed to process request", zap.Error(err))
 		return c.JSON(http.StatusBadRequest, map[string]string{
 			"error": "invalid request body",
@@ -46,10 +66,54 @@ func (h *Handler) GateAuthorize(c echo.Context) error {
 			"error": "x25519PublicKey must be 32 bytes",
 		})
 	}
+	if len(req.PublicKey) != ed25519.PublicKeySize {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "publicKey must be 32 bytes",
+		})
+	}
 
 	if req.Mode != models.UserModeEphemeral && req.Mode != models.UserModePersistent {
 		return c.JSON(http.StatusBadRequest, map[string]string{
 			"error": "invalid mode",
+		})
+	}
+
+	// Proof-of-possession: the caller must prove they hold the Ed25519
+	// private key matching req.PublicKey by signing the GATE canonical.
+	// This is what closes audit V-01.
+	timestampRaw := c.Request().Header.Get("Chat-Timestamp")
+	signature := c.Request().Header.Get("Chat-Signature")
+	nonce := c.Request().Header.Get("Chat-Nonce")
+	if timestampRaw == "" || signature == "" || nonce == "" {
+		h.logg.Debug("gate PoP missing headers", zap.String("username", req.Username))
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "missing auth headers",
+		})
+	}
+
+	bodyHash := utils.HashBodyHex(bodyBytes)
+	canonical := utils.GateCanonical(
+		timestampRaw,
+		nonce,
+		strconv.Itoa(int(req.Mode)),
+		req.Username,
+		base64.StdEncoding.EncodeToString(req.PublicKey),
+		base64.StdEncoding.EncodeToString(req.X25519PublicKey),
+		bodyHash,
+	)
+
+	if err := utils.VerifySignedRequest(
+		req.PublicKey,
+		canonical,
+		timestampRaw,
+		signature,
+		signature,
+		30*time.Second,
+		h.nonceStore,
+	); err != nil {
+		h.logg.Warn("gate proof-of-possession failed", zap.String("username", req.Username), zap.Error(err))
+		return c.JSON(utils.AuthErrorStatus(err), map[string]string{
+			"error": "proof-of-possession failed",
 		})
 	}
 

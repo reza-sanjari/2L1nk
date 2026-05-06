@@ -1,74 +1,96 @@
-# Projekttagebuch
-## 2L1nk
+# 2L1nk
 
+Self-hosted, single-binary encrypted chat and voice communication. The server never decrypts anything — all cryptographic operations happen in the browser.
 
-### Florian Kirsch
+No accounts, no cloud dependency, no plaintext stored.
 
-| Datum     | AP NR | Zeitraum      | Aufwand | Ort | Tätigkeit                                           | Probleme                                 | Quellen |
-|-----------|-------|---------------|---------|-----|-----------------------------------------------------|------------------------------------------|---------|
-| 3.2.2026  | -     | 7:00 - 10:00  | 3       | LBS | Steckbrief / Strucktur planung (Mindmap) Funktionen | -                                        | -       |
-| 3.2.2026  | -     | 1:00 - 2:00   | 1       | LBS | Github repo setup / Tagebuch erstellen              | -                                        | -       |
-| 4.2.2026  | -     | 10:00 - 12:00 | 2       | LBS | richtlinie dokumentation                            | -                                        | -       |
-| 5.2.2026  | 1.1.2 | 7:30 - 11:00  | 2,5     | LBS | PSP / Steckbrief                                    | -                                        | -       |
-| 6.2.2026  | 1.1.2 | 10:15 - 12:45 | 2,5     | LBS | PSP / projektHandbuch                               | -                                        | -       |
-| 9.2.2026  | 1.1.3 | 11:00 - 12:00 | 1       | LBS | Arbeitpakete beschreiben                            | -                                        | -       |
-| 9.2.2026  | 1.1.3 | 13:00 - 14:00 | 1       | LBS | Arbeitpakete beschreiben                            | -                                        | -       |
-| 10.2.2026 | 1.1.3 | 7:30 - 10:00  | 2,5     | LBS | Arbeitpakete beschreiben                            | -                                        | -       |
-| 11.2.2026 | 1.1.4 | 15:00 - 16:30 | 1,5     | LBS | Projekt-Handbuch                                    | -                                        | -       |
-| 12.2.2026 | 1.1.4 | 7:30 - 11:00  | 3,5     | LBS | Projekt-Handbuch                                    | -                                        | -       |
-| 13.2.2026 | -     | 10:00 - 12:30 | 2,5     | LBS | Projekt Plannung                                    | -                                        | -       |
-| 13.2.2026 | -     | 14:40 - 15:40 | 1       | LBS | Projekt Plannung                                    | -                                        | -       |
-| 24.2.2026 | 1.3.1 | 7:30 - 11:00  | 2,5     | LBS | Website Plannung                                    | -                                        | -       |
-| 26.2.2026 | 1.3.2 | 7:30 - 11:00  | 2,5     | LBS | Hauptseite                                          | -                                        | -       |
-| 27.2.2026 | 1.3.3 | 10:00 - 13:00 | 3       | LBS | Hauptseite                                          | -                                        | -       |
-| 2.3.2026  | 1.3.4 | 11:00 - 12:30 | 1,5     | LBS | Nav Bar                                             | -                                        | -       |
-| 3.3.2026  | 1.4.1 | 7:30 - 10:00  | 2,5     | LBS | Chat Oberfläche                                     | -                                        | -       |
-| 5.3.2026  | 1.4.4 | 7:30 - 9:00   | 1,5     | LBS | Recherche Crypto Nachrichten                        | -                                        | -       |
-| 5.3.2026  | 1.4.4 | 9:00 - 11:00  | 2,0     | LBS | Recherche Crypto Nachrichten                        | -                                        | -       |
-| 6.3.2026  | 1.4.5 | 10:00 - 11:00 | 1,0     | LBS | Verschlüsselung Gruppen Chat                        | -                                        | -       |
-| 6.3.2026  | -     | 10:00 - 12:00 | 1,0     | LBS | Zwischengespräch                                    | -                                        | -       |
-| 10.3.2026 | 1.4.5 | 7:30 - 10:00  | 2,5     | LBS | Verschlüsselung Gruppen Chat                        | Probleme beim Aufbau der Verschlüsselung | -       |
-| 12.3.2026 | 1.4.2 | 7:30 - 11:00  | 3,5     | LBS | Chat api integration                                | -                                        | -       |
-| 13.3.2026 | 1.4.2 | 10:00 - 13:00 | 3,0     | LBS | Chat api integration                                | -                                        | -       |
-| 17.3.2026 | 1.5.3 | 7:30 - 9:00  | 2,5     | LBS | Call ui                                             | -                                        | -       |
-| 17.3.2026 | 1.5.2 | 9:00 - 10:00  | 2,5     | LBS |  WEBRTC Imp                                             | -                                        | -       |
-| 24.3.2026 | 1.5.3 | 7:30 - 10:00  | 2,5     | LBS | Call ui                                             | -                         | -                             |
-| 26.3.2026 | 1.8.1 | 7:30 - 11:00  | 3,5     | LBS |  Recherche Doku                    | -                         | -                             |
-| 27.3.2026 | 1.8.2 | 10:00 - 13:00 | 3,5     | LBS | Doku              | -                         | -                             |
-| 9.4.2026  | 1.9.2 | 7:30 - 11:00  | 3,5     | LBS | PP                                           | -                         | -                                   
+---
 
+## Install
 
+Download the binary for your platform from the [Releases page](../../releases). Binaries are available for Linux, Windows, and macOS on both x86-64 and ARM64.
 
-### Reza Sanjari
+On Linux/macOS, make it executable after downloading:
 
-| Datum     | AP NR | Zeitraum      | Aufwand | Ort | Tätigkeit                                           | Probleme                  | Quellen                             |
-|-----------|-------|---------------|---------|-----|-----------------------------------------------------|---------------------------|-------------------------------------|
-| 3.2.2026  | -     | 7:00-10:00    | 3       | LBS | Steckbrief / Strucktur planung (Mindmap) Funktionen | -                         | -                                   |
-| 3.2.2026  | -     | 1:00-2:00     | 1       | LBS | Github repo setup / Tagebuch erstellen              | -                         | -                                   |
-| 4.2.2026  | -     | 10:00-12:00   | 2       | LBS | richtlinie dokumentation                            | -                         | -                                   |
-| 5.2.2026  | 1.1.2 | 7:30-11:00    | 2,5     | LBS | PSP / Steckbrief                                    | -                         | -                                   |
-| 6.2.2026  | 1.1.2 | 10:15-12:45   | 2,5     | LBS | PSP / projektHandbuch                               | -                         | -                                   |
-| 9.2.2026  | 1.1.3 | 11:00 - 12:00 | 1       | LBS | Arbeitpakete beschreiben                            | -                         | -                                   |
-| 9.2.2026  | 1.1.3 | 13:00 - 14:00 | 1       | LBS | Arbeitpakete beschreiben                            | -                         | -                                   |
-| 10.2.2026 | 1.1.3 | 7:30 - 10:00  | 2,5     | LBS | Arbeitpakete beschreiben                            | -                         | -                                   |
-| 11.2.2026 | 1.1.5 | 15:00 - 16:30 | 1,5     | LBS | GanttChart                                          | -                         | -                                   |
-| 12.2.2026 | 1.1.5 | 7:30 - 11:00  | 3,5     | LBS | GanttChart                                          | -                         | -                                   |
-| 13.2.2026 | -     | 10:00 - 12:30 | 2,5     | LBS | Projekt Plannung                                    | -                         | -                                   |
-| 13.2.2026 | -     | 14:40 - 15:40 | 1       | LBS | Projekt Plannung                                    | -                         | -                                   |
-| 24.2.2026 | 1.2.1 | 7:30 - 11:00  | 2,5     | LBS | API Design                                          | -                         | -                                   |
-| 26.2.2026 | 1.2.2 | 7:30 - 9:00   | 1,5     | LBS | Recherche Verbindungen                              | -                         | -                                   |
-| 26.2.2026 | 1.2.3 | 9:00 - 11:00  | 2,0     | LBS | Verbindungen Imp	                                   | -                         | -                                   |
-| 27.2.2026 | 1.2.5 | 10:00 - 13:00 | 2,5     | LBS | Kern-Logic                                          | -                         | -                                   |
-| 2.3.2026  | 1.2.5 | 11:00 - 12:30 | 1,5     | LBS | Kern-Logic                                          | -                         | -                                   |
-| 3.3.2026  | 1.2.5 | 7:30 - 10:00  | 2,5     | LBS | Kern-Logic                                          | -                         | -                                   |
-| 5.3.2026  | 1.2.7 | 7:30 - 11:00  | 3,5     | LBS | Group Chat api                                      | -                         | -                                   |
-| 6.3.2026  | 1.2.7 | 10:00 - 13:00 | 3       | LBS | Group Chat api logic implementierung                | openapi specs sind falsch | -                                   |
-| 10.3.2026 | 1.4.4 | 7:30 - 10:00  | 2,5     | LBS | verschiedene Verschlüsselungsmethoden untersucht    | -                         | https://en.wikipedia.org/wiki/EdDSA |
-| 12.3.2026 | 1.6.1 | 7:30 - 11:00  | 3,5     | LBS | Entwurf von Datenbankschema und -struktur           | -                         | -                                   |
-| 13.3.2026 | 1.6.1 | 10:00 - 13:00 | 3,0     | LBS | Entwurf von Schematization und -struktur            | -                         | -                                   |
-| 17.3.2026 | 1.6.2 | 7:30 - 10:00  | 2,5     | LBS | Verbindung der Datenbank mit dem Server             | -                         | -                                   |
-| 24.3.2026 | 1.7.1 | 7:30 - 10:00  | 2,5     | LBS | API unit Test (gate + session )                     | -                         | -                                   |
-| 26.3.2026 | 1.7.2 | 7:30 - 11:00  | 3,5     | LBS | API unit Test (gate + session )                     | -                         | -                                   |
-| 27.3.2026 | 1.8.1 | 10:00 - 13:00 | 3,5     | LBS | Recherche Doku Sicherheit und struktur              | -                         | -                                   |
-| 9.4.2026  | 0.0.0 | 7:30 - 11:00  | 3,5     | LBS | CLI tool                                            | -                         | -                                   |
+```bash
+chmod +x 2L1nk-linux-x86-64
+```
 
+---
+
+## Running
+
+Three modes are available:
+
+| Mode | Command | Description |
+|------|---------|-------------|
+| TUI (default) | `./2L1nk` | Interactive terminal UI — manage the server, gate, tunnels, and logs |
+| Server | `./2L1nk --server` | Run the server directly in the foreground (headless) |
+| Temp server | `./2L1nk --tempserver` | Like `--server`, but securely wipes the database on exit |
+
+```bash
+# Start with the TUI (recommended)
+./2L1nk
+
+# Run headless
+./2L1nk --server
+
+# Ephemeral session — all data deleted on exit
+./2L1nk --tempserver
+```
+
+---
+
+## TUI
+
+Running `./2L1nk` without flags opens the interactive control panel. Navigate with `↑↓` or `j/k`, confirm with `Enter`, go back with `Esc` or `q`.
+
+| Item | Description |
+|------|-------------|
+| **Run / Stop Server** | Start or stop the chat server as a background process |
+| **Gate Key** | Manage the access token (see below) |
+| **View Logs** | Stream the live server log |
+| **Outbound Tunnels** | Configure tunnels that expose your server to the internet (see below) |
+| **Links** | Local network URL, public IP, and live tunnel URLs — select to copy or view a QR code |
+| **Reset Database** | Stop the server and wipe all accounts, rooms, and messages |
+| **Options** | Toggle `No Logs` (disable log file) and `Temp Server` (wipe DB on stop) |
+| **Nuke** | Irreversibly overwrite and delete the database, logs, PID, options, and all tunnel data |
+
+For a full walkthrough see the in-app [Setup Guide](web/pages/Setup.html).
+
+---
+
+## Gate Key
+
+The gate key is an access token that controls who can reach the web interface. It is not used for encryption — think of it as an invite code.
+
+On first run a random 64-character hex key is generated and stored in the database. Users present it once to register; after that they hold a session valid for 24 hours.
+
+From the TUI **Gate Key** screen you can:
+
+- View the current key and its use count
+- Set a **max-uses** cap — the key auto-rotates once the limit is reached (useful for single-use invites)
+- Rotate to a new random key or set a custom one
+- Browse the full history of past keys
+
+Changes take effect immediately without restarting the server.
+
+---
+
+## Tunnels
+
+Tunnels expose your local server to the internet without port-forwarding. Managed from the TUI **Outbound Tunnels** menu — add, start, stop, delete, and tail live logs per tunnel. The detected public URL is shown as soon as the tunnel is up, and each tunnel can be set to auto-start alongside the server.
+
+Presets are included for Cloudflare and several SSH-based services (e.g. Cloudflare: `cloudflared tunnel --url http://localhost:{PORT}`), plus a **Custom** option for any shell command with an optional `{PORT}` placeholder.
+
+Tunnel configurations are persisted alongside the database.
+
+---
+
+## Security
+
+- Messages are encrypted with **AES-256-GCM** using per-room keys that rotate on every join and leave.
+- User identity is an **Ed25519** key pair generated in the browser. The private key never leaves the client.
+- Room keys are distributed via **X25519** key exchange — the server only forwards encrypted key blobs it cannot read.
+- The server stores only ciphertexts. A full database leak exposes no plaintext content.
+- Gate authentication uses Ed25519 signatures with a 30-second timestamp window and per-signature nonce tracking to prevent replay attacks.

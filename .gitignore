@@ -6,6 +6,7 @@ todo.txt
 2L1nk.db*
 *.tunnels.json
 *.tunnel.pid
+.idea/
 ### dotenv ###
 .env
 
@@ -501,3 +502,4 @@ FodyWeavers.xsd
 ### VisualStudio Patch ###
 # Additional files built by Visual Studio
 
+.superpowers/

@@ -12,6 +12,11 @@ let currentRoomId = null;
 let currentRoomEpoch = 0;
 const pendingSent = new Set(); // eigene gesendete Nachrichten (roomId:ciphertext) — verhindert Echo-Duplikate
 const roomKeys = new Map();   // `${roomId}:${epoch}` → Uint8Array (Room-Key)
+// fingerprint → base64 Ed25519 public key. Used to verify per-message
+// signatures (V-02). Populated from every server response that lists members:
+// GET /rooms (fetchRooms), room_updated WS events, room_key_rotation payloads,
+// and room-detail fetches inside loadChat.
+const memberEd25519Keys = new Map();
 const unreadCounts = new Map(); // roomId → number (ungelesene Nachrichten)
 // In-memory message cache for ephemeral rooms (never stored in DB).
 // Structure: roomId → [{isMine, senderName, senderMode, text, time}]
@@ -407,6 +412,10 @@ function connectLocalChat() {
 
         if (envelope.type === "room_updated") {
             const p = envelope.payload;
+            // Refresh Ed25519 pk cache from the updated member list so newly-
+            // added members can be verified (V-02).
+            if (p.host) cacheMemberEd25519Keys([p.host]);
+            cacheMemberEd25519Keys(p.users ?? []);
             // Update the cached room entry
             const idx = roomList.findIndex(r => r.room_id === p.room_id);
             if (idx !== -1) {
@@ -436,6 +445,9 @@ function connectLocalChat() {
             const rotIdx = roomList.findIndex(r => r.room_id === p.room_id);
             if (rotIdx !== -1) roomList[rotIdx] = { ...roomList[rotIdx], epoch: p.epoch };
             if (p.room_id === currentRoomId) currentRoomEpoch = p.epoch;
+            // Cache Ed25519 pubkeys for every member listed in the rotation so
+            // live messages from anyone in this epoch can be verified (V-02).
+            cacheMemberEd25519Keys(p.members ?? []);
             const myFP = sessionStorage.getItem('my_fingerprint');
             if (p.key_creator_fp === myFP) submitRoomKey(p.room_id, p.epoch, p.members);
             return;
@@ -514,96 +526,110 @@ function connectLocalChat() {
         if (envelope.type === "message") {
             const payload = envelope.payload;
 
-            // eigene Echo-Nachricht ignorieren
+            // eigene Echo-Nachricht ignorieren. sender_fp now lives in the
+            // payload (server-constructed outbound, V-02) — the old
+            // envelope.sender_fp path is gone for live chat messages.
             const myFP = sessionStorage.getItem('my_fingerprint');
             const sentKey = `${payload.room_id}:${payload.ciphertext}`;
-            if (envelope.sender_fp === myFP || pendingSent.has(sentKey)) {
+            if (payload.sender_fp === myFP || pendingSent.has(sentKey)) {
                 pendingSent.delete(sentKey);
                 return;
             }
 
-            // Raum nicht offen → unread zählen, Sound/Desktop, in Cache speichern
-            if (payload.room_id !== currentRoomId) {
-                unreadCounts.set(payload.room_id, (unreadCounts.get(payload.room_id) ?? 0) + 1);
-                updateUnreadUI(payload.room_id);
-                const cfg = Settings.load();
-                if (cfg.notifSound) playNotifSound();
-                if (cfg.notifDesktop) {
-                    const room = roomList.find(r => r.room_id === payload.room_id);
-                    showDesktopNotif(room?.name ?? 'Neue Nachricht', null);
-                }
-                // Cache so it appears when the user opens the room.
-                const cachedText = decryptText(payload.ciphertext, payload.room_id, payload.epoch);
-                const msgTime = Math.floor(Date.now() / 1000);
-                if (cachedText) {
-                    if (!roomMessageCache.has(payload.room_id)) roomMessageCache.set(payload.room_id, []);
-                    roomMessageCache.get(payload.room_id).push({
-                        isMine: false,
-                        senderFP: envelope.sender_fp,
-                        senderName: payload.sender_name ?? null,
-                        senderMode: payload.sender_mode ?? 1,
-                        text: cachedText,
-                        time: msgTime
-                    });
-                } else {
-                    // Key not available yet — queue for retry when room_key_slot arrives.
-                    if (!pendingEncryptedMessages.has(payload.room_id)) pendingEncryptedMessages.set(payload.room_id, []);
-                    pendingEncryptedMessages.get(payload.room_id).push({
-                        ciphertext: payload.ciphertext,
-                        epoch: payload.epoch,
-                        senderFP: envelope.sender_fp,
-                        senderName: payload.sender_name ?? null,
-                        senderMode: payload.sender_mode ?? 1,
-                        time: msgTime
-                    });
-                }
-                return;
-            }
-            const text = decryptText(payload.ciphertext, payload.room_id, payload.epoch);
-            if (!text) return;
-            const chatEl = document.getElementById('chat');
-            if (!chatEl) return;
-            const wrapper = document.createElement('div');
-            wrapper.className = 'msg-wrapper';
-            wrapper.dataset.senderFp = envelope.sender_fp;
-            if (payload.sender_name) {
-                const label = document.createElement('div');
-                label.className = 'msg-label';
-                if (payload.sender_mode === 0) {
-                    const badge = document.createElement('span');
-                    badge.textContent = '👻';
-                    badge.title = 'Temporärer Nutzer';
-                    badge.style.cssText = 'margin-right:4px;font-size:0.85em;opacity:0.8;';
-                    label.appendChild(badge);
-                }
-                label.appendChild(document.createTextNode(payload.sender_name));
-                wrapper.appendChild(label);
-            }
-            const div = document.createElement('div');
-            div.className = 'bubble received';
-            div.innerText = text;
-            const timeEl = document.createElement('span');
-            timeEl.className = 'msg-time';
-            timeEl.textContent = formatTime(Math.floor(Date.now() / 1000));
-            div.appendChild(timeEl);
-            wrapper.appendChild(div);
-            chatEl.appendChild(wrapper);
-            chatEl.scrollTop = chatEl.scrollHeight;
+            // V-02: verify the per-message signature BEFORE any side-effects
+            // (unread counters, desktop notifications, cache writes, DOM).
+            // Dropping an unverified message means no UI is ever influenced by
+            // a forged or tampered message. verifyIncomingMessageSignature
+            // handles its own logging.
+            (async () => {
+                if (!await verifyIncomingMessageSignature(payload)) return;
+                renderVerifiedIncomingMessage(payload);
+            })();
+        }
+    };
 
-            // Cache so re-opening the room doesn't wipe ephemeral messages.
+function renderVerifiedIncomingMessage(payload) {
+    // Raum nicht offen → unread zählen, Sound/Desktop, in Cache speichern
+    if (payload.room_id !== currentRoomId) {
+        unreadCounts.set(payload.room_id, (unreadCounts.get(payload.room_id) ?? 0) + 1);
+        updateUnreadUI(payload.room_id);
+        const cfg = Settings.load();
+        if (cfg.notifSound) playNotifSound();
+        if (cfg.notifDesktop) {
+            const room = roomList.find(r => r.room_id === payload.room_id);
+            showDesktopNotif(room?.name ?? 'Neue Nachricht', null);
+        }
+        // Cache so it appears when the user opens the room.
+        const cachedText = decryptText(payload.ciphertext, payload.room_id, payload.epoch);
+        const msgTime = Math.floor(Date.now() / 1000);
+        if (cachedText) {
             if (!roomMessageCache.has(payload.room_id)) roomMessageCache.set(payload.room_id, []);
             roomMessageCache.get(payload.room_id).push({
                 isMine: false,
-                senderFP: envelope.sender_fp,
+                senderFP: payload.sender_fp,
                 senderName: payload.sender_name ?? null,
                 senderMode: payload.sender_mode ?? 1,
-                text,
-                time: Math.floor(Date.now() / 1000)
+                text: cachedText,
+                time: msgTime
             });
-            // Remove "no messages" placeholder if still visible.
-            chatEl.querySelector('.chat-empty')?.remove();
+        } else {
+            // Key not available yet — queue for retry when room_key_slot arrives.
+            if (!pendingEncryptedMessages.has(payload.room_id)) pendingEncryptedMessages.set(payload.room_id, []);
+            pendingEncryptedMessages.get(payload.room_id).push({
+                ciphertext: payload.ciphertext,
+                epoch: payload.epoch,
+                senderFP: payload.sender_fp,
+                senderName: payload.sender_name ?? null,
+                senderMode: payload.sender_mode ?? 1,
+                time: msgTime
+            });
         }
-    };
+        return;
+    }
+    const text = decryptText(payload.ciphertext, payload.room_id, payload.epoch);
+    if (!text) return;
+    const chatEl = document.getElementById('chat');
+    if (!chatEl) return;
+    const wrapper = document.createElement('div');
+    wrapper.className = 'msg-wrapper';
+    wrapper.dataset.senderFp = payload.sender_fp;
+    if (payload.sender_name) {
+        const label = document.createElement('div');
+        label.className = 'msg-label';
+        if (payload.sender_mode === 0) {
+            const badge = document.createElement('span');
+            badge.textContent = '👻';
+            badge.title = 'Temporärer Nutzer';
+            badge.style.cssText = 'margin-right:4px;font-size:0.85em;opacity:0.8;';
+            label.appendChild(badge);
+        }
+        label.appendChild(document.createTextNode(payload.sender_name));
+        wrapper.appendChild(label);
+    }
+    const div = document.createElement('div');
+    div.className = 'bubble received';
+    div.innerText = text;
+    const timeEl = document.createElement('span');
+    timeEl.className = 'msg-time';
+    timeEl.textContent = formatTime(Math.floor(Date.now() / 1000));
+    div.appendChild(timeEl);
+    wrapper.appendChild(div);
+    chatEl.appendChild(wrapper);
+    chatEl.scrollTop = chatEl.scrollHeight;
+
+    // Cache so re-opening the room doesn't wipe ephemeral messages.
+    if (!roomMessageCache.has(payload.room_id)) roomMessageCache.set(payload.room_id, []);
+    roomMessageCache.get(payload.room_id).push({
+        isMine: false,
+        senderFP: payload.sender_fp,
+        senderName: payload.sender_name ?? null,
+        senderMode: payload.sender_mode ?? 1,
+        text,
+        time: Math.floor(Date.now() / 1000)
+    });
+    // Remove "no messages" placeholder if still visible.
+    chatEl.querySelector('.chat-empty')?.remove();
+}
 
     socket.onerror = (err) => console.error("WebSocket Fehler:", err);
     socket.onclose = () => {
@@ -643,6 +669,11 @@ async function fetchRooms() {
             if (r.host?.fingerprint) {
                 localStorage.setItem(`2l1nk_host_${r.room_id}`, r.host.fingerprint);
             }
+            // Seed Ed25519 pk cache from both host and member entries so any
+            // incoming message from any member can be verified without waiting
+            // for a key rotation event.
+            if (r.host) cacheMemberEd25519Keys([r.host]);
+            cacheMemberEd25519Keys(r.users ?? []);
         });
 
         // For rooms the server returned without a host (hub race or room offline),
@@ -812,6 +843,11 @@ async function loadChat(room) {
     const fpToName = {};
     if (room.host) fpToName[room.host.fingerprint] = room.host.username;
     (room.users ?? []).forEach(u => { fpToName[u.fingerprint] = u.username; });
+    // V-02: make sure we can verify signatures on historical messages from
+    // members who may currently be offline. The room object is the authoritative
+    // member list for this chat session.
+    if (room.host) cacheMemberEd25519Keys([room.host]);
+    cacheMemberEd25519Keys(room.users ?? []);
 
     // Key Slots laden damit gespeicherte Nachrichten entschlüsselt werden können
     try {
@@ -894,7 +930,25 @@ async function loadChat(room) {
             return;
         }
 
-        messages.forEach(msg => {
+        // V-02: verify signatures on every stored message. Build a canonical
+        // that matches what the client signed at send-time; if verify fails the
+        // row is either tampered or pre-dates the signing rollout (the user
+        // has agreed to reset the DB for this fix, so either case is a bug).
+        const verifiedMsgs = [];
+        for (const msg of messages) {
+            const ok = await verifyIncomingMessageSignature({
+                room_id:   room.room_id,
+                epoch:     msg.epoch,
+                ciphertext: msg.ciphertext,
+                sender_fp: msg.sender_fp,
+                timestamp: String(msg.sig_timestamp ?? ''),
+                nonce:     msg.sig_nonce,
+                signature: msg.signature,
+            });
+            if (ok) verifiedMsgs.push(msg);
+        }
+
+        verifiedMsgs.forEach(msg => {
             const isMine = msg.sender_fp === myFP;
             const text = decryptText(msg.ciphertext, room.room_id, msg.epoch);
             if (!text) return;
@@ -1210,7 +1264,7 @@ async function leaveRoom(roomId) {
         alert('Fehler beim Verlassen des Chats');
     }
 }
-function sendMessage(roomID) {
+async function sendMessage(roomID) {
     const plaintext = document.getElementById('schreibnachricht').value.trim();
     if (!plaintext) return;
 
@@ -1230,6 +1284,17 @@ function sendMessage(roomID) {
     const encrypted = AppCrypto.encryptMessage(plaintext, roomKey);
     const ciphertext = JSON.stringify(encrypted); // { nonce, ciphertext } als String
 
+    // V-02: sign this message so peers (and the server) can verify that the
+    // sender_fp was not spoofed. Canonical and formatting must match exactly
+    // what utils.MessageCanonical produces on the backend.
+    const myFP = sessionStorage.getItem('my_fingerprint');
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    const nonce = crypto.randomUUID();
+    const ctHashHex = await hashBody(ciphertext);
+    const canonical =
+        `MSG_V1\n${roomID}\n${currentRoomEpoch}\n${myFP}\n${timestamp}\n${nonce}\n${ctHashHex}`;
+    const signature = AppCrypto.sign(canonical);
+
     pendingSent.add(`${roomID}:${ciphertext}`);
     socket.send(JSON.stringify({
         type: "message",
@@ -1237,8 +1302,10 @@ function sendMessage(roomID) {
             room_id: roomID,
             epoch: currentRoomEpoch,
             ciphertext,
-            sender_name: sessionStorage.getItem('username'),
-            sender_mode: Number(sessionStorage.getItem('my_mode') ?? 1)
+            sender_fp: myFP,
+            timestamp,
+            nonce,
+            signature,
         }
     }));
     send(plaintext); // eigene Nachricht lokal als Klartext anzeigen
@@ -1252,6 +1319,36 @@ function sendMessage(roomID) {
         text: plaintext,
         time: Math.floor(Date.now() / 1000)
     });
+}
+
+// verifyIncomingMessageSignature rebuilds the canonical an authenticated sender
+// would have signed and validates it against the cached Ed25519 pk for their
+// fingerprint. Returns true on success. Drops silently with a console.warn on
+// any failure so that a forged or tampered message is never rendered.
+async function verifyIncomingMessageSignature(payload) {
+    if (!payload || !payload.sender_fp || !payload.signature
+        || !payload.timestamp || !payload.nonce || !payload.ciphertext) {
+        console.warn('message rejected: missing signature fields',
+            { sender_fp: payload?.sender_fp, room_id: payload?.room_id });
+        return false;
+    }
+    const pk = memberEd25519Keys.get(payload.sender_fp);
+    if (!pk) {
+        console.warn('message rejected: no Ed25519 pk cached for sender',
+            { sender_fp: payload.sender_fp, room_id: payload.room_id });
+        // Refresh member list in the background so the next message works.
+        try { fetchRooms(); } catch (_) {}
+        return false;
+    }
+    const ctHashHex = await hashBody(payload.ciphertext);
+    const canonical =
+        `MSG_V1\n${payload.room_id}\n${payload.epoch}\n${payload.sender_fp}\n${payload.timestamp}\n${payload.nonce}\n${ctHashHex}`;
+    const ok = AppCrypto.verify(canonical, payload.signature, pk);
+    if (!ok) {
+        console.warn('message rejected: signature mismatch',
+            { sender_fp: payload.sender_fp, room_id: payload.room_id, nonce: payload.nonce });
+    }
+    return ok;
 }
 
 function send(ciphertext) {
@@ -1340,6 +1437,20 @@ async function hashBody(bodyString) {
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     // Wandelt den Buffer in einen Hex-String um
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// cacheMemberEd25519Keys stores Ed25519 public keys from any member list so
+// incoming per-message signatures (V-02) can be verified. Tolerates the three
+// key shapes the server sends: RoomMemberInfo ({fingerprint, ed25519_public_key}),
+// MemberWithKey ({fingerprint, ed25519_public_key}), and legacy entries missing
+// the field. Missing keys are ignored so an older/partial response does not
+// clobber a good cached value.
+function cacheMemberEd25519Keys(members) {
+    if (!Array.isArray(members)) return;
+    for (const m of members) {
+        if (!m || !m.fingerprint || !m.ed25519_public_key) continue;
+        memberEd25519Keys.set(m.fingerprint, m.ed25519_public_key);
+    }
 }
 async function newChat(groupName) {
     const sessionId = sessionStorage.getItem('sessionId');

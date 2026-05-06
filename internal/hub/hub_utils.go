@@ -1,6 +1,9 @@
 package hub
 
-import "2L1nk/internal/models"
+import (
+	"2L1nk/internal/models"
+	"encoding/base64"
+)
 
 type UserStatus struct {
 	Username    string `json:"username"`
@@ -9,10 +12,11 @@ type UserStatus struct {
 }
 
 type RoomMemberInfo struct {
-	Username        string          `json:"username"`
-	Fingerprint     string          `json:"fingerprint"`
-	Mode            models.UserMode `json:"mode"`
-	X25519PublicKey string          `json:"x25519_public_key"`
+	Username         string          `json:"username"`
+	Fingerprint      string          `json:"fingerprint"`
+	Mode             models.UserMode `json:"mode"`
+	X25519PublicKey  string          `json:"x25519_public_key"`
+	Ed25519PublicKey string          `json:"ed25519_public_key"`
 }
 
 type UserRoomInfo struct {
@@ -66,6 +70,9 @@ func roomHostInfo(room *Room) RoomMemberInfo {
 	if room.Host != nil {
 		info.Mode = room.Host.Mode
 		info.X25519PublicKey = room.Host.X25519PublicKey
+		info.Ed25519PublicKey = base64.StdEncoding.EncodeToString(room.Host.Ed25519PublicKey)
+	} else if pk, ok := room.MemberEd25519Keys[room.HostFP]; ok {
+		info.Ed25519PublicKey = pk
 	}
 	return info
 }
@@ -98,10 +105,11 @@ func (h *Hub) GetRoom(roomID string) *UserRoomInfo {
 	var users []RoomMemberInfo
 	for _, user := range room.Users {
 		users = append(users, RoomMemberInfo{
-			Username:        user.Username,
-			Fingerprint:     user.Fingerprint,
-			Mode:            user.Mode,
-			X25519PublicKey: user.X25519PublicKey,
+			Username:         user.Username,
+			Fingerprint:      user.Fingerprint,
+			Mode:             user.Mode,
+			X25519PublicKey:  user.X25519PublicKey,
+			Ed25519PublicKey: base64.StdEncoding.EncodeToString(user.Ed25519PublicKey),
 		})
 	}
 
@@ -126,10 +134,11 @@ func (h *Hub) GetUserRooms(userFingerprint string) []UserRoomInfo {
 		var users []RoomMemberInfo
 		for _, user := range room.Users {
 			users = append(users, RoomMemberInfo{
-				Username:        user.Username,
-				Fingerprint:     user.Fingerprint,
-				Mode:            user.Mode,
-				X25519PublicKey: user.X25519PublicKey,
+				Username:         user.Username,
+				Fingerprint:      user.Fingerprint,
+				Mode:             user.Mode,
+				X25519PublicKey:  user.X25519PublicKey,
+				Ed25519PublicKey: base64.StdEncoding.EncodeToString(user.Ed25519PublicKey),
 			})
 		}
 

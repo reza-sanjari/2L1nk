@@ -3,6 +3,7 @@ package hub
 import (
 	"2L1nk/internal/logger"
 	"2L1nk/internal/models"
+	"crypto/ed25519"
 	"encoding/json"
 	"sync"
 
@@ -13,9 +14,10 @@ import (
 
 type User struct {
 	logg             *logger.Logger
-	Fingerprint      string `json:"fingerprint"`
-	Username         string `json:"username"`
-	X25519PublicKey  string // base64-encoded X25519 public key
+	Fingerprint      string            `json:"fingerprint"`
+	Username         string            `json:"username"`
+	X25519PublicKey  string            // base64-encoded X25519 public key
+	Ed25519PublicKey ed25519.PublicKey // raw 32-byte Ed25519 public key (used for per-message signature verification)
 	OutGoingMessages chan []byte
 	Websocket        *websocket.Conn
 	PeerMux          sync.Mutex
@@ -67,12 +69,13 @@ func (u *User) WritePump() error {
 	return nil
 }
 
-func NewUser(fingerprint string, username string, x25519PublicKey string, websocket *websocket.Conn, mode models.UserMode, logg *logger.Logger) *User {
+func NewUser(fingerprint string, username string, x25519PublicKey string, ed25519PublicKey ed25519.PublicKey, websocket *websocket.Conn, mode models.UserMode, logg *logger.Logger) *User {
 	return &User{
 		logg:             logg,
 		Fingerprint:      fingerprint,
 		Username:         username,
 		X25519PublicKey:  x25519PublicKey,
+		Ed25519PublicKey: ed25519PublicKey,
 		OutGoingMessages: make(chan []byte, 256),
 		Websocket:        websocket,
 		PeerMux:          sync.Mutex{},
