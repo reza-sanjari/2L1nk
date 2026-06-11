@@ -114,7 +114,6 @@
             <div class="auth-grid">
                 <div class="glass-card">
                     <h3><i class="fas fa-door-open"></i> Gateway</h3>
-                    <p>Quick access to public rooms.</p>
                     <input type="text" id="gateway" value="" placeholder="Enter gateway code...">
                     <input type="text" id="loginname" placeholder="Username" maxlength="50" onkeydown="if(event.key==='Enter')showModeModal()">
                     <button class="btn btn-primary" onclick="showModeModal()">Join</button>
@@ -140,9 +139,9 @@
                 <span class="info-badge"><i class="fas fa-lock"></i> Zero-Knowledge Architecture</span>
                 <h2>Communication<br>that <span class="accent-text">no one can read.</span></h2>
                 <p class="info-desc">
-                    2L1nk is a self-hosted E2E encrypted platform — the server stores
-                    only ciphertext and cannot decrypt messages.
-                    Your gateway, your control.
+                    2L1nk is a self-hosted, end-to-end encrypted platform.
+                    The server stores only ciphertext — it holds no keys
+                    and has no ability to read your messages.
                 </p>
             </div>
 
@@ -152,31 +151,30 @@
                         <i class="fas fa-shield-alt"></i>
                     </div>
                     <h4>End-to-End Encrypted</h4>
-                    <p>AES-256-GCM & ChaCha20-Poly1305. Every message is encrypted and decrypted directly on your device.</p>
-                    <div class="feature-tag">AES-256 · Ed25519</div>
+                    <p>Encrypted on your device before it's sent. Only recipients can decrypt it.</p>
+                    <div class="feature-tag">AES-256-GCM · X25519</div>
                 </div>
                 <div class="feature-item">
                     <div class="feature-icon-wrap" style="--icon-color: 188, 19, 254;">
                         <i class="fas fa-bolt"></i>
                     </div>
                     <h4>Low Latency</h4>
-                    <p>WebSocket-based real-time communication — optimized for fast delivery worldwide.</p>
-                    <div class="feature-tag">WebSocket · Go</div>
+                    <p>Persistent WebSocket connections for real-time delivery with no polling overhead.</p>
+                    <div class="feature-tag">WebSocket · Self-Hosted</div>
                 </div>
                 <div class="feature-item">
                     <div class="feature-icon-wrap" style="--icon-color: 168, 85, 247;">
                         <i class="fas fa-user-secret"></i>
                     </div>
                     <h4>Complete Anonymity</h4>
-                    <p>No account, no email, no phone number</p>
-                    <div class="feature-tag">No Account · No Logs</div>
+                    <p>No account, no email, no phone number. Access is gated by tokens only.</p>
+                    <div class="feature-tag">Zero Metadata · Token Access</div>
                 </div>
             </div>
         </section>
 
         <section>
             <h2>Our Team</h2>
-            <p class="subtitle">The minds behind the encryption.</p>
 
             <div class="team-grid">
                 <div class="team-card">
