@@ -39,10 +39,10 @@ const Settings = (() => {
         notifSound: true, notifDesktop: false,
     };
     const PRESETS = [
-        { name: 'Lila', color: '#bc13fe', rgb: '188, 19, 254', dark: '#4b0082' },
-        { name: 'Blau', color: '#1d9bf0', rgb: '29, 155, 240', dark: '#0a3d6b' },
-        { name: 'Grün', color: '#00c853', rgb: '0, 200, 83', dark: '#005723' },
-        { name: 'Rot', color: '#f44336', rgb: '244, 67, 54', dark: '#7f0000' },
+        { name: 'Purple', color: '#bc13fe', rgb: '188, 19, 254', dark: '#4b0082' },
+        { name: 'Blue', color: '#1d9bf0', rgb: '29, 155, 240', dark: '#0a3d6b' },
+        { name: 'Green', color: '#00c853', rgb: '0, 200, 83', dark: '#005723' },
+        { name: 'Red', color: '#f44336', rgb: '244, 67, 54', dark: '#7f0000' },
         { name: 'Orange', color: '#ff6d00', rgb: '255, 109, 0', dark: '#7f3400' },
         { name: 'Cyan', color: '#00bcd4', rgb: '0, 188, 212', dark: '#006064' },
     ];
@@ -145,7 +145,7 @@ function playNotifSound() {
 
 function showDesktopNotif(roomName, text) {
     if (Notification.permission === 'granted') {
-        try { new Notification(`2L1nk — ${roomName}`, { body: text || 'Neue Nachricht' }); } catch { }
+        try { new Notification(`2L1nk — ${roomName}`, { body: text || 'New message' }); } catch { }
     }
 }
 
@@ -157,7 +157,7 @@ function copySettingsValue(sessionKey, btnId) {
         if (!btn) return;
         btn.classList.add('copied');
         const orig = btn.innerHTML;
-        btn.innerHTML = '<i class="fas fa-check"></i> Kopiert';
+        btn.innerHTML = '<i class="fas fa-check"></i> Copied';
         setTimeout(() => { btn.innerHTML = orig; btn.classList.remove('copied'); }, 1800);
     }).catch(() => { });
 }
@@ -599,7 +599,7 @@ function renderVerifiedIncomingMessage(payload) {
         if (payload.sender_mode === 0) {
             const badge = document.createElement('span');
             badge.textContent = '👻';
-            badge.title = 'Temporärer Nutzer';
+            badge.title = 'Temporary user';
             badge.style.cssText = 'margin-right:4px;font-size:0.85em;opacity:0.8;';
             label.appendChild(badge);
         }
@@ -779,16 +779,16 @@ function clickroom(room) {
                 <div class="chat-header">
                     <div class="chat-header-left">
                         <span class="chat-header-name">${escapeHtml(room.name)}</span>
-                        <button class="leave-room-btn" onclick="leaveRoom('${room.room_id}')" title="Chat verlassen"><i class="fas fa-sign-out-alt"></i></button>
+                        <button class="leave-room-btn" onclick="leaveRoom('${room.room_id}')" title="Leave chat"><i class="fas fa-sign-out-alt"></i></button>
                     </div>
                     <div class="chat-header-actions">
                         <div class="voice-controls">
                             <div id="voice-avatars" class="voice-avatars-row"></div>
                             <button id="voice-join-btn" class="voice-btn" onclick="toggleVoice('${room.room_id}')">🎙️ Voice</button>
-                            <button id="voice-mute-btn" class="voice-btn" onclick="toggleMute()" style="display:none">🎤 Stumm</button>
+                            <button id="voice-mute-btn" class="voice-btn" onclick="toggleMute()" style="display:none">🎤 Mute</button>
                         </div>
                         <div class="chat-user-panel-wrapper" style="position:relative">
-                            <button class="chat-user-btn" onclick="toggleVoicePanel()" title="Voice-Teilnehmer">
+                            <button class="chat-user-btn" onclick="toggleVoicePanel()" title="Voice participants">
                                 <i class="fas fa-headphones"></i>
                             </button>
                             <div class="voice-panel" id="voice-panel">
@@ -797,11 +797,11 @@ function clickroom(room) {
                             </div>
                         </div>
                         <div class="chat-user-panel-wrapper">
-                            <button class="chat-user-btn" onclick="toggleChatUserList()" title="Mitglieder">
+                            <button class="chat-user-btn" onclick="toggleChatUserList()" title="Members">
                                 <i class="fas fa-users"></i>
                             </button>
                             <div class="chat-user-panel" id="chat-user-panel">
-                                <div class="chat-user-panel-title">MITGLIEDER</div>
+                                <div class="chat-user-panel-title">MEMBERS</div>
                                 <div id="chat-user-list"></div>
                             </div>
                         </div>
@@ -811,7 +811,7 @@ function clickroom(room) {
                 </div>
                 <div class="chat-input">
                     <div class="input-bar">
-                        <input type="text" id="schreibnachricht" placeholder="Nachricht schreiben...">
+                        <input type="text" id="schreibnachricht" placeholder="Write a message...">
                         <button class="send-btn" onclick="sendMessage('${room.room_id}')" title="Senden">
                             <i class="fas fa-paper-plane"></i>
                         </button>
@@ -883,7 +883,7 @@ async function loadChat(room) {
             if (cached.length === 0) {
                 const empty = document.createElement('div');
                 empty.className = 'chat-empty';
-                empty.textContent = 'Noch keine Nachrichten.';
+                empty.textContent = 'No messages yet.';
                 chatEl.appendChild(empty);
                 return;
             }
@@ -908,7 +908,7 @@ async function loadChat(room) {
                         if (msg.senderMode === 0) {
                             const badge = document.createElement('span');
                             badge.textContent = '👻';
-                            badge.title = 'Temporärer Nutzer';
+                            badge.title = 'Temporary user';
                             badge.style.cssText = 'margin-right:4px;font-size:0.85em;opacity:0.8;';
                             label.appendChild(badge);
                         }
@@ -973,7 +973,7 @@ async function loadChat(room) {
                 if (msg.is_ephemeral) {
                     const badge = document.createElement('span');
                     badge.textContent = '👻';
-                    badge.title = 'Temporärer Nutzer';
+                    badge.title = 'Temporary user';
                     badge.style.cssText = 'margin-right:4px;font-size:0.85em;opacity:0.8;';
                     label.appendChild(badge);
                 }
@@ -1026,7 +1026,7 @@ function renderFunc(RenderList) {
                         <div style="font-weight:bold;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">👤${escapeHtml(room.name)}</div>
                     </div>
                     <span class="unread-badge" style="display:none"></span>
-                    ${isHost ? `<span class="room-menu-btn" title="Mitglieder verwalten">llll</span>` : ''}
+                    ${isHost ? `<button class="room-menu-btn" title="Manage members"><i class="fas fa-user-plus"></i></button>` : ''}
                 </div>`;
 
             div.querySelector('.room-info').onclick = () => clickroom(room);
@@ -1046,7 +1046,7 @@ function renderFunc(RenderList) {
             if (count > 0) updateUnreadUI(roomId);
         });
     } else {
-        container.innerHTML = '<i class="fas fa-users" style="font-size: 2rem; margin-bottom: 10px;"></i><p>Keine aktiven Chats</p>';
+        container.innerHTML = '<i class="fas fa-users" style="font-size: 2rem; margin-bottom: 10px;"></i><p>No active chats</p>';
     }
 }
 
@@ -1074,7 +1074,7 @@ async function openRoomMenu(room) {
     const header = document.createElement('div');
     header.className = 'member-modal-header';
     const title = document.createElement('h3');
-    title.textContent = 'MITGLIEDER VERWALTEN';
+    title.textContent = 'MANAGE MEMBERS';
     const closeBtn = document.createElement('button');
     closeBtn.className = 'member-modal-close';
     closeBtn.textContent = '✕';
@@ -1091,18 +1091,18 @@ async function openRoomMenu(room) {
     leftCol.className = 'member-col';
     const leftTitle = document.createElement('div');
     leftTitle.className = 'member-col-title';
-    leftTitle.textContent = 'Mitglieder';
+    leftTitle.textContent = 'Members';
     const leftList = document.createElement('div');
     leftList.className = 'member-col-list';
     leftCol.appendChild(leftTitle);
     leftCol.appendChild(leftList);
 
-    // --- rechte Spalte: hinzufügbare User ---
+    // --- right column: addable users ---
     const rightCol = document.createElement('div');
     rightCol.className = 'member-col';
     const rightTitle = document.createElement('div');
     rightTitle.className = 'member-col-title';
-    rightTitle.textContent = 'Hinzufügen';
+    rightTitle.textContent = 'Add';
     const rightList = document.createElement('div');
     rightList.className = 'member-col-list';
     rightCol.appendChild(rightTitle);
@@ -1113,7 +1113,7 @@ async function openRoomMenu(room) {
     footer.className = 'member-modal-footer';
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'del-group-btn';
-    deleteBtn.textContent = 'Gruppe löschen';
+    deleteBtn.textContent = 'Delete group';
     deleteBtn.onclick = () => deleteGroup(room.room_id);
     footer.appendChild(deleteBtn);
 
@@ -1145,8 +1145,8 @@ async function openRoomMenu(room) {
     }
 
     // Placeholder während Laden
-    leftList.innerHTML = '<div class="member-col-empty">Lädt...</div>';
-    rightList.innerHTML = '<div class="member-col-empty">Lädt...</div>';
+    leftList.innerHTML = '<div class="member-col-empty">Loading...</div>';
+    rightList.innerHTML = '<div class="member-col-empty">Loading...</div>';
 
     const myFP = sessionStorage.getItem('my_fingerprint');
     const allResp = await authFetch('GET', '/api/users').catch(() => null);
@@ -1161,20 +1161,20 @@ async function openRoomMenu(room) {
     // Mitglieder-Liste befüllen
     leftList.innerHTML = '';
     if (removable.length === 0) {
-        leftList.innerHTML = '<div class="member-col-empty">Keine weiteren Mitglieder</div>';
+        leftList.innerHTML = '<div class="member-col-empty">No other members</div>';
     } else {
         removable.forEach(u => leftList.appendChild(
-            makeRow(u.username, 'rem-btn', '– Entfernen', onlineFPs.has(u.fingerprint), () => removeMember(room.room_id, u.fingerprint))
+            makeRow(u.username, 'rem-btn', '– Remove', onlineFPs.has(u.fingerprint), () => removeMember(room.room_id, u.fingerprint))
         ));
     }
 
     // Hinzufügen-Liste befüllen (nur online)
     rightList.innerHTML = '';
     if (addable.length === 0) {
-        rightList.innerHTML = '<div class="member-col-empty">Keine online User verfügbar</div>';
+        rightList.innerHTML = '<div class="member-col-empty">No online users available</div>';
     } else {
         addable.forEach(u => rightList.appendChild(
-            makeRow(u.username, 'add-btn', '+ Hinzufügen', true, () => addMember(room.room_id, u))
+            makeRow(u.username, 'add-btn', '+ Add', true, () => addMember(room.room_id, u))
         ));
     }
 }
@@ -1215,7 +1215,7 @@ async function addMember(roomId, user) {
         }
         const room = roomList.find(r => r.room_id === roomId);
         if (room) openRoomMenu(room);
-    } else alert('Fehler beim Hinzufügen');
+    } else alert('Error adding member');
 }
 
 async function removeMember(roomId, fingerprint) {
@@ -1228,12 +1228,12 @@ async function removeMember(roomId, fingerprint) {
         }
         const room = roomList.find(r => r.room_id === roomId);
         if (room) openRoomMenu(room); else closeMemberModal();
-    } else alert('Fehler beim Entfernen');
+    } else alert('Error removing member');
 }
 
 async function deleteGroup(roomId) {
     const myFP = sessionStorage.getItem('my_fingerprint');
-    if (!confirm('Gruppe wirklich löschen?')) return;
+    if (!confirm('Really delete this group?')) return;
     const res = await authFetch('DELETE', `/api/rooms/${roomId}/users/${myFP}`);
     if (res.ok) {
         closeMemberModal();
@@ -1243,13 +1243,13 @@ async function deleteGroup(roomId) {
         main.style.display = 'none';
         document.querySelector('.maininfo').style.display = '';
         await fetchRooms();
-    } else alert('Fehler beim Löschen der Gruppe');
+    } else alert('Error deleting group');
 }
 
 async function leaveRoom(roomId) {
     const myFP = sessionStorage.getItem('my_fingerprint');
     const isEphemeral = Number(sessionStorage.getItem('my_mode') ?? 1) === 0;
-    if (!confirm('Chat wirklich verlassen?')) return;
+    if (!confirm('Really leave this chat?')) return;
     const res = await authFetch('DELETE', `/api/rooms/${roomId}/users/${myFP}`);
     // Temp users are not in the DB room_members table → API returns 404.
     // Treat that as a successful leave and clean up locally.
@@ -1261,7 +1261,7 @@ async function leaveRoom(roomId) {
         document.querySelector('.maininfo').style.display = '';
         await fetchRooms();
     } else {
-        alert('Fehler beim Verlassen des Chats');
+        alert('Error leaving chat');
     }
 }
 async function sendMessage(roomID) {
@@ -1416,11 +1416,11 @@ async function submitNewChat() {
     const groupName = inputField.value.trim();
 
     if (!groupName) {
-        alert("⚠️ Bitte gib einen Gruppennamen ein!");
+        alert("⚠️ Please enter a group name!");
         return;
     }
     if (groupName.length > 100) {
-        alert("⚠️ Der Gruppenname darf maximal 100 Zeichen lang sein!");
+        alert("⚠️ Group name must be at most 100 characters!");
         return;
     }
 
@@ -1495,7 +1495,7 @@ async function newChat(groupName) {
 
     } catch (err) {
         console.error("Fehler beim Request:", err);
-        alert("❌ Fehler: " + err.message);
+        alert("❌ Error: " + err.message);
     }
 }
 function logout() {
@@ -1517,7 +1517,7 @@ document.addEventListener('click', (e) => {
 });
 
 async function purgeAllMessages() {
-    if (!confirm('Wirklich alle deine Nachrichten löschen?')) return;
+    if (!confirm('Really delete all your messages?')) return;
     const res = await authFetch('DELETE', '/api/users/me/messages');
     if (res.ok) {
         document.getElementById('user-popup').classList.remove('open');
@@ -1535,7 +1535,7 @@ async function purgeAllMessages() {
             }
         }
     } else {
-        alert('Fehler beim Löschen der Nachrichten');
+        alert('Error deleting messages');
     }
 }
 
@@ -1579,7 +1579,7 @@ async function joinVoice(roomId) {
     try {
         localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
     } catch (e) {
-        alert('Mikrofon nicht verfügbar: ' + e.message);
+        alert('Microphone not available: ' + e.message);
         return;
     }
 
@@ -1858,14 +1858,14 @@ function updateVoiceUI() {
 
     const joinBtn = document.getElementById('voice-join-btn');
     if (joinBtn) {
-        joinBtn.textContent = isInVoice ? '🔴 Verlassen' : '🎙️ Voice';
+        joinBtn.textContent = isInVoice ? '🔴 Leave' : '🎙️ Voice';
         joinBtn.className = isInVoice ? 'voice-btn active' : 'voice-btn';
     }
 
     const muteBtn = document.getElementById('voice-mute-btn');
     if (muteBtn) {
         muteBtn.style.display = isInVoice ? '' : 'none';
-        muteBtn.textContent = isMuted ? '🔇 Stumm' : '🎤 Stumm';
+        muteBtn.textContent = isMuted ? '🔇 Muted' : '🎤 Mute';
         muteBtn.className = isMuted ? 'voice-btn muted' : 'voice-btn';
     }
 
@@ -1922,7 +1922,7 @@ function updateVoiceUI() {
         av.textContent = initial;
         div.appendChild(av);
         const label = document.createElement('span');
-        label.textContent = `${name}${isMe ? ' (Du)' : ''}${isMutedFP ? ' 🔇' : ''}`;
+        label.textContent = `${name}${isMe ? ' (me)' : ''}${isMutedFP ? ' 🔇' : ''}`;
         div.appendChild(label);
         list.appendChild(div);
     });
@@ -1930,7 +1930,7 @@ function updateVoiceUI() {
     if (voiceParticipants.size === 0) {
         const empty = document.createElement('div');
         empty.style.cssText = 'padding:10px 14px;font-size:0.75rem;color:rgba(255,255,255,0.3)';
-        empty.textContent = 'Niemand im Voice';
+        empty.textContent = 'No one in voice';
         list.appendChild(empty);
     }
 }
@@ -2061,7 +2061,7 @@ function populateSettingsPanel() {
         // Custom color picker
         const customWrap = document.createElement('div');
         customWrap.className = 'settings-swatch-custom';
-        customWrap.title = 'Eigene Farbe';
+        customWrap.title = 'Custom color';
         customWrap.style.position = 'relative';
         customWrap.innerHTML = '<i class="fas fa-plus" style="pointer-events:none;font-size:0.65rem"></i>';
         const colorInput = document.createElement('input');
@@ -2105,7 +2105,7 @@ function globalSearch(event) {
         return;
     }
 
-    resultsEl.innerHTML = '<div class="nav-panel-empty search-loading"><i class="fas fa-circle-notch fa-spin"></i> Suche…</div>';
+    resultsEl.innerHTML = '<div class="nav-panel-empty search-loading"><i class="fas fa-circle-notch fa-spin"></i> Searching…</div>';
     _searchTimer = setTimeout(() => _runMessageSearch(query, resultsEl), 350);
 }
 
@@ -2152,7 +2152,7 @@ async function _runMessageSearch(query, resultsEl) {
     }));
 
     if (results.length === 0) {
-        resultsEl.innerHTML = '<div class="nav-panel-empty">Keine Ergebnisse</div>';
+        resultsEl.innerHTML = '<div class="nav-panel-empty">No results</div>';
         return;
     }
 
@@ -2221,7 +2221,7 @@ function populateNotifPanel() {
 
     const rooms = roomList.filter(r => (unreadCounts.get(r.room_id) ?? 0) > 0);
     if (rooms.length === 0) {
-        list.innerHTML = '<div class="nav-panel-empty">Keine neuen Benachrichtigungen</div>';
+        list.innerHTML = '<div class="nav-panel-empty">No new notifications</div>';
         return;
     }
 

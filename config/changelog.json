@@ -1,5 +1,15 @@
 [
   {
+    "version": "0.9.5",
+    "date": "11-06-2026",
+    "notes": [
+      "Improved gate authentication using Proof-of-Possession",
+      "Enhanced message security",
+      "Translated all texts to English",
+      "General UI improvements"
+    ]
+  },
+  {
     "version": "0.9.4",
     "date": "21-04-2026",
     "notes": [

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -77,21 +77,21 @@
     <!-- Mode Selection Modal -->
     <div id="mode-overlay" class="mode-overlay" onclick="if(event.target===this)closeModeModal()">
         <div class="mode-card">
-            <h3>Wie möchtest du beitreten?</h3>
-            <p>Wähle, ob deine Identität gespeichert werden soll.</p>
+            <h3>How do you want to join?</h3>
+            <p>Choose whether your identity should be saved.</p>
             <div class="mode-options">
                 <button class="mode-btn ephemeral" onclick="connectToGateway(0)">
                     <div class="mode-icon">👻</div>
-                    <div class="mode-title">Temporär</div>
-                    <div class="mode-desc">Identität und Verlauf werden nicht gespeichert. Beim Schließen des Tabs gelöscht.</div>
+                    <div class="mode-title">Temporary</div>
+                    <div class="mode-desc">Identity and history are not saved. Deleted when the tab is closed.</div>
                 </button>
                 <button class="mode-btn persistent" onclick="connectToGateway(1)">
                     <div class="mode-icon">🔑</div>
-                    <div class="mode-title">Dauerhaft</div>
-                    <div class="mode-desc">Identität lokal gespeichert. Nachrichten-Verlauf bleibt erhalten.</div>
+                    <div class="mode-title">Persistent</div>
+                    <div class="mode-desc">Identity stored locally. Message history is preserved.</div>
                 </button>
             </div>
-            <button class="mode-cancel" onclick="closeModeModal()">Abbrechen</button>
+            <button class="mode-cancel" onclick="closeModeModal()">Cancel</button>
         </div>
     </div>
 
@@ -114,14 +114,13 @@
             <div class="auth-grid">
                 <div class="glass-card">
                     <h3><i class="fas fa-door-open"></i> Gateway</h3>
-                    <p>Schnellzugriff auf öffentliche Räume.</p>
-                    <input type="text" id="gateway" value="" placeholder="Gateway Code eingeben...">
+                    <input type="text" id="gateway" value="" placeholder="Enter gateway code...">
                     <input type="text" id="loginname" placeholder="Username" maxlength="50" onkeydown="if(event.key==='Enter')showModeModal()">
-                    <button class="btn btn-primary" onclick="showModeModal()">Beitreten</button>
+                    <button class="btn btn-primary" onclick="showModeModal()">Join</button>
                 </div>
 
                 <div id="fast-login-section" class="fast-login-section" style="display:none">
-                    <div class="fast-login-title"><i class="fas fa-bolt"></i> Schnell-Login</div>
+                    <div class="fast-login-title"><i class="fas fa-bolt"></i> Quick Login</div>
                     <div id="fast-login-list" class="fast-login-list"></div>
                 </div>
 
@@ -137,12 +136,12 @@
 
         <section class="info-section">
             <div class="info-header">
-                <span class="info-badge"><i class="fas fa-lock"></i> Zero-Knowledge Architektur</span>
-                <h2>Kommunikation,<br>die <span class="accent-text">niemand lesen kann.</span></h2>
+                <span class="info-badge"><i class="fas fa-lock"></i> Zero-Knowledge Architecture</span>
+                <h2>Communication<br>that <span class="accent-text">no one can read.</span></h2>
                 <p class="info-desc">
-                    2L1nk ist eine selbst-gehostete E2E-verschlüsselte Plattform — der Server speichert
-                    ausschließlich Ciphertext und kann keine Nachrichten entschlüsseln.
-                    Dein Gateway, deine Kontrolle.
+                    2L1nk is a self-hosted, end-to-end encrypted platform.
+                    The server stores only ciphertext — it holds no keys
+                    and has no ability to read your messages.
                 </p>
             </div>
 
@@ -151,32 +150,31 @@
                     <div class="feature-icon-wrap" style="--icon-color: 74, 222, 128;">
                         <i class="fas fa-shield-alt"></i>
                     </div>
-                    <h4>End-to-End Verschlüsselt</h4>
-                    <p>AES-256-GCM & ChaCha20-Poly1305. Jede Nachricht wird direkt auf deinem Gerät ver- und entschlüsselt.</p>
-                    <div class="feature-tag">AES-256 · Ed25519</div>
+                    <h4>End-to-End Encrypted</h4>
+                    <p>Encrypted on your device before it's sent. Only recipients can decrypt it.</p>
+                    <div class="feature-tag">AES-256-GCM · X25519</div>
                 </div>
                 <div class="feature-item">
                     <div class="feature-icon-wrap" style="--icon-color: 188, 19, 254;">
                         <i class="fas fa-bolt"></i>
                     </div>
                     <h4>Low Latency</h4>
-                    <p>WebSocket-basierte Echtzeit-Kommunikation — optimiert für schnelle Zustellung weltweit.</p>
-                    <div class="feature-tag">WebSocket · Go</div>
+                    <p>Persistent WebSocket connections for real-time delivery with no polling overhead.</p>
+                    <div class="feature-tag">WebSocket · Self-Hosted</div>
                 </div>
                 <div class="feature-item">
                     <div class="feature-icon-wrap" style="--icon-color: 168, 85, 247;">
                         <i class="fas fa-user-secret"></i>
                     </div>
-                    <h4>Vollständige Anonymität</h4>
-                    <p>Kein Account, keine E-Mail, Keine Nummer</p>
-                    <div class="feature-tag">No Account · No Logs</div>
+                    <h4>Complete Anonymity</h4>
+                    <p>No account, no email, no phone number. Access is gated by tokens only.</p>
+                    <div class="feature-tag">Zero Metadata · Token Access</div>
                 </div>
             </div>
         </section>
 
         <section>
-            <h2>Unser Team</h2>
-            <p class="subtitle">Die Köpfe hinter der Verschlüsselung.</p>
+            <h2>Our Team</h2>
 
             <div class="team-grid">
                 <div class="team-card">
@@ -365,12 +363,12 @@
             info.appendChild(name);
             const goBtn = document.createElement('button');
             goBtn.className = 'fast-login-go';
-            goBtn.title = 'Einloggen';
+            goBtn.title = 'Sign in';
             goBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i>';
             goBtn.onclick = () => quickLogin(l.username, l.gatewayKey);
             const removeBtn = document.createElement('button');
             removeBtn.className = 'fast-login-remove';
-            removeBtn.title = 'Entfernen';
+            removeBtn.title = 'Remove';
             removeBtn.innerHTML = '<i class="fas fa-times"></i>';
             removeBtn.onclick = () => removeLogin(l.username);
             card.appendChild(avatar);
@@ -392,9 +390,9 @@
     function showModeModal() {
         const gateKey   = document.getElementById('gateway').value.trim();
         const loginName = document.getElementById('loginname').value.trim();
-        if (!gateKey)             { alert("⚠️ Bitte gib einen Gateway-Code ein!"); return; }
-        if (!loginName)           { alert("⚠️ Bitte gib einen Login-Namen ein!"); return; }
-        if (loginName.length > 50){ alert("⚠️ Der Username darf maximal 50 Zeichen lang sein!"); return; }
+        if (!gateKey)             { alert("⚠️ Please enter a gateway code!"); return; }
+        if (!loginName)           { alert("⚠️ Please enter a username!"); return; }
+        if (loginName.length > 50){ alert("⚠️ The username must be at most 50 characters long!"); return; }
         document.getElementById('mode-overlay').classList.add('open');
     }
 
@@ -417,12 +415,12 @@
         const gateKey   = document.getElementById('gateway').value.trim();
         const loginName = document.getElementById('loginname').value.trim();
 
-        if (!gateKey)   { alert("⚠️ Bitte gib einen Gateway-Code ein!"); return; }
-        if (!loginName) { alert("⚠️ Bitte gib einen Login-Namen ein!"); return; }
+        if (!gateKey)   { alert("⚠️ Please enter a gateway code!"); return; }
+        if (!loginName) { alert("⚠️ Please enter a username!"); return; }
 
         const isPersistent = mode === 1;
 
-        // 1. Keys laden (IDB, nur persistent) oder neu generieren
+        // 1. Load keys (IDB, persistent only) or generate new ones
         let ed25519Secret, ed25519Public, x25519Secret, x25519Public;
 
         const stored = isPersistent
@@ -430,13 +428,13 @@
             : null;
 
         if (stored) {
-            // Gespeicherte Keys wiederverwenden → gleiche Identität
+            // Reuse stored keys → same identity
             ed25519Secret = stored.ed25519_secret;
             ed25519Public = stored.ed25519_public;
             x25519Secret  = stored.x25519_secret;
             x25519Public  = stored.x25519_public;
         } else {
-            // Neue Keys generieren
+            // Generate new keys
             const signingKP = nacl.sign.keyPair();
             const dhKP      = nacl.box.keyPair();
             ed25519Secret = b64(signingKP.secretKey);
@@ -450,7 +448,7 @@
         sessionStorage.setItem('x25519_secret',   x25519Secret);
         sessionStorage.setItem('x25519_public',   x25519Public);
 
-        // 2. Body & Canonical String bauen
+        // 2. Build body & canonical string
         const timestamp = Math.floor(Date.now() / 1000).toString();
         const nonce     = b64(nacl.randomBytes(16));
         const body = JSON.stringify({ gateToken: gateKey, publicKey: ed25519Public, x25519PublicKey: x25519Public, username: loginName, mode });
@@ -460,7 +458,7 @@
             `GATE\n${timestamp}\n${nonce}\n${mode}\n${loginName}\n` +
             `${ed25519Public}\n${x25519Public}\n${bodyHash}`;
 
-        // 3. Signieren
+        // 3. Sign
         const sig       = nacl.sign.detached(new TextEncoder().encode(canonical), fromB64(ed25519Secret));
         const signature = b64(sig);
 
@@ -478,10 +476,10 @@
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({ error: response.statusText }));
-                throw new Error(errorData.error ?? `Server-Fehler ${response.status}`);
+                throw new Error(errorData.error ?? `Server error ${response.status}`);
             }
 
-            // Keys in IndexedDB speichern (nur persistent, nur wenn neu generiert)
+            // Save keys to IndexedDB (persistent only, only when newly generated)
             if (isPersistent && !stored) {
                 await saveKeysToIDB(loginName, {
                     ed25519_secret: ed25519Secret,
@@ -491,7 +489,7 @@
                 }).catch(() => {});
             }
 
-            // Schnell-Login nur für persistente Nutzer speichern
+            // Only save quick login for persistent users
             if (isPersistent) {
                 saveLogin(loginName, gateKey);
             }
@@ -503,7 +501,7 @@
             sessionStorage.setItem('sessionId', data.sessionId);
             window.location.href = "Mainsite";
         } catch (err) {
-            alert("❌ Fehler beim Gateway-Check:\n" + err.message);
+            alert("❌ Error connecting to gateway:\n" + err.message);
         }
     }
 

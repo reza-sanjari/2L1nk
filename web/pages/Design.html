@@ -1,5 +1,5 @@
  <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
     <title>Geometric Social Network</title>
     <meta charset="UTF-8">
@@ -10,7 +10,7 @@
     <link href='https://fonts.googleapis.com/css?family=Open+Sans' rel='stylesheet'>
 
     <style>
-        /* --- BASIS STYLING & ANIMATIONEN (Seite 1) --- */
+        /* --- BASE STYLING & ANIMATIONS (Page 1) --- */
         @keyframes fluidBG {
             0% { background-position: 0% 50%; }
             50% { background-position: 100% 50%; }
@@ -33,7 +33,7 @@
             overflow-x: hidden;
         }
 
-        /* Hintergrund-Formen */
+        /* Background Shapes */
         .shape {
             position: fixed;
             z-index: -1;
@@ -47,7 +47,7 @@
             bottom: 10%; right: 5%; animation-delay: -5s; 
         }
 
-        /* --- W3.CSS ANPASSUNGEN (Dark/Purple Theme) --- */
+        /* --- W3.CSS CUSTOMIZATIONS (Dark/Purple Theme) --- */
         .w3-card, .w3-container {
             background: rgba(255, 255, 255, 0.05) !important;
             backdrop-filter: blur(15px);
@@ -97,12 +97,12 @@
  <div class="w3-bar w3-left-align w3-large">
   <a class="w3-bar-item w3-button w3-hide-medium w3-hide-large w3-right w3-padding-large w3-hover-white" href="javascript:void(0);" onclick="openNav()"><i class="fa fa-bars"></i></a>
   <a href="#" class="w3-bar-item w3-button w3-padding-large"><i class="fa fa-home w3-margin-right"></i>GeoNet</a>
-  <a href="#" class="w3-bar-item w3-button w3-hide-small w3-padding-large" title="Nachrichten"><i class="fa fa-envelope"></i></a>
+  <a href="#" class="w3-bar-item w3-button w3-hide-small w3-padding-large" title="Messages"><i class="fa fa-envelope"></i></a>
   <div class="w3-dropdown-hover w3-hide-small">
     <button class="w3-button w3-padding-large" title="Notifications"><i class="fa fa-bell"></i><span class="w3-badge w3-right w3-small w3-purple">3</span></button>     
     <div class="w3-dropdown-content w3-card-4 w3-bar-block" style="width:300px; background: #1a0525 !important; color: white;">
-      <a href="#" class="w3-bar-item w3-button">Neue Freundschaftsanfrage</a>
-      <a href="#" class="w3-bar-item w3-button">Max hat auf deine Story reagiert</a>
+      <a href="#" class="w3-bar-item w3-button">New friend request</a>
+      <a href="#" class="w3-bar-item w3-button">Max reacted to your story</a>
     </div>
   </div>
   <a href="#" class="w3-bar-item w3-button w3-hide-small w3-right w3-padding-large" title="Profil">
@@ -117,7 +117,7 @@
     <div class="w3-col m3">
       <div class="w3-card w3-round">
         <div class="w3-container w3-center">
-         <h4>Mein Profil</h4>
+         <h4>My Profile</h4>
          <p><img src="https://www.w3images/avatar3.png" class="w3-circle" style="height:106px;width:106px; border: 2px solid #bc13fe" alt="Avatar"></p>
          <hr>
          <p><i class="fa fa-pencil fa-fw w3-margin-right" style="color:#bc13fe"></i> UI Designer</p>
@@ -127,16 +127,16 @@
       <br>
       
       <div class="w3-card w3-round">
-          <button onclick="myFunction('Demo1')" class="w3-button w3-block w3-left-align"><i class="fa fa-users fa-fw w3-margin-right"></i> Meine Gruppen</button>
+          <button onclick="myFunction('Demo1')" class="w3-button w3-block w3-left-align"><i class="fa fa-users fa-fw w3-margin-right"></i> My Groups</button>
           <div id="Demo1" class="w3-hide w3-container"><p>Design Community, Tech Talk</p></div>
           <button onclick="myFunction('Demo2')" class="w3-button w3-block w3-left-align"><i class="fa fa-calendar fa-fw w3-margin-right"></i> Events</button>
-          <div id="Demo2" class="w3-hide w3-container"><p>Geometrie Workshop 2026</p></div>
+          <div id="Demo2" class="w3-hide w3-container"><p>Geometry Workshop 2026</p></div>
       </div>
       <br>
 
       <div class="w3-card w3-round w3-hide-small">
         <div class="w3-container">
-          <p>Interessen</p>
+          <p>Interests</p>
           <p>
             <span class="w3-tag w3-small">Design</span>
             <span class="w3-tag w3-small">Code</span>
@@ -153,9 +153,9 @@
         <div class="w3-col m12">
           <div class="w3-card w3-round">
             <div class="w3-container w3-padding">
-              <h6 class="w3-opacity">Was gibt's Neues?</h6>
-              <input type="text" id="postInput" placeholder="Schreibe einen Beitrag...">
-              <button type="button" class="w3-button purple-gradient-btn w3-margin-top" onclick="addPost()"><i class="fa fa-pencil"></i> Posten</button> 
+              <h6 class="w3-opacity">What's new?</h6>
+              <input type="text" id="postInput" placeholder="Write a post...">
+              <button type="button" class="w3-button purple-gradient-btn w3-margin-top" onclick="addPost()"><i class="fa fa-pencil"></i> Post</button> 
             </div>
           </div>
         </div>
@@ -164,12 +164,12 @@
       <div id="feed">
           <div class="w3-container w3-card w3-round w3-margin"><br>
             <img src="https://www.w3schools.com/w3images/avatar2.png" alt="Avatar" class="w3-left w3-circle w3-margin-right" style="width:60px">
-            <span class="w3-right w3-opacity">Gerade eben</span>
+            <span class="w3-right w3-opacity">Just now</span>
             <h4>John Doe</h4><br>
             <hr>
-            <p>Das neue Design mit den geometrischen Formen im Hintergrund sieht fantastisch aus! Was meint ihr?</p>
+            <p>The new design with geometric shapes in the background looks fantastic! What do you think?</p>
             <button type="button" class="w3-button w3-margin-bottom purple-gradient-btn"><i class="fa fa-thumbs-up"></i> Like</button> 
-            <button type="button" class="w3-button w3-margin-bottom w3-border w3-border-purple"><i class="fa fa-comment"></i> Kommentar</button> 
+            <button type="button" class="w3-button w3-margin-bottom w3-border w3-border-purple"><i class="fa fa-comment"></i> Comment</button> 
           </div>
       </div>
 
@@ -177,7 +177,7 @@
 
     <div class="w3-col m2">
         <div class="w3-card w3-round w3-center w3-padding-16">
-            <p>Aktuelle Trends</p>
+            <p>Trending</p>
             <p><strong>#CSSArt</strong></p>
             <p><strong>#PurpleVibes</strong></p>
         </div>
@@ -191,7 +191,7 @@
 </footer>
 
 <script>
-// Accordion Funktion
+// Accordion function
 function myFunction(id) {
   var x = document.getElementById(id);
   if (x.className.indexOf("w3-show") == -1) {
@@ -201,7 +201,7 @@ function myFunction(id) {
   }
 }
 
-// Einfache Post-Funktion (Fusion der Chat-Logik)
+// Simple post function
 function addPost() {
     const input = document.getElementById('postInput');
     if(input.value !== "") {
@@ -211,8 +211,8 @@ function addPost() {
         newPost.innerHTML = `
             <br>
             <img src="https://www.w3schools.com/w3images/avatar3.png" alt="Avatar" class="w3-left w3-circle w3-margin-right" style="width:60px">
-            <span class="w3-right w3-opacity">Jetzt</span>
-            <h4>Du</h4><br>
+            <span class="w3-right w3-opacity">Just now</span>
+            <h4>You</h4><br>
             <hr>
             <p>${input.value}</p>
             <button type="button" class="w3-button w3-margin-bottom purple-gradient-btn"><i class="fa fa-thumbs-up"></i> Like</button> 
