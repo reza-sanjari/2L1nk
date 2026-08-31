@@ -1,0 +1,48 @@
+/* === BASE — Custom Properties, Body, Global Resets === */
+
+:root {
+    --accent:           #8b5cf6;
+    --accent-dark:      #3b1a6e;
+    --accent-rgb:       139, 92, 246;
+    --bg-from:          #0d0d12;
+    --bg-to:            #1a1a2e;
+    --shape-color:      #1a1a2e;
+    --surface-primary:  #111118;
+    --surface-secondary:#16161f;
+    --surface-elevated: #1e1e2a;
+    --border-subtle:    rgba(255,255,255,0.08);
+    --text-primary:     rgba(255,255,255,0.88);
+    --text-secondary:   rgba(255,255,255,0.55);
+    --text-muted:       rgba(255,255,255,0.3);
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+    background: linear-gradient(160deg, var(--bg-from), var(--bg-to));
+    color: var(--text-primary);
+    scroll-behavior: smooth;
+    overflow-x: hidden;
+}
+
+/* Global input reset */
+input {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid #444;
+    padding: 12px 20px;
+    border-radius: 30px;
+    color: white;
+    outline: none;
+}
+
+/* Global button reset */
+button {
+    background: var(--accent);
+    border: none;
+    padding: 0 25px;
+    border-radius: 30px;
+    color: white;
+    cursor: pointer;
+    font-weight: bold;
+}

@@ -3,19 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CipherChat - Purple Edition</title>
+    <title>2L1nk</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet"  href="/css/mainsite.css">
+    <link rel="stylesheet" href="/css/base.css">
+    <link rel="stylesheet" href="/css/mainsite.css">
+    <link rel="stylesheet" href="/css/panels.css">
+    <link rel="stylesheet" href="/css/modals.css">
+    <link rel="stylesheet" href="/css/theme.css">
     <script src="https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl-fast.min.js"></script>
-    <script src="/js/mainsite.js"></script>
+    <script src="/js/state.js"></script>
+    <script src="/js/crypto.js"></script>
+    <script src="/js/settings.js"></script>
+    <script src="/js/ui.js"></script>
+    <script src="/js/websocket.js"></script>
+    <script src="/js/chat.js"></script>
+    <script src="/js/voice.js"></script>
 
 </head>
 <body>
-
-    <div class="shape circle"></div>
-    <div class="shape triangle"></div>
-    <div class="shape square"></div>
-    <div class="shape small-circle"></div>
 
     <header class="top-bar">
         <button class="nav-toggle" onclick="document.querySelector('nav').classList.contains('open') ? closeSidebar() : openSidebar()" aria-label="Open menu">
@@ -196,12 +201,12 @@
     <div class="nav-overlay" id="nav-overlay" onclick="closeSidebar(); closeMobilePanel();"></div>
     <div id="mobile-panel-root"></div>
 
-    <dialog id="newChatModal" style="background: #1a0525; color: white; border: 1px solid #bc13fe; border-radius: 15px; padding: 25px; width: 320px; box-shadow: 0 0 30px rgba(188, 19, 254, 0.3);">
-        <h3 style="margin-top: 0; color: #bc13fe;">Create New Chat</h3>
-        <input type="text" id="groupNameInput" placeholder="Group name..." maxlength="100" style="width: 90%; margin-bottom: 20px; padding: 12px; background: #000; border: 1px solid #4b0082; color: white; border-radius: 8px;">
-        <div style="display: flex; gap: 10px;">
-            <button onclick="document.getElementById('newChatModal').close()" style="flex: 1; padding: 10px; background: transparent; border: 1px solid #4b0082; color: white; border-radius: 8px; cursor: pointer;">Cancel</button>
-            <button onclick="submitNewChat()" style="flex: 1; padding: 10px; background: #bc13fe; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">Create</button>
+    <dialog id="newChatModal" class="new-chat-dialog">
+        <h3>Create New Chat</h3>
+        <input type="text" id="groupNameInput" placeholder="Group name..." maxlength="100">
+        <div class="dialog-actions">
+            <button class="btn-cancel" onclick="document.getElementById('newChatModal').close()">Cancel</button>
+            <button class="btn-create" onclick="submitNewChat()">Create</button>
         </div>
     </dialog>
     <div class="app-container">
@@ -212,7 +217,7 @@
             <div class="brand">
                 <div class="brand-icon"><i class="fas fa-shield-alt"></i></div>
                 <div>
-                    <div style="font-weight: bold; font-size: 1.2rem; color: #bc13fe;">2L1nk</div>
+                    <div style="font-weight: bold; font-size: 1.2rem; color: var(--accent);">2L1nk</div>
                     <div style="font-size: 0.6rem; opacity: 0.5; letter-spacing: 2px;" onclick="sendMessage();">ENCRYPTED</div>
                 </div>
             </div>
@@ -241,31 +246,8 @@
             </button>
         </nav>
         <div class="maininfo">
-
-            <div class="welcome-icon">
-                <i class="fas fa-shield-alt"></i>
-            </div>
-            <h1 style="font-size: 2.5rem; margin: 0;">Welcome to <span style="color: #bc13fe;">2L1nk</span></h1>
-            <div class="feature-grid">
-                <div class="feature-card">
-                    <i class="fas fa-shield-alt" style="color: #4ade80;"></i>
-                    <span style="font-size: 0.7rem; font-weight: bold; opacity: 0.6;">Secure</span>
-                </div>
-                <div class="feature-card">
-                    <i class="fas fa-bolt" style="color: #bc13fe;"></i>
-                    <span style="font-size: 0.7rem; font-weight: bold; opacity: 0.6;">Real-time</span>
-                </div>
-                <div class="feature-card">
-                    <i class="fas fa-user-secret" style="color: #a855f7;"></i>
-                    <span style="font-size: 0.7rem; font-weight: bold; opacity: 0.6;">Anonymous</span>
-                </div>
-            </div>
-
-            <div class="status-bar">
-                <span>> Secure Connection : </span>
-                <div class="cursor"></div>
-            </div>
-
+            <i class="fas fa-comments" style="font-size: 2.5rem; color: var(--text-muted); margin-bottom: 16px;"></i>
+            <p style="color: var(--text-secondary); font-size: 1rem;">Select a conversation to start messaging</p>
         </div>
         <main id="main">
         </main>

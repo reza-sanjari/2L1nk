@@ -1,0 +1,410 @@
+/* === MODALS — Member Modal, Dialog, User Popup, Voice Panel === */
+
+/* --- USER POPUP --- */
+.user-popup {
+    display: none;
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    background: var(--surface-secondary);
+    border: 1px solid rgba(var(--accent-rgb), 0.2);
+    border-radius: 12px;
+    padding: 8px;
+    min-width: 200px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    z-index: 500;
+}
+
+.user-popup.open {
+    display: block;
+}
+
+.user-popup-btn {
+    width: 100%;
+    background: transparent;
+    border: none;
+    color: white;
+    padding: 10px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: left;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: background 0.15s;
+}
+
+.user-popup-btn:hover {
+    background: rgba(255, 255, 255, 0.07);
+}
+
+.user-popup-btn--danger {
+    color: #ff5050;
+}
+
+.user-popup-btn--danger:hover {
+    background: rgba(255, 80, 80, 0.12);
+}
+
+/* --- DIALOG (fadeIn) --- */
+dialog[open] {
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* --- NEW CHAT DIALOG --- */
+.new-chat-dialog {
+    background: var(--surface-secondary);
+    color: white;
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    padding: 24px;
+    width: 320px;
+}
+
+.new-chat-dialog h3 {
+    margin-top: 0;
+    color: var(--accent);
+    font-size: 1.1rem;
+}
+
+.new-chat-dialog input {
+    width: 90%;
+    margin-bottom: 20px;
+    padding: 12px;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--border-subtle);
+    color: white;
+    border-radius: 8px;
+}
+
+.new-chat-dialog .dialog-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.new-chat-dialog .btn-cancel {
+    flex: 1;
+    padding: 10px;
+    background: transparent;
+    border: 1px solid var(--border-subtle);
+    color: white;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.new-chat-dialog .btn-create {
+    flex: 1;
+    padding: 10px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+/* --- MEMBER MODAL --- */
+.member-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.2s ease-out;
+}
+
+.member-modal {
+    background: var(--surface-primary);
+    border: 1px solid rgba(var(--accent-rgb), 0.25);
+    border-radius: 16px;
+    width: 720px;
+    max-width: 95vw;
+    height: 70vh;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+}
+
+.member-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 22px;
+    border-bottom: 1px solid rgba(var(--accent-rgb), 0.2);
+    flex-shrink: 0;
+}
+
+.member-modal-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    letter-spacing: 1px;
+    color: var(--accent);
+}
+
+.member-modal-close {
+    background: none;
+    border: 1px solid rgba(255,255,255,0.15);
+    color: rgba(255,255,255,0.6);
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: 0.2s;
+}
+
+.member-modal-close:hover {
+    background: rgba(255,255,255,0.1);
+    color: white;
+}
+
+.member-modal-body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+.member-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.member-col + .member-col {
+    border-left: 1px solid rgba(var(--accent-rgb), 0.15);
+}
+
+.member-col-title {
+    padding: 12px 18px 8px;
+    font-size: 0.65rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.4);
+    flex-shrink: 0;
+}
+
+.member-col-list {
+    overflow-y: auto;
+    flex: 1;
+    scrollbar-width: none;
+    padding: 0 10px 12px;
+}
+
+.member-col-list::-webkit-scrollbar { display: none; }
+
+.member-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 8px;
+    border-radius: 8px;
+    gap: 10px;
+    transition: 0.15s;
+}
+
+.member-row:hover {
+    background: rgba(var(--accent-rgb), 0.08);
+}
+
+.member-row-name {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex: 1;
+    min-width: 0;
+    font-size: 0.88rem;
+}
+
+.member-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.member-dot.online  { background: #4ade80; }
+.member-dot.offline { background: rgba(255,255,255,0.2); }
+
+.member-row span {
+    font-size: 0.88rem;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.member-row .rem-btn {
+    background: none;
+    border: 1px solid #f87171;
+    color: #f87171;
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: 0.2s;
+}
+
+.member-row .rem-btn:hover {
+    background: rgba(248, 113, 113, 0.15);
+}
+
+.member-row .add-btn {
+    background: none;
+    border: 1px solid #4ade80;
+    color: #4ade80;
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: 0.2s;
+}
+
+.member-row .add-btn:hover {
+    background: rgba(74, 222, 128, 0.15);
+}
+
+.member-col-empty {
+    padding: 20px 18px;
+    font-size: 0.8rem;
+    color: rgba(255,255,255,0.25);
+    text-align: center;
+}
+
+.member-modal-footer {
+    padding: 14px 22px;
+    border-top: 1px solid rgba(var(--accent-rgb), 0.15);
+    display: flex;
+    justify-content: flex-end;
+    flex-shrink: 0;
+}
+
+.del-group-btn {
+    background: none;
+    border: 1px solid #f87171;
+    color: #f87171;
+    border-radius: 8px;
+    padding: 7px 18px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.del-group-btn:hover {
+    background: rgba(248, 113, 113, 0.15);
+}
+
+/* --- VOICE PANEL --- */
+.voice-panel {
+    display: none;
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 180px;
+    background: var(--surface-secondary);
+    border: 1px solid rgba(var(--accent-rgb), 0.2);
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+    z-index: 100;
+    overflow: hidden;
+}
+
+.voice-panel.open {
+    display: block;
+}
+
+.voice-panel-title {
+    padding: 10px 14px 6px;
+    font-size: 0.6rem;
+    letter-spacing: 2px;
+    color: #4ade80;
+    border-bottom: 1px solid rgba(var(--accent-rgb), 0.1);
+}
+
+.voice-participant {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 14px;
+    font-size: 0.82rem;
+}
+
+.voice-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #4ade80;
+    flex-shrink: 0;
+    box-shadow: 0 0 5px rgba(74, 222, 128, 0.6);
+    animation: voicePulse 1.5s ease-in-out infinite;
+}
+
+.voice-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: bold;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 0 6px rgba(var(--accent-rgb), 0.5);
+    animation: voicePulse 1.5s ease-in-out infinite;
+}
+
+.voice-avatars-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.voice-avatar-wrapper {
+    position: relative;
+    display: inline-flex;
+    flex-shrink: 0;
+}
+
+.voice-avatar-muted {
+    background: rgba(255, 255, 255, 0.15);
+    animation: none;
+    box-shadow: none;
+    opacity: 0.6;
+}
+
+.voice-mute-icon {
+    position: absolute;
+    bottom: -4px;
+    right: -4px;
+    font-size: 0.6rem;
+    line-height: 1;
+    pointer-events: none;
+}
+
+@keyframes voicePulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}

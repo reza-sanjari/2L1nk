@@ -1,0 +1,87 @@
+/* === THEME — Body Variant Classes, Timestamps, Compact === */
+
+/* Background styles */
+body.bg-shapes {
+    background: linear-gradient(160deg, var(--bg-from), var(--bg-to));
+}
+
+body.bg-grid {
+    background: #0d0d12;
+    background-image:
+        linear-gradient(rgba(var(--accent-rgb), 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(var(--accent-rgb), 0.04) 1px, transparent 1px);
+    background-size: 100%, 40px 40px;
+}
+
+body.bg-gradient {
+    background: linear-gradient(135deg, var(--bg-from), var(--bg-to));
+}
+
+body.bg-none {
+    background: #0d0d12;
+}
+
+/* Glow off — simplified since most glow is already removed */
+body.no-glow .brand-icon { filter: none !important; }
+body.no-glow .sent,
+body.no-glow .unread-badge,
+body.no-glow .nav-badge,
+body.no-glow .btn-voice,
+body.no-glow .avatar,
+body.no-glow .brand-icon { box-shadow: none !important; }
+body.no-glow .nav-icon:hover { filter: none !important; }
+body.no-glow .nav-panel { box-shadow: 0 8px 20px rgba(0,0,0,0.5) !important; }
+
+/* Bubble shape */
+body.bubble-square .bubble { border-radius: 6px !important; }
+
+/* Font size */
+body.font-sm { font-size: 13px; }
+body.font-lg { font-size: 18px; }
+
+/* Compact mode */
+body.compact nav { padding: 14px 20px !important; }
+body.compact .chat-item-row { padding: 6px 10px !important; }
+body.compact .brand { margin-bottom: 16px !important; }
+body.compact .bubble { padding: 9px 13px !important; }
+
+/* Timestamps */
+.msg-time {
+    display: none;
+    font-size: 0.6rem;
+    color: rgba(255,255,255,0.28);
+    margin-top: 3px;
+    padding: 0 2px;
+}
+body.show-timestamps .msg-time { display: block; }
+
+/* === MOBILE PANEL ROOT — Bottom Sheet Container === */
+#mobile-panel-root {
+    display: contents;
+}
+
+#mobile-panel-root .nav-panel {
+    position: fixed !important;
+    top: auto !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    max-height: 85dvh;
+    border-radius: 20px 20px 0 0;
+    border-bottom: none;
+    overflow-y: auto;
+    padding: 20px 18px 36px;
+    box-sizing: border-box;
+    z-index: 600 !important;
+    animation: sheetSlideUp 0.22s ease;
+}
+
+#mobile-panel-root .nav-panel--wide {
+    max-height: 92dvh;
+}
+
+@keyframes sheetSlideUp {
+    from { transform: translateY(40px); opacity: 0; }
+    to   { transform: translateY(0);    opacity: 1; }
+}
